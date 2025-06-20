@@ -1,0 +1,57 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36212.18 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Better-SignalRGB-Screen-Capture", "Better-SignalRGB-Screen-Capture.csproj", "{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Better-SignalRGB-Screen-Capture.Core", "..\Better-SignalRGB-Screen-Capture.Core\Better-SignalRGB-Screen-Capture.Core.csproj", "{1838BEDA-F9E9-28E2-8932-7C97888306AC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|arm64 = Debug|arm64
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|arm64 = Release|arm64
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Debug|arm64.ActiveCfg = Debug|arm64
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Debug|arm64.Build.0 = Debug|arm64
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Debug|arm64.Deploy.0 = Debug|arm64
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Debug|x64.ActiveCfg = Debug|x64
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Debug|x64.Build.0 = Debug|x64
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Debug|x64.Deploy.0 = Debug|x64
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Debug|x86.ActiveCfg = Debug|x86
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Debug|x86.Build.0 = Debug|x86
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Debug|x86.Deploy.0 = Debug|x86
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Release|arm64.ActiveCfg = Release|arm64
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Release|arm64.Build.0 = Release|arm64
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Release|arm64.Deploy.0 = Release|arm64
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Release|x64.ActiveCfg = Release|x64
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Release|x64.Build.0 = Release|x64
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Release|x64.Deploy.0 = Release|x64
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Release|x86.ActiveCfg = Release|x86
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Release|x86.Build.0 = Release|x86
+		{2B5ABEC0-0153-9896-ABC5-E273FA79A91C}.Release|x86.Deploy.0 = Release|x86
+		{1838BEDA-F9E9-28E2-8932-7C97888306AC}.Debug|arm64.ActiveCfg = Debug|arm64
+		{1838BEDA-F9E9-28E2-8932-7C97888306AC}.Debug|arm64.Build.0 = Debug|arm64
+		{1838BEDA-F9E9-28E2-8932-7C97888306AC}.Debug|x64.ActiveCfg = Debug|x64
+		{1838BEDA-F9E9-28E2-8932-7C97888306AC}.Debug|x64.Build.0 = Debug|x64
+		{1838BEDA-F9E9-28E2-8932-7C97888306AC}.Debug|x86.ActiveCfg = Debug|x86
+		{1838BEDA-F9E9-28E2-8932-7C97888306AC}.Debug|x86.Build.0 = Debug|x86
+		{1838BEDA-F9E9-28E2-8932-7C97888306AC}.Release|arm64.ActiveCfg = Release|arm64
+		{1838BEDA-F9E9-28E2-8932-7C97888306AC}.Release|arm64.Build.0 = Release|arm64
+		{1838BEDA-F9E9-28E2-8932-7C97888306AC}.Release|x64.ActiveCfg = Release|x64
+		{1838BEDA-F9E9-28E2-8932-7C97888306AC}.Release|x64.Build.0 = Release|x64
+		{1838BEDA-F9E9-28E2-8932-7C97888306AC}.Release|x86.ActiveCfg = Release|x86
+		{1838BEDA-F9E9-28E2-8932-7C97888306AC}.Release|x86.Build.0 = Release|x86
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D10CBEC0-8010-48BC-A364-4EDFBAEE930C}
+	EndGlobalSection
+EndGlobal

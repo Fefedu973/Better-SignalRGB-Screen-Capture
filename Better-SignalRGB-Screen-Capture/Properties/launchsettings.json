@@ -1,0 +1,10 @@
+﻿{
+    "profiles": {
+      "Better-SignalRGB-Screen-Capture (Package)": {
+        "commandName": "MsixPackage"
+      },
+      "Better-SignalRGB-Screen-Capture (Unpackaged)": {
+        "commandName": "Project"
+      }
+    }
+}
