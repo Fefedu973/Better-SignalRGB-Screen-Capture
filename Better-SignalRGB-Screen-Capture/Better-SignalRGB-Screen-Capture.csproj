@@ -31,7 +31,7 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.250610002-experimental3" />
     <PackageReference Include="Microsoft.Xaml.Behaviors.WinUI.Managed" Version="3.0.0" />
     <PackageReference Include="ScreenRecorderLib" Version="6.5.1" />
-    <PackageReference Include="WinUIEx" Version="2.5.1" />
+    <PackageReference Include="WinUIEx" Version="2.6.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Better-SignalRGB-Screen-Capture.Core\Better-SignalRGB-Screen-Capture.Core.csproj" />

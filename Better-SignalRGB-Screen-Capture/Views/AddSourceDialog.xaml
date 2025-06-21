@@ -8,37 +8,70 @@
     SecondaryButtonText="Cancel">
 
     <StackPanel Width="320" Spacing="12">
-
-        <!--  Name  -->
         <TextBox x:Name="NameBox" Header="Friendly name" />
 
-        <!--  Kind selector  -->
+        <!--  capture kind  -->
         <ComboBox
             x:Name="KindBox"
             Header="Capture kind"
             SelectionChanged="KindBox_SelectionChanged">
-            <ComboBoxItem Content="Full screen" Tag="Full" />
-            <ComboBoxItem Content="Window" Tag="Window" />
+            <ComboBoxItem
+                Content="Monitor"
+                IsSelected="True"
+                Tag="Monitor" />
+            <ComboBoxItem Content="Process (window)" Tag="Process" />
             <ComboBoxItem Content="Region" Tag="Region" />
         </ComboBox>
 
-        <!--  Settings that only apply to “Window”  -->
+        <!--  ‑‑‑‑ MONITOR ‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑  -->
         <StackPanel
-            x:Name="WindowSettings"
+            x:Name="MonitorSettings"
             Spacing="8"
-            Visibility="Collapsed">
-            <TextBlock FontWeight="SemiBold" Text="Window options" />
-            <ToggleSwitch x:Name="IncludeBorderSwitch" Header="Include window border" />
+            Visibility="Visible">
+            <TextBlock FontWeight="SemiBold" Text="Choose a monitor" />
+            <Grid>
+                <ComboBox x:Name="MonitorCombo" IsEnabled="False" />
+                <ProgressRing
+                    x:Name="MonitorRing"
+                    Width="20"
+                    Height="20"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    IsActive="True" />
+            </Grid>
         </StackPanel>
 
-        <!--  Settings that only apply to “Region”  -->
+        <!--  ‑‑‑‑ PROCESS ‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑  -->
+        <StackPanel
+            x:Name="ProcessSettings"
+            Spacing="8"
+            Visibility="Collapsed">
+            <TextBlock FontWeight="SemiBold" Text="Choose a process" />
+            <Grid>
+                <AutoSuggestBox
+                    x:Name="ProcessBox"
+                    IsEnabled="False"
+                    PlaceholderText="Type to search…"
+                    SuggestionChosen="ProcessBox_SuggestionChosen"
+                    TextChanged="ProcessBox_TextChanged" />
+                <ProgressRing
+                    x:Name="ProcessRing"
+                    Width="20"
+                    Height="20"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    IsActive="True" />
+            </Grid>
+            <Button Click="BrowseExe_Click" Content="Browse for executable…" />
+        </StackPanel>
+
+        <!--  ‑‑‑‑ REGION ‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑  -->
         <StackPanel
             x:Name="RegionSettings"
             Spacing="8"
             Visibility="Collapsed">
             <TextBlock FontWeight="SemiBold" Text="Region options" />
-            <ToggleSwitch x:Name="ShowOverlaySwitch" Header="Show selection overlay" />
+            <Button Click="SelectRegion_Click" Content="Select region…" />
         </StackPanel>
-
     </StackPanel>
 </ContentDialog>
