@@ -156,4 +156,7 @@
   &lt;/actions&gt;
 &lt;/toast&gt;</value>
   </data>
+  <data name="Shell_Blank.Content" xml:space="preserve">
+    <value>Blank</value>
+  </data>
 </root>

@@ -7,6 +7,11 @@
     mc:Ignorable="d">
 
     <Grid x:Name="ContentArea">
-        
+        <Button Click="Add_Sources" Style="{StaticResource AccentButtonStyle}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <FontIcon Glyph="&#xE710;" />
+                <TextBlock>Add a source</TextBlock>
+            </StackPanel>
+        </Button>
     </Grid>
 </Page>

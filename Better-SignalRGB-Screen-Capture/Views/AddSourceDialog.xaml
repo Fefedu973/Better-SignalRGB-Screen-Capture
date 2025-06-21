@@ -1,0 +1,44 @@
+<ContentDialog
+    x:Class="Better_SignalRGB_Screen_Capture.Views.AddSourceDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Add a source"
+    DefaultButton="Primary"
+    PrimaryButtonText="Save"
+    SecondaryButtonText="Cancel">
+
+    <StackPanel Width="320" Spacing="12">
+
+        <!--  Name  -->
+        <TextBox x:Name="NameBox" Header="Friendly name" />
+
+        <!--  Kind selector  -->
+        <ComboBox
+            x:Name="KindBox"
+            Header="Capture kind"
+            SelectionChanged="KindBox_SelectionChanged">
+            <ComboBoxItem Content="Full screen" Tag="Full" />
+            <ComboBoxItem Content="Window" Tag="Window" />
+            <ComboBoxItem Content="Region" Tag="Region" />
+        </ComboBox>
+
+        <!--  Settings that only apply to “Window”  -->
+        <StackPanel
+            x:Name="WindowSettings"
+            Spacing="8"
+            Visibility="Collapsed">
+            <TextBlock FontWeight="SemiBold" Text="Window options" />
+            <ToggleSwitch x:Name="IncludeBorderSwitch" Header="Include window border" />
+        </StackPanel>
+
+        <!--  Settings that only apply to “Region”  -->
+        <StackPanel
+            x:Name="RegionSettings"
+            Spacing="8"
+            Visibility="Collapsed">
+            <TextBlock FontWeight="SemiBold" Text="Region options" />
+            <ToggleSwitch x:Name="ShowOverlaySwitch" Header="Show selection overlay" />
+        </StackPanel>
+
+    </StackPanel>
+</ContentDialog>

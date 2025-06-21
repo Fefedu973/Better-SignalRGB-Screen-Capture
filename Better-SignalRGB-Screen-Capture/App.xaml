@@ -1,7 +1,8 @@
 ﻿<Application
     x:Class="Better_SignalRGB_Screen_Capture.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Better_SignalRGB_Screen_Capture.Views">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -10,6 +11,7 @@
                 <ResourceDictionary Source="/Styles/Thickness.xaml" />
                 <ResourceDictionary Source="/Styles/TextBlock.xaml" />
             </ResourceDictionary.MergedDictionaries>
+            <Style BasedOn="{StaticResource DefaultContentDialogStyle}" TargetType="local:AddSourceDialog" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>
