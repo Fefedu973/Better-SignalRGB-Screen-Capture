@@ -11,6 +11,7 @@ using Windows.Devices.Display;      // DisplayMonitor
 using Windows.Devices.Enumeration;  // DeviceInformation
 using Windows.Graphics;             // RectInt32
 using Windows.Storage.Pickers;      // FileOpenPicker
+using Better_SignalRGB_Screen_Capture.Contracts.Services;
 
 namespace Better_SignalRGB_Screen_Capture.Views;
 
@@ -39,6 +40,11 @@ public sealed partial class AddSourceDialog : ContentDialog
     public AddSourceDialog()
     {
         InitializeComponent();
+        
+        // Apply the current app theme to the dialog
+        var themeSelectorService = App.GetService<IThemeSelectorService>();
+        this.RequestedTheme = themeSelectorService.Theme;
+        
         Loaded += OnLoaded;
         PrimaryButtonClick += OnPrimaryButtonClick;
     }
@@ -75,7 +81,7 @@ public sealed partial class AddSourceDialog : ContentDialog
 
                     MonitorCombo.Items.Add(new ComboBoxItem
                     {
-                        Content = $"{name}  {mon.NativeResolutionInRawPixels.Width}×{mon.NativeResolutionInRawPixels.Height}",
+                        Content = $"{name}  {mon.NativeResolutionInRawPixels.Width}x{mon.NativeResolutionInRawPixels.Height}",
                         Tag = mon.DeviceId
                     });
                 }
@@ -127,7 +133,7 @@ public sealed partial class AddSourceDialog : ContentDialog
             .Where(p => p.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
             .OrderBy(p => p.Name)
             .Take(60)
-            .Select(p => $"{p.Name}  (PID {p.Id}){(p.Path is null ? string.Empty : $" — {System.IO.Path.GetFileName(p.Path)}")}")
+            .Select(p => $"{p.Name}  (PID {p.Id}){(p.Path is null ? string.Empty : $" - {System.IO.Path.GetFileName(p.Path)}")}")
             .ToList();
     }
 
@@ -165,7 +171,19 @@ public sealed partial class AddSourceDialog : ContentDialog
     // --------------------------------------------
     private async void SelectRegion_Click(object sender, RoutedEventArgs e)
     {
-        
+        // Show the full-desktop overlay and wait for the user to draw a rectangle
+        var region = await Helpers.RegionPicker.PickAsync();
+        if (region is RectInt32 r)
+        {
+            SelectedRegion = r;
+
+            // Simple visual confirmation ï¿½ replace with your own UI if you like
+            RegionSettings.Children.Add(new TextBlock
+            {
+                Text = $"{r.Width} x {r.Height} at ({r.X}, {r.Y})",
+                Margin = new Thickness(0, 4, 0, 0)
+            });
+        }
     }
 
 
