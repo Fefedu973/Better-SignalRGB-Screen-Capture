@@ -69,6 +69,11 @@ public partial class App : Application
             services.AddSingleton<IPageService, PageService>();
             services.AddSingleton<INavigationService, NavigationService>();
 
+            // Capture and streaming services
+            services.AddSingleton<ICaptureService, CaptureService>();
+            services.AddSingleton<IMjpegStreamingService, MjpegStreamingService>();
+            services.AddSingleton<ICompositeFrameService, CompositeFrameService>();
+
             // Core Services
             services.AddSingleton<ISampleDataService, SampleDataService>();
             services.AddSingleton<IFileService, FileService>();

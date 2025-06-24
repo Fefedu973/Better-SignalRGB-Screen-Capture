@@ -21,6 +21,7 @@
                 Tag="Monitor" />
             <ComboBoxItem Content="Process (window)" Tag="Process" />
             <ComboBoxItem Content="Region" Tag="Region" />
+            <ComboBoxItem Content="Webcam" Tag="Webcam" />
         </ComboBox>
 
         <!--  ‑‑‑‑ MONITOR ‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑  -->
@@ -72,6 +73,24 @@
             Visibility="Collapsed">
             <TextBlock FontWeight="SemiBold" Text="Region options" />
             <Button Click="SelectRegion_Click" Content="Select region…" />
+        </StackPanel>
+
+        <!--  ‑‑‑‑ WEBCAM ‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑  -->
+        <StackPanel
+            x:Name="WebcamSettings"
+            Spacing="8"
+            Visibility="Collapsed">
+            <TextBlock FontWeight="SemiBold" Text="Choose a webcam" />
+            <Grid>
+                <ComboBox x:Name="WebcamCombo" IsEnabled="False" />
+                <ProgressRing
+                    x:Name="WebcamRing"
+                    Width="20"
+                    Height="20"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    IsActive="True" />
+            </Grid>
         </StackPanel>
     </StackPanel>
 </ContentDialog>
