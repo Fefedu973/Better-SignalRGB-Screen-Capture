@@ -14,14 +14,14 @@ public class SourceItem : INotifyPropertyChanged
     private int _canvasHeight = 80;
     private string _name = string.Empty;
     private double _opacity = 1.0;
-    private int _cropLeft;
-    private int _cropTop;
-    private int _cropRight;
-    private int _cropBottom;
+    private double _cropLeftPct;
+    private double _cropTopPct;
+    private double _cropRightPct;
+    private double _cropBottomPct;
     private bool _isMirroredHorizontally;
     private bool _isMirroredVertically;
     private bool _isSelected;
-    private double _rotation;
+    private int _rotation;
 
     public Guid Id { get; set; } = Guid.NewGuid();
     
@@ -178,28 +178,28 @@ public class SourceItem : INotifyPropertyChanged
         set => SetProperty(ref _opacity, value);
     }
 
-    public int CropLeft
+    public double CropLeftPct
     {
-        get => _cropLeft;
-        set => SetProperty(ref _cropLeft, value);
+        get => _cropLeftPct;
+        set => SetProperty(ref _cropLeftPct, value);
     }
 
-    public int CropTop
+    public double CropTopPct
     {
-        get => _cropTop;
-        set => SetProperty(ref _cropTop, value);
+        get => _cropTopPct;
+        set => SetProperty(ref _cropTopPct, value);
     }
 
-    public int CropRight
+    public double CropRightPct
     {
-        get => _cropRight;
-        set => SetProperty(ref _cropRight, value);
+        get => _cropRightPct;
+        set => SetProperty(ref _cropRightPct, value);
     }
 
-    public int CropBottom
+    public double CropBottomPct
     {
-        get => _cropBottom;
-        set => SetProperty(ref _cropBottom, value);
+        get => _cropBottomPct;
+        set => SetProperty(ref _cropBottomPct, value);
     }
 
     public bool IsMirroredHorizontally
@@ -214,7 +214,7 @@ public class SourceItem : INotifyPropertyChanged
         set => SetProperty(ref _isMirroredVertically, value);
     }
 
-    public double Rotation
+    public int Rotation
     {
         get => _rotation;
         set => SetProperty(ref _rotation, value);

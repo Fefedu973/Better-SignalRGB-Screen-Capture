@@ -262,7 +262,6 @@
                         <ToggleSwitch 
                             x:Name="PreviewModeToggle"
                             IsOn="{x:Bind ViewModel.IsPreviewing, Mode=TwoWay}"
-                            Toggled="PreviewModeToggle_Click"
                             Header="Live Preview" />
                         <Slider 
                             x:Name="FpsSlider"
@@ -300,11 +299,11 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <NumberBox Grid.Column="0" Header="Width" Value="{x:Bind ViewModel.SelectedSourceWidth, Mode=TwoWay}" />
+                                <NumberBox Grid.Column="0" Header="Width" Value="{x:Bind ViewModel.SelectedSourceWidth, Mode=TwoWay}" Minimum="100" SmallChange="10" />
                                 <ToggleButton Grid.Column="1" IsChecked="{x:Bind ViewModel.IsAspectRatioLocked, Mode=TwoWay}" VerticalAlignment="Bottom" Margin="0,0,0,4">
                                     <FontIcon Glyph="&#xE72E;" />
                                 </ToggleButton>
-                                <NumberBox Grid.Column="2" Header="Height" Value="{x:Bind ViewModel.SelectedSourceHeight, Mode=TwoWay}" />
+                                <NumberBox Grid.Column="2" Header="Height" Value="{x:Bind ViewModel.SelectedSourceHeight, Mode=TwoWay}" Minimum="80" SmallChange="10" />
                             </Grid>
                             <StackPanel Spacing="4">
                                 <TextBlock Text="Rotation" Style="{ThemeResource CaptionTextBlockStyle}" Margin="0,8,0,0"/>
@@ -313,7 +312,7 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <Slider Minimum="-180" Maximum="180" Value="{x:Bind ViewModel.SelectedSourceRotation, Mode=TwoWay}" VerticalAlignment="Center"/>
+                                    <Slider Minimum="-180" Maximum="180" SmallChange="1" StepFrequency="1" Value="{x:Bind ViewModel.SelectedSourceRotation, Mode=TwoWay}" VerticalAlignment="Center"/>
                                     <NumberBox Grid.Column="1" Value="{x:Bind ViewModel.SelectedSourceRotation, Mode=TwoWay}" Width="80" SmallChange="1" LargeChange="15"/>
                                 </Grid>
                             </StackPanel>
@@ -353,10 +352,10 @@
                         <!--  Cropping Properties  -->
                         <StackPanel Spacing="8">
                             <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Crop" />
-                            <NumberBox Header="Left" Value="{x:Bind ViewModel.SelectedSourceCropLeft, Mode=TwoWay}" />
-                            <NumberBox Header="Top" Value="{x:Bind ViewModel.SelectedSourceCropTop, Mode=TwoWay}" />
-                            <NumberBox Header="Right" Value="{x:Bind ViewModel.SelectedSourceCropRight, Mode=TwoWay}" />
-                            <NumberBox Header="Bottom" Value="{x:Bind ViewModel.SelectedSourceCropBottom, Mode=TwoWay}" />
+                            <NumberBox Header="Left (%)" Value="{x:Bind ViewModel.SelectedSourceCropLeftPct, Mode=TwoWay}" Minimum="0" Maximum="100" />
+                            <NumberBox Header="Top (%)" Value="{x:Bind ViewModel.SelectedSourceCropTopPct, Mode=TwoWay}" Minimum="0" Maximum="100" />
+                            <NumberBox Header="Right (%)" Value="{x:Bind ViewModel.SelectedSourceCropRightPct, Mode=TwoWay}" Minimum="0" Maximum="100" />
+                            <NumberBox Header="Bottom (%)" Value="{x:Bind ViewModel.SelectedSourceCropBottomPct, Mode=TwoWay}" Minimum="0" Maximum="100" />
                         </StackPanel>
                     </StackPanel>
                     

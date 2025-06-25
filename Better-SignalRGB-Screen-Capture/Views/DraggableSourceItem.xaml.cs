@@ -104,12 +104,12 @@ public sealed partial class DraggableSourceItem : UserControl
                 RotateTransform.Angle = Source.Rotation;
             });
         }
-        else if (e.PropertyName == nameof(SourceItem.CropLeft) ||
-                 e.PropertyName == nameof(SourceItem.CropTop) ||
-                 e.PropertyName == nameof(SourceItem.CropRight) ||
-                 e.PropertyName == nameof(SourceItem.CropBottom))
+        else if (e.PropertyName == nameof(SourceItem.CropLeftPct) ||
+                 e.PropertyName == nameof(SourceItem.CropTopPct) ||
+                 e.PropertyName == nameof(SourceItem.CropRightPct) ||
+                 e.PropertyName == nameof(SourceItem.CropBottomPct))
         {
-            DispatcherQueue.TryEnqueue(UpdateClip);
+            DispatcherQueue.TryEnqueue(UpdateCropShading);
         }
     }
 
@@ -153,21 +153,33 @@ public sealed partial class DraggableSourceItem : UserControl
             RotationHandleLine.X2 = handleX;
             RotationHandleLine.Y2 = 0; // End at top of item
 
-            UpdateClip();
+            UpdateCropShading();
         }
     }
 
-    private void UpdateClip()
+    private void UpdateCropShading()
     {
         if (Source == null) return;
 
-        var clipRect = new Rect(
-            Source.CropLeft,
-            Source.CropTop,
-            Math.Max(0, Source.CanvasWidth - Source.CropLeft - Source.CropRight),
-            Math.Max(0, Source.CanvasHeight - Source.CropTop - Source.CropBottom)
-        );
-        CropClip.Rect = clipRect;
+        double left = ActualWidth * Source.CropLeftPct;
+        double top = ActualHeight * Source.CropTopPct;
+        double right = ActualWidth * Source.CropRightPct;
+        double bottom = ActualHeight * Source.CropBottomPct;
+
+        // Top & bottom stripes
+        CropShadeT.Width = CropShadeB.Width = ActualWidth;
+        CropShadeT.Height = top;
+        Canvas.SetTop(CropShadeB, ActualHeight - bottom);
+        CropShadeB.Height = bottom;
+
+        // Left & right stripes
+        CropShadeL.Height = CropShadeR.Height = ActualHeight - top - bottom;
+        CropShadeL.Width = left;
+        Canvas.SetLeft(CropShadeL, 0);
+        CropShadeR.Width = right;
+        Canvas.SetLeft(CropShadeR, ActualWidth - right);
+        Canvas.SetTop(CropShadeL, top);
+        Canvas.SetTop(CropShadeR, top);
     }
 
     public string GetTypeDisplayString(SourceType type)
@@ -186,16 +198,19 @@ public sealed partial class DraggableSourceItem : UserControl
     {
         if (_isCropping) return;
 
-        // First handle selection logic before any interaction
-        var isCtrlDown = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
-        var isShiftDown = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(CoreVirtualKeyStates.Down);
-        
-        HandleSelection(isCtrlDown || isShiftDown);
-
         _actionStartPointerPosition = e.GetCurrentPoint(this.Parent as UIElement).Position;
         _actionStartBounds = new Rect(Source.CanvasX, Source.CanvasY, Source.CanvasWidth, Source.CanvasHeight);
         _actionStartRotation = Source.Rotation;
         _resizeMode = GetResizeMode(e.GetCurrentPoint(this).Position);
+
+        // ── Selection *after* knowing what we clicked ───────────────────────────
+        // Only change selection if we did **not** hit a resize/rotate handle
+        var isCtrlDown = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
+        var isShiftDown = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(CoreVirtualKeyStates.Down);
+
+        if (_resizeMode == ResizeMode.None)              // plain click, allow normal
+            HandleSelection(isCtrlDown || isShiftDown);  // Ctrl / Shift selection
+        // else: keep whatever was already selected
 
         if (_resizeMode != ResizeMode.None)
         {
@@ -267,156 +282,67 @@ public sealed partial class DraggableSourceItem : UserControl
                 newAngle = Math.Round(newAngle / 15.0) * 15.0; // Snap to 15-degree increments
             }
 
-            Source.Rotation = newAngle;
+            Source.Rotation = (int)Math.Round(newAngle);
         }
         else if (_isResizing)
         {
-            var deltaX = currentPoint.X - _actionStartPointerPosition.X;
-            var deltaY = currentPoint.Y - _actionStartPointerPosition.Y;
+            // 1.  Raw deltas
+            var rawDx = currentPoint.X - _actionStartPointerPosition.X;
+            var rawDy = currentPoint.Y - _actionStartPointerPosition.Y;
 
-            var newBounds = _actionStartBounds;
+            // 2.  Minimum sizes (respect the XAML minimums)
+            double minW = Math.Max(this.MinWidth,  10);
+            double minH = Math.Max(this.MinHeight, 10);
 
-            // Apply resize based on mode
+            // 3.  Convenience aliases
+            double w = _actionStartBounds.Width;
+            double h = _actionStartBounds.Height;
+
+            // 4.  Limits for this handle
+            double maxDxRight  = parent.ActualWidth  - (_actionStartBounds.Right);
+            double maxDyBottom = parent.ActualHeight - (_actionStartBounds.Bottom);
+            double maxDxLeft   = _actionStartBounds.Left;
+            double maxDyTop    = _actionStartBounds.Top;
+
+            double maxShrinkX = w - minW;   // positive
+            double maxShrinkY = h - minH;   // positive
+
+            // 5.  Clamp deltas depending on the handle
+            double dx = rawDx, dy = rawDy;
+
             switch (_resizeMode)
             {
-                case ResizeMode.Top:
-                    newBounds.Y = _actionStartBounds.Top + deltaY;
-                    newBounds.Height = _actionStartBounds.Height - deltaY;
-                    break;
-                case ResizeMode.Bottom:
-                    newBounds.Height = _actionStartBounds.Height + deltaY;
+                case ResizeMode.Right:
+                    dx = Math.Clamp(dx, -maxShrinkX, maxDxRight);
                     break;
                 case ResizeMode.Left:
-                    newBounds.X = _actionStartBounds.Left + deltaX;
-                    newBounds.Width = _actionStartBounds.Width - deltaX;
+                    dx = Math.Clamp(dx, -maxDxLeft,  maxShrinkX);
                     break;
-                case ResizeMode.Right:
-                    newBounds.Width = _actionStartBounds.Width + deltaX;
+                case ResizeMode.Bottom:
+                    dy = Math.Clamp(dy, -maxShrinkY, maxDyBottom);
                     break;
-                case ResizeMode.TopLeft:
-                    newBounds.X = _actionStartBounds.Left + deltaX;
-                    newBounds.Width = _actionStartBounds.Width - deltaX;
-                    newBounds.Y = _actionStartBounds.Top + deltaY;
-                    newBounds.Height = _actionStartBounds.Height - deltaY;
-                    break;
-                case ResizeMode.TopRight:
-                    newBounds.Width = _actionStartBounds.Width + deltaX;
-                    newBounds.Y = _actionStartBounds.Top + deltaY;
-                    newBounds.Height = _actionStartBounds.Height - deltaY;
-                    break;
-                case ResizeMode.BottomLeft:
-                    newBounds.X = _actionStartBounds.Left + deltaX;
-                    newBounds.Width = _actionStartBounds.Width - deltaX;
-                    newBounds.Height = _actionStartBounds.Height + deltaY;
+                case ResizeMode.Top:
+                    dy = Math.Clamp(dy, -maxDyTop,  maxShrinkY);
                     break;
                 case ResizeMode.BottomRight:
-                    newBounds.Width = _actionStartBounds.Width + deltaX;
-                    newBounds.Height = _actionStartBounds.Height + deltaY;
+                    dx = Math.Clamp(dx, -maxShrinkX, maxDxRight);
+                    dy = Math.Clamp(dy, -maxShrinkY, maxDyBottom);
+                    break;
+                case ResizeMode.BottomLeft:
+                    dx = Math.Clamp(dx, -maxDxLeft,  maxShrinkX);
+                    dy = Math.Clamp(dy, -maxShrinkY, maxDyBottom);
+                    break;
+                case ResizeMode.TopRight:
+                    dx = Math.Clamp(dx, -maxShrinkX, maxDxRight);
+                    dy = Math.Clamp(dy, -maxDyTop,  maxShrinkY);
+                    break;
+                case ResizeMode.TopLeft:
+                    dx = Math.Clamp(dx, -maxDxLeft,  maxShrinkX);
+                    dy = Math.Clamp(dy, -maxDyTop,  maxShrinkY);
                     break;
             }
-            
-            // Enforce minimum size first
-            const double minSize = 10;
-            if (newBounds.Width < minSize) 
-            {
-                // Adjust position if needed for left/top resizing
-                if (_resizeMode == ResizeMode.Left || _resizeMode == ResizeMode.TopLeft || _resizeMode == ResizeMode.BottomLeft)
-                {
-                    newBounds.X = _actionStartBounds.Right - minSize;
-                }
-                newBounds.Width = minSize;
-            }
-            if (newBounds.Height < minSize) 
-            {
-                // Adjust position if needed for top resizing
-                if (_resizeMode == ResizeMode.Top || _resizeMode == ResizeMode.TopLeft || _resizeMode == ResizeMode.TopRight)
-                {
-                    newBounds.Y = _actionStartBounds.Bottom - minSize;
-                }
-                newBounds.Height = minSize;
-            }
-            
-            // Handle boundary constraints after minimum size enforcement
-            var originalNewBounds = newBounds;
-            
-            // Ensure the rectangle stays within bounds
-            if (newBounds.X < 0) 
-            { 
-                newBounds.Width = Math.Max(minSize, newBounds.Width + newBounds.X); 
-                newBounds.X = 0; 
-            }
-            if (newBounds.Y < 0) 
-            { 
-                newBounds.Height = Math.Max(minSize, newBounds.Height + newBounds.Y); 
-                newBounds.Y = 0; 
-            }
-            if (newBounds.Right > parent.ActualWidth) 
-            {
-                newBounds.Width = Math.Max(minSize, parent.ActualWidth - newBounds.X);
-            }
-            if (newBounds.Bottom > parent.ActualHeight) 
-            {
-                newBounds.Height = Math.Max(minSize, parent.ActualHeight - newBounds.Y);
-            }
 
-            // Handle aspect ratio after boundary constraints
-            if (isShiftDown && _actionStartBounds.Width > 0 && _actionStartBounds.Height > 0)
-            {
-                var aspectRatio = _actionStartBounds.Width / _actionStartBounds.Height;
-                
-                // Determine which dimension was constrained by boundaries
-                var widthConstrained = newBounds.Width != originalNewBounds.Width;
-                var heightConstrained = newBounds.Height != originalNewBounds.Height;
-                
-                if (widthConstrained && !heightConstrained)
-                {
-                    // Width hit boundary, adjust height to maintain aspect ratio
-                    newBounds.Height = newBounds.Width / aspectRatio;
-                    // Ensure height doesn't exceed boundaries
-                    if (newBounds.Bottom > parent.ActualHeight)
-                    {
-                        newBounds.Height = parent.ActualHeight - newBounds.Y;
-                    }
-                    if (newBounds.Y < 0 && _resizeMode == ResizeMode.Top || _resizeMode == ResizeMode.TopLeft || _resizeMode == ResizeMode.TopRight)
-                    {
-                        newBounds.Y = 0;
-                        newBounds.Height = _actionStartBounds.Bottom;
-                    }
-                }
-                else if (heightConstrained && !widthConstrained)
-                {
-                    // Height hit boundary, adjust width to maintain aspect ratio
-                    newBounds.Width = newBounds.Height * aspectRatio;
-                    // Ensure width doesn't exceed boundaries
-                    if (newBounds.Right > parent.ActualWidth)
-                    {
-                        newBounds.Width = parent.ActualWidth - newBounds.X;
-                    }
-                    if (newBounds.X < 0 && (_resizeMode == ResizeMode.Left || _resizeMode == ResizeMode.TopLeft || _resizeMode == ResizeMode.BottomLeft))
-                    {
-                        newBounds.X = 0;
-                        newBounds.Width = _actionStartBounds.Right;
-                    }
-                }
-                else if (!widthConstrained && !heightConstrained)
-                {
-                    // Neither constrained, apply aspect ratio normally
-                    var widthChanged = Math.Abs(newBounds.Width - _actionStartBounds.Width) > Math.Abs(newBounds.Height - _actionStartBounds.Height);
-                    if (widthChanged)
-                    {
-                        newBounds.Height = newBounds.Width / aspectRatio;
-                    }
-                    else
-                    {
-                        newBounds.Width = newBounds.Height * aspectRatio;
-                    }
-                }
-            }
-
-            Source.CanvasX = (int)newBounds.X;
-            Source.CanvasY = (int)newBounds.Y;
-            Source.CanvasWidth = (int)newBounds.Width;
-            Source.CanvasHeight = (int)newBounds.Height;
+            ApplyResize(dx, dy, isShiftDown);
         }
         else if (_isDragging)
         {
@@ -442,6 +368,117 @@ public sealed partial class DraggableSourceItem : UserControl
             var resizeMode = GetResizeMode(e.GetCurrentPoint(this).Position);
             ProtectedCursor = GetCursor(resizeMode);
         }
+    }
+
+    private void ApplyResize(double dx, double dy, bool keepRatio)
+    {
+        if (Source is null || Parent is not FrameworkElement canvas) return;
+
+        // Which edges move?
+        bool moveL = _resizeMode is ResizeMode.Left   or ResizeMode.TopLeft    or ResizeMode.BottomLeft;
+        bool moveR = _resizeMode is ResizeMode.Right  or ResizeMode.TopRight   or ResizeMode.BottomRight;
+        bool moveT = _resizeMode is ResizeMode.Top    or ResizeMode.TopLeft    or ResizeMode.TopRight;
+        bool moveB = _resizeMode is ResizeMode.Bottom or ResizeMode.BottomLeft or ResizeMode.BottomRight;
+
+        double startW = _actionStartBounds.Width;
+        double startH = _actionStartBounds.Height;
+        
+        // Prevent division by zero if height is zero
+        if (startH == 0) return;
+        double ratio  = startW / startH;
+
+        // ---------- 1. raw size before clamping ---------------------------------
+        double newW = startW + (moveR ?  dx : 0) - (moveL ? dx : 0);
+        double newH = startH + (moveB ?  dy : 0) - (moveT ? dy : 0);
+
+        newW = Math.Max(this.MinWidth,  newW);
+        newH = Math.Max(this.MinHeight, newH);
+
+        // ---------- 2. keep aspect ratio ----------------------------------------
+        if (keepRatio)
+        {
+            bool widthDriven =
+                (moveL ^ moveR) && !(moveT || moveB)           // pure L / R edge
+                || (moveL || moveR) && (moveT || moveB) &&     // corner: take stronger delta
+                   Math.Abs(dx) >= Math.Abs(dy);
+
+            if (widthDriven)
+                newH = newW / ratio;
+            else
+                newW = newH * ratio;
+        }
+
+        // ---------- 3. anchor opposite edges ------------------------------------
+        double newX = _actionStartBounds.X + (moveL ? startW - newW : 0);
+        double newY = _actionStartBounds.Y + (moveT ? startH - newH : 0);
+
+        // ---------- 4. clamp to canvas (shrink, never shift anchored edge) ------
+        void shrinkToFit()
+        {
+            // left
+            if (newX < 0)
+            {
+                double overshoot = -newX;
+                newW -= overshoot;
+                newX  = 0;
+            }
+            // top
+            if (newY < 0)
+            {
+                double overshoot = -newY;
+                newH -= overshoot;
+                newY  = 0;
+            }
+            // right
+            if (newX + newW > canvas.ActualWidth)
+            {
+                double overshoot = newX + newW - canvas.ActualWidth;
+                newW -= overshoot;
+            }
+            // bottom
+            if (newY + newH > canvas.ActualHeight)
+            {
+                double overshoot = newY + newH - canvas.ActualHeight;
+                newH -= overshoot;
+            }
+        }
+
+        shrinkToFit();
+
+        // while ratio-locked we must shrink the *other* axis too
+        if (keepRatio)
+        {
+            // after first pass one axis may have shrunk; fix the other accordingly
+            double fixW = newH * ratio;
+            double fixH = newW / ratio;
+
+            if (fixW <= newW) newW = fixW;     // width was trimmed
+            else              newH = fixH;     // height was trimmed
+
+            shrinkToFit();                     // one more safety pass
+        }
+
+        // ── enforce MinWidth/MinHeight again (may have fallen below after ratio) ──
+        double minW = Math.Max(this.MinWidth, 10);
+        double minH = Math.Max(this.MinHeight, 10);
+
+        if (newW < minW)
+        {
+            newW = minW;
+            if (keepRatio) newH = newW / ratio;
+        }
+        if (newH < minH)
+        {
+            newH = minH;
+            if (keepRatio) newW = newH * ratio;
+        }
+        shrinkToFit();   // one last pass in case clamping pushed us out again
+
+        // ---------- 5. commit ----------------------------------------------------
+        Source.CanvasX      = (int)Math.Round(newX);
+        Source.CanvasY      = (int)Math.Round(newY);
+        Source.CanvasWidth  = (int)Math.Round(newW);
+        Source.CanvasHeight = (int)Math.Round(newH);
     }
 
     private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
@@ -589,9 +626,15 @@ public sealed partial class DraggableSourceItem : UserControl
         CropCanvas.Visibility = Visibility.Visible;
         SelectionBorder.Opacity = 0; // Hide selection visuals
 
-        _cropStartRect = new Rect(Source.CropLeft, Source.CropTop,
-            Math.Max(0, Source.CanvasWidth - Source.CropLeft - Source.CropRight),
-            Math.Max(0, Source.CanvasHeight - Source.CropTop - Source.CropBottom));
+        // Convert percentage to pixels for crop editing
+        double left = ActualWidth * Source.CropLeftPct;
+        double top = ActualHeight * Source.CropTopPct;
+        double right = ActualWidth * Source.CropRightPct;
+        double bottom = ActualHeight * Source.CropBottomPct;
+        
+        _cropStartRect = new Rect(left, top,
+            Math.Max(0, ActualWidth - left - right),
+            Math.Max(0, ActualHeight - top - bottom));
 
         UpdateCropVisuals(_cropStartRect);
     }
@@ -608,10 +651,11 @@ public sealed partial class DraggableSourceItem : UserControl
     {
         var cropRect = new Rect(Canvas.GetLeft(CropRect), Canvas.GetTop(CropRect), CropRect.Width, CropRect.Height);
 
-        Source.CropLeft = (int)Math.Round(cropRect.X);
-        Source.CropTop = (int)Math.Round(cropRect.Y);
-        Source.CropRight = (int)Math.Round(ActualWidth - cropRect.Right);
-        Source.CropBottom = (int)Math.Round(ActualHeight - cropRect.Bottom);
+        // Convert pixels to percentages
+        Source.CropLeftPct = cropRect.X / ActualWidth;
+        Source.CropTopPct = cropRect.Y / ActualHeight;
+        Source.CropRightPct = (ActualWidth - cropRect.Right) / ActualWidth;
+        Source.CropBottomPct = (ActualHeight - cropRect.Bottom) / ActualHeight;
 
         App.GetService<MainViewModel>()?.SaveSourcesCommand.Execute(null);
 

@@ -45,6 +45,9 @@ public partial class MainViewModel : ObservableRecipient
         _mjpegStreamingService.StreamingUrlChanged += OnStreamingUrlChanged;
         _compositeFrameService.CompositeFrameAvailable += OnCompositeFrameAvailable;
         
+        // Listen to Sources collection changes to attach/detach property change listeners
+        Sources.CollectionChanged += Sources_CollectionChanged;
+        
         _ = LoadSourcesAsync();
         _ = LoadSettingsAsync();
         
@@ -244,13 +247,14 @@ public partial class MainViewModel : ObservableRecipient
         OnPropertyChanged(nameof(SelectedSourceHeight));
         OnPropertyChanged(nameof(SelectedSourceX));
         OnPropertyChanged(nameof(SelectedSourceY));
-        OnPropertyChanged(nameof(SelectedSourceCropLeft));
-        OnPropertyChanged(nameof(SelectedSourceCropRight));
-        OnPropertyChanged(nameof(SelectedSourceCropTop));
-        OnPropertyChanged(nameof(SelectedSourceCropBottom));
+
         OnPropertyChanged(nameof(SelectedSourceIsMirroredHorizontally));
         OnPropertyChanged(nameof(SelectedSourceIsMirroredVertically));
         OnPropertyChanged(nameof(SelectedSourceRotation));
+        OnPropertyChanged(nameof(SelectedSourceCropLeftPct));
+        OnPropertyChanged(nameof(SelectedSourceCropRightPct));
+        OnPropertyChanged(nameof(SelectedSourceCropTopPct));
+        OnPropertyChanged(nameof(SelectedSourceCropBottomPct));
 
         AlignLeftCommand.NotifyCanExecuteChanged();
         AlignRightCommand.NotifyCanExecuteChanged();
@@ -430,14 +434,14 @@ public partial class MainViewModel : ObservableRecipient
         }
     }
     
-    public double SelectedSourceCropLeft
+    public double SelectedSourceCropLeftPct
     {
         get
         {
             if (SelectedSources.Count == 0) return double.NaN;
-            if (SelectedSources.Count == 1) return SelectedSources[0].CropLeft;
-            var first = SelectedSources[0].CropLeft;
-            return SelectedSources.Skip(1).All(s => s.CropLeft == first) ? first : double.NaN;
+            if (SelectedSources.Count == 1) return SelectedSources[0].CropLeftPct * 100; // Convert to 0-100 range
+            var first = SelectedSources[0].CropLeftPct;
+            return SelectedSources.Skip(1).All(s => Math.Abs(s.CropLeftPct - first) < 0.001) ? first * 100 : double.NaN;
         }
         set
         {
@@ -445,7 +449,7 @@ public partial class MainViewModel : ObservableRecipient
             {
                 foreach (var source in SelectedSources)
                 {
-                    source.CropLeft = (int)value;
+                    source.CropLeftPct = Math.Clamp(value / 100.0, 0, 1); // Convert from 0-100 to 0-1 range
                 }
                 _ = SaveSourcesAsync();
                 OnPropertyChanged();
@@ -453,14 +457,14 @@ public partial class MainViewModel : ObservableRecipient
         }
     }
     
-    public double SelectedSourceCropRight
+    public double SelectedSourceCropRightPct
     {
         get
         {
             if (SelectedSources.Count == 0) return double.NaN;
-            if (SelectedSources.Count == 1) return SelectedSources[0].CropRight;
-            var first = SelectedSources[0].CropRight;
-            return SelectedSources.Skip(1).All(s => s.CropRight == first) ? first : double.NaN;
+            if (SelectedSources.Count == 1) return SelectedSources[0].CropRightPct * 100;
+            var first = SelectedSources[0].CropRightPct;
+            return SelectedSources.Skip(1).All(s => Math.Abs(s.CropRightPct - first) < 0.001) ? first * 100 : double.NaN;
         }
         set
         {
@@ -468,7 +472,7 @@ public partial class MainViewModel : ObservableRecipient
             {
                 foreach (var source in SelectedSources)
                 {
-                    source.CropRight = (int)value;
+                    source.CropRightPct = Math.Clamp(value / 100.0, 0, 1);
                 }
                 _ = SaveSourcesAsync();
                 OnPropertyChanged();
@@ -476,14 +480,14 @@ public partial class MainViewModel : ObservableRecipient
         }
     }
     
-    public double SelectedSourceCropTop
+    public double SelectedSourceCropTopPct
     {
         get
         {
             if (SelectedSources.Count == 0) return double.NaN;
-            if (SelectedSources.Count == 1) return SelectedSources[0].CropTop;
-            var first = SelectedSources[0].CropTop;
-            return SelectedSources.Skip(1).All(s => s.CropTop == first) ? first : double.NaN;
+            if (SelectedSources.Count == 1) return SelectedSources[0].CropTopPct * 100;
+            var first = SelectedSources[0].CropTopPct;
+            return SelectedSources.Skip(1).All(s => Math.Abs(s.CropTopPct - first) < 0.001) ? first * 100 : double.NaN;
         }
         set
         {
@@ -491,7 +495,7 @@ public partial class MainViewModel : ObservableRecipient
             {
                 foreach (var source in SelectedSources)
                 {
-                    source.CropTop = (int)value;
+                    source.CropTopPct = Math.Clamp(value / 100.0, 0, 1);
                 }
                 _ = SaveSourcesAsync();
                 OnPropertyChanged();
@@ -499,14 +503,14 @@ public partial class MainViewModel : ObservableRecipient
         }
     }
     
-    public double SelectedSourceCropBottom
+    public double SelectedSourceCropBottomPct
     {
         get
         {
             if (SelectedSources.Count == 0) return double.NaN;
-            if (SelectedSources.Count == 1) return SelectedSources[0].CropBottom;
-            var first = SelectedSources[0].CropBottom;
-            return SelectedSources.Skip(1).All(s => s.CropBottom == first) ? first : double.NaN;
+            if (SelectedSources.Count == 1) return SelectedSources[0].CropBottomPct * 100;
+            var first = SelectedSources[0].CropBottomPct;
+            return SelectedSources.Skip(1).All(s => Math.Abs(s.CropBottomPct - first) < 0.001) ? first * 100 : double.NaN;
         }
         set
         {
@@ -514,7 +518,7 @@ public partial class MainViewModel : ObservableRecipient
             {
                 foreach (var source in SelectedSources)
                 {
-                    source.CropBottom = (int)value;
+                    source.CropBottomPct = Math.Clamp(value / 100.0, 0, 1);
                 }
                 _ = SaveSourcesAsync();
                 OnPropertyChanged();
@@ -559,7 +563,7 @@ public partial class MainViewModel : ObservableRecipient
         }
     }
 
-    public double SelectedSourceRotation
+    public int SelectedSourceRotation
     {
         get => IsSingleSelect ? SelectedSources[0].Rotation : 0;
         set
@@ -727,6 +731,7 @@ public partial class MainViewModel : ObservableRecipient
                 Sources.Clear();
                 foreach (var source in savedSources)
                 {
+                    // Property change listener will be attached automatically via Sources.CollectionChanged
                     Sources.Add(source);
                     
                     // Start capture for loaded sources
@@ -877,5 +882,81 @@ public partial class MainViewModel : ObservableRecipient
             if (Sources.Remove(source))
                 Sources.Insert(0, source);
         }
+    }
+
+    private void Sources_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        // Attach property change listeners to new sources
+        if (e.NewItems != null)
+        {
+            foreach (SourceItem source in e.NewItems)
+            {
+                source.PropertyChanged += Source_PropertyChanged;
+            }
+        }
+        
+        // Detach property change listeners from removed sources
+        if (e.OldItems != null)
+        {
+            foreach (SourceItem source in e.OldItems)
+            {
+                source.PropertyChanged -= Source_PropertyChanged;
+            }
+        }
+    }
+
+    private void Source_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (sender is not SourceItem source || !source.IsSelected) return;
+
+        // Update property panel if this source is currently selected
+        // This works for both single and multi-select scenarios
+        switch (e.PropertyName)
+        {
+            case nameof(SourceItem.CanvasX):
+                OnPropertyChanged(nameof(SelectedSourceX));
+                break;
+            case nameof(SourceItem.CanvasY):
+                OnPropertyChanged(nameof(SelectedSourceY));
+                break;
+            case nameof(SourceItem.CanvasWidth):
+                OnPropertyChanged(nameof(SelectedSourceWidth));
+                break;
+            case nameof(SourceItem.CanvasHeight):
+                OnPropertyChanged(nameof(SelectedSourceHeight));
+                break;
+            case nameof(SourceItem.Rotation):
+                OnPropertyChanged(nameof(SelectedSourceRotation));
+                break;
+            case nameof(SourceItem.Opacity):
+                OnPropertyChanged(nameof(SelectedSourceOpacity));
+                break;
+            case nameof(SourceItem.CropLeftPct):
+                OnPropertyChanged(nameof(SelectedSourceCropLeftPct));
+                break;
+            case nameof(SourceItem.CropTopPct):
+                OnPropertyChanged(nameof(SelectedSourceCropTopPct));
+                break;
+            case nameof(SourceItem.CropRightPct):
+                OnPropertyChanged(nameof(SelectedSourceCropRightPct));
+                break;
+            case nameof(SourceItem.CropBottomPct):
+                OnPropertyChanged(nameof(SelectedSourceCropBottomPct));
+                break;
+            case nameof(SourceItem.IsMirroredHorizontally):
+                OnPropertyChanged(nameof(SelectedSourceIsMirroredHorizontally));
+                break;
+            case nameof(SourceItem.IsMirroredVertically):
+                OnPropertyChanged(nameof(SelectedSourceIsMirroredVertically));
+                break;
+            case nameof(SourceItem.Name):
+                OnPropertyChanged(nameof(SelectedSourceName));
+                break;
+        }
+        
+        // Also trigger UI state updates that depend on selection
+        OnPropertyChanged(nameof(IsSourceSelected));
+        OnPropertyChanged(nameof(IsMultiSelect));
+        OnPropertyChanged(nameof(IsSingleSelect));
     }
 }

@@ -15,12 +15,7 @@
         RenderTransformOrigin="0.5,0.5"
         RightTapped="OnRightTapped">
         <Grid.RenderTransform>
-            <TransformGroup>
-                <RotateTransform x:Name="RotateTransform" />
-                <ScaleTransform x:Name="MirrorTransform" 
-                    ScaleX="{x:Bind Source.IsMirroredHorizontally, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" 
-                    ScaleY="{x:Bind Source.IsMirroredVertically, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" />
-            </TransformGroup>
+            <RotateTransform x:Name="RotateTransform" />
         </Grid.RenderTransform>
 
         <Border
@@ -28,30 +23,44 @@
             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
             BorderThickness="1"
-            CornerRadius="{StaticResource ControlCornerRadius}">
-            <Border.Clip>
-                <RectangleGeometry x:Name="CropClip" />
-            </Border.Clip>
-            <Grid Padding="8">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-                <TextBlock
-                    x:Name="DisplayNameText"
-                    Grid.Row="0"
-                    HorizontalAlignment="Left"
-                    Style="{ThemeResource CaptionTextBlockStyle}"
-                    Text="Source Name"
-                    TextTrimming="CharacterEllipsis" />
-                <TextBlock
-                    x:Name="TypeText"
-                    Grid.Row="1"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    FontWeight="SemiBold"
-                    Style="{ThemeResource BodyTextBlockStyle}"
-                    Text="Source Type" />
+            CornerRadius="{StaticResource ControlCornerRadius}"
+            RenderTransformOrigin="0.5,0.5">
+            <Border.RenderTransform>
+                <ScaleTransform
+                    ScaleX="{x:Bind Source.IsMirroredHorizontally, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}"
+                    ScaleY="{x:Bind Source.IsMirroredVertically, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" />
+            </Border.RenderTransform>
+            <Grid>
+                <!-- Content Grid -->
+                <Grid Padding="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock
+                        x:Name="DisplayNameText"
+                        Grid.Row="0"
+                        HorizontalAlignment="Left"
+                        Style="{ThemeResource CaptionTextBlockStyle}"
+                        Text="Source Name"
+                        TextTrimming="CharacterEllipsis" />
+                    <TextBlock
+                        x:Name="TypeText"
+                        Grid.Row="1"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontWeight="SemiBold"
+                        Style="{ThemeResource BodyTextBlockStyle}"
+                        Text="Source Type" />
+                </Grid>
+                
+                <!-- Crop Shading Overlays -->
+                <Canvas>
+                    <Rectangle x:Name="CropShadeT" Fill="Black" Opacity="0.35"/>
+                    <Rectangle x:Name="CropShadeB" Fill="Black" Opacity="0.35"/>
+                    <Rectangle x:Name="CropShadeL" Fill="Black" Opacity="0.35"/>
+                    <Rectangle x:Name="CropShadeR" Fill="Black" Opacity="0.35"/>
+                </Canvas>
             </Grid>
         </Border>
 

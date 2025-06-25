@@ -31,6 +31,7 @@ public sealed partial class MainPage : Page
         ViewModel = App.GetService<MainViewModel>();
         InitializeComponent();
         ViewModel.Sources.CollectionChanged += OnSourcesCollectionChanged;
+        ViewModel.PropertyChanged += ViewModel_PropertyChanged;
         Loaded += (s, e) =>
         {
             UpdateCanvas();
@@ -50,6 +51,14 @@ public sealed partial class MainPage : Page
                 }
             }
         };
+    }
+
+    private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ViewModel.IsPreviewing))
+        {
+            UpdatePreviewCanvas();
+        }
     }
 
     private async void Add_Sources(object sender, RoutedEventArgs e)
@@ -134,30 +143,7 @@ public sealed partial class MainPage : Page
         }
     }
 
-    private void UpdateCanvas()
-    {
-        SourceCanvas.Children.Clear();
-        _dragStartPositions.Clear(); // Clear old positions
 
-        foreach (var source in ViewModel.Sources)
-        {
-            var item = new DraggableSourceItem { Source = source };
-            item.DragStarted += OnDraggableItemDragStarted;
-            item.DragDelta += OnDraggableItemDragDelta;
-            item.Tapped += OnDraggableItemTapped;
-            item.RightTapped += (s, e) => OnDraggableItemRightTapped(s as DraggableSourceItem, e);
-            item.DeleteRequested += OnSourceDeleteRequested;
-            item.CopyRequested += OnSourceCopyRequested;
-            item.PasteRequested += async (s, e) => await OnSourcePasteRequested(s, e);
-            item.CenterRequested += OnSourceCenterRequested;
-            item.EditRequested += OnSourceEditRequested;
-
-            SourceCanvas.Children.Add(item);
-            item.RefreshPosition();
-        }
-
-        UpdateSelectionOnCanvas();
-    }
 
     private async void OnSourceEditRequested(DraggableSourceItem sender, RoutedEventArgs e)
     {
@@ -705,11 +691,6 @@ public sealed partial class MainPage : Page
         }
     }
 
-    private void PreviewModeToggle_Click(object sender, RoutedEventArgs e)
-    {
-        UpdatePreviewCanvas();
-    }
-
     private void UpdatePreviewCanvas()
     {
         var isPreview = ViewModel.IsPreviewing;
@@ -831,6 +812,35 @@ public sealed partial class MainPage : Page
 
         UpdateSelectionInViewModel();
         UpdateListViewSelection();
+        UpdateSelectionOnCanvas();
+    }
+
+    private void UpdateCanvas()
+    {
+        // Don't clear the selection rectangle, just the source items.
+        var sourceItems = SourceCanvas.Children.OfType<DraggableSourceItem>().ToList();
+        foreach (var item in sourceItems)
+        {
+            SourceCanvas.Children.Remove(item);
+        }
+
+        foreach (var source in ViewModel.Sources)
+        {
+            var item = new DraggableSourceItem { Source = source };
+            item.DragStarted += OnDraggableItemDragStarted;
+            item.DragDelta += OnDraggableItemDragDelta;
+            item.Tapped += OnDraggableItemTapped;
+            item.RightTapped += (s, e) => OnDraggableItemRightTapped(s as DraggableSourceItem, e);
+            item.DeleteRequested += OnSourceDeleteRequested;
+            item.CopyRequested += OnSourceCopyRequested;
+            item.PasteRequested += async (s, e) => await OnSourcePasteRequested(s, e);
+            item.CenterRequested += OnSourceCenterRequested;
+            item.EditRequested += OnSourceEditRequested;
+
+            SourceCanvas.Children.Add(item);
+            item.RefreshPosition();
+        }
+
         UpdateSelectionOnCanvas();
     }
 }
