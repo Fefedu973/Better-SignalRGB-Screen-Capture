@@ -22,6 +22,7 @@
             <ComboBoxItem Content="Process (window)" Tag="Process" />
             <ComboBoxItem Content="Region" Tag="Region" />
             <ComboBoxItem Content="Webcam" Tag="Webcam" />
+            <ComboBoxItem Content="Website" Tag="Website" />
         </ComboBox>
 
         <!--  ‑‑‑‑ MONITOR ‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑  -->
@@ -91,6 +92,15 @@
                     VerticalAlignment="Center"
                     IsActive="True" />
             </Grid>
+        </StackPanel>
+
+        <!--  ‑‑‑‑ WEBSITE ‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑  -->
+        <StackPanel
+            x:Name="WebsiteSettings"
+            Spacing="8"
+            Visibility="Collapsed">
+            <TextBlock FontWeight="SemiBold" Text="Enter a website URL" />
+            <TextBox x:Name="WebsiteUrlBox" PlaceholderText="https://www.example.com" />
         </StackPanel>
     </StackPanel>
 </ContentDialog>

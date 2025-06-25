@@ -17,12 +17,12 @@ public class CaptureService : ICaptureService
 
     public event EventHandler<SourceFrameEventArgs>? FrameAvailable;
 
-    public async Task StartCaptureAsync(SourceItem source)
+    public Task StartCaptureAsync(SourceItem source)
     {
         if (_captureSessions.ContainsKey(source.Id))
         {
             Debug.WriteLine($"Capture already running for source {source.Id}");
-            return;
+            return Task.CompletedTask;
         }
 
         try
@@ -40,6 +40,8 @@ public class CaptureService : ICaptureService
             Debug.WriteLine($"Failed to start capture for source {source.Id}: {ex.Message}");
             throw;
         }
+
+        return Task.CompletedTask;
     }
 
     public async Task StopCaptureAsync(SourceItem source)
@@ -164,6 +166,7 @@ public class CaptureService : ICaptureService
                 SourceType.Process => System.Drawing.Color.DarkGreen,
                 SourceType.Region => System.Drawing.Color.DarkRed,
                 SourceType.Webcam => System.Drawing.Color.DarkMagenta,
+                SourceType.Website => System.Drawing.Color.DarkOrange,
                 _ => System.Drawing.Color.Black
             };
 

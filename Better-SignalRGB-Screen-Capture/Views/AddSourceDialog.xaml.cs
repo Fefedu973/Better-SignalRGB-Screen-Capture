@@ -40,8 +40,16 @@ public sealed partial class AddSourceDialog : ContentDialog
     {
         get; private set;
     }
+    public string? WebsiteUrl
+    {
+        get; private set;
+    }
 
+    public SourceType SelectedSourceType { get; private set; }
+
+    // Private fields
     private List<ProcessInfo> _processes = new();
+    private readonly record struct DisplayInfo(string Id, string Name);
 
     // Public property to access the friendly name
     public string? FriendlyName => NameBox?.Text?.Trim();
@@ -366,7 +374,7 @@ public sealed partial class AddSourceDialog : ContentDialog
         {
             SelectedRegion = r;
 
-            // Simple visual confirmation � replace with your own UI if you like
+            // Simple visual confirmation replace with your own UI if you like
             RegionSettings.Children.Add(new TextBlock
             {
                 Text = $"{r.Width} x {r.Height} at ({r.X}, {r.Y})",
@@ -375,12 +383,25 @@ public sealed partial class AddSourceDialog : ContentDialog
         }
     }
 
-
-
     // --------------------------------------------
     // UI switching
     // --------------------------------------------
-    private void KindBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateSettingsPanels();
+    private void KindBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateSettingsPanels();
+        if (KindBox.SelectedItem is ComboBoxItem item)
+        {
+            SelectedSourceType = item.Content.ToString() switch
+            {
+                "Monitor" => SourceType.Monitor,
+                "Process" => SourceType.Process,
+                "Region" => SourceType.Region,
+                "Webcam" => SourceType.Webcam,
+                "Website" => SourceType.Website,
+                _ => SelectedSourceType
+            };
+        }
+    }
 
     private void UpdateSettingsPanels()
     {
@@ -390,6 +411,7 @@ public sealed partial class AddSourceDialog : ContentDialog
         ProcessSettings.Visibility = tag == "Process" ? Visibility.Visible : Visibility.Collapsed;
         RegionSettings.Visibility = tag == "Region" ? Visibility.Visible : Visibility.Collapsed;
         WebcamSettings.Visibility = tag == "Webcam" ? Visibility.Visible : Visibility.Collapsed;
+        WebsiteSettings.Visibility = tag == "Website" ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // --------------------------------------------
@@ -401,6 +423,8 @@ public sealed partial class AddSourceDialog : ContentDialog
             SelectedMonitorDeviceId = mi.Tag as string;
         else if (WebcamSettings.Visibility == Visibility.Visible && WebcamCombo.SelectedItem is ComboBoxItem wi)
             SelectedWebcamDeviceId = wi.Tag as string;
+        else if (WebsiteSettings.Visibility == Visibility.Visible && !string.IsNullOrWhiteSpace(WebsiteUrlBox.Text))
+            WebsiteUrl = WebsiteUrlBox.Text;
     }
     
     private void PreFillForm(SourceItem source)
@@ -487,6 +511,23 @@ public sealed partial class AddSourceDialog : ContentDialog
                     }
                 }
                 SelectedWebcamDeviceId = source.WebcamDeviceId;
+                break;
+            
+            case SourceType.Website:
+                if (KindBox != null)
+                {
+                    // Select Website option
+                    foreach (ComboBoxItem item in KindBox.Items)
+                    {
+                        if (item.Tag?.ToString() == "Website")
+                        {
+                            KindBox.SelectedItem = item;
+                            break;
+                        }
+                    }
+                }
+                WebsiteUrl = source.WebsiteUrl;
+                WebsiteUrlBox.Text = source.WebsiteUrl;
                 break;
         }
         

@@ -13,6 +13,15 @@ public class SourceItem : INotifyPropertyChanged
     private int _canvasWidth = 100;
     private int _canvasHeight = 80;
     private string _name = string.Empty;
+    private double _opacity = 1.0;
+    private int _cropLeft;
+    private int _cropTop;
+    private int _cropRight;
+    private int _cropBottom;
+    private bool _isMirroredHorizontally;
+    private bool _isMirroredVertically;
+    private bool _isSelected;
+    private double _rotation;
 
     public Guid Id { get; set; } = Guid.NewGuid();
     
@@ -50,6 +59,7 @@ public class SourceItem : INotifyPropertyChanged
     private string? _processPath;
     private RectInt32? _regionBounds;
     private string? _webcamDeviceId;
+    private string? _websiteUrl;
     
     public string? MonitorDeviceId
     {
@@ -122,6 +132,21 @@ public class SourceItem : INotifyPropertyChanged
         }
     }
     
+    public string? WebsiteUrl
+    {
+        get => _websiteUrl;
+        set
+        {
+            if (_websiteUrl != value)
+            {
+                _websiteUrl = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(DisplayName));
+                OnPropertyChanged(nameof(DisplaySubtitle));
+            }
+        }
+    }
+    
     // Canvas position and size (in canvas coordinates 0-800, 0-600)
     public int CanvasX
     {
@@ -147,6 +172,60 @@ public class SourceItem : INotifyPropertyChanged
         set => SetProperty(ref _canvasHeight, value);
     }
     
+    public double Opacity
+    {
+        get => _opacity;
+        set => SetProperty(ref _opacity, value);
+    }
+
+    public int CropLeft
+    {
+        get => _cropLeft;
+        set => SetProperty(ref _cropLeft, value);
+    }
+
+    public int CropTop
+    {
+        get => _cropTop;
+        set => SetProperty(ref _cropTop, value);
+    }
+
+    public int CropRight
+    {
+        get => _cropRight;
+        set => SetProperty(ref _cropRight, value);
+    }
+
+    public int CropBottom
+    {
+        get => _cropBottom;
+        set => SetProperty(ref _cropBottom, value);
+    }
+
+    public bool IsMirroredHorizontally
+    {
+        get => _isMirroredHorizontally;
+        set => SetProperty(ref _isMirroredHorizontally, value);
+    }
+
+    public bool IsMirroredVertically
+    {
+        get => _isMirroredVertically;
+        set => SetProperty(ref _isMirroredVertically, value);
+    }
+
+    public double Rotation
+    {
+        get => _rotation;
+        set => SetProperty(ref _rotation, value);
+    }
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set => SetProperty(ref _isSelected, value);
+    }
+
     // Visual properties
     public string DisplayName => GetDisplayName();
     public string DisplaySubtitle => GetDisplaySubtitle();
@@ -215,6 +294,7 @@ public class SourceItem : INotifyPropertyChanged
             SourceType.Process => System.IO.Path.GetFileNameWithoutExtension(ProcessPath) ?? "Process Source",
             SourceType.Region => "Region Source",
             SourceType.Webcam => "Webcam Source",
+            SourceType.Website => "Website Source",
             _ => "Unknown Source"
         };
     }
@@ -227,6 +307,7 @@ public class SourceItem : INotifyPropertyChanged
             SourceType.Process => !string.IsNullOrEmpty(ProcessPath) ? System.IO.Path.GetFileName(ProcessPath) : $"ID: {Id.ToString()[..8]}",
             SourceType.Region => RegionBounds.HasValue ? $"{RegionBounds.Value.Width}x{RegionBounds.Value.Height}" : $"ID: {Id.ToString()[..8]}",
             SourceType.Webcam => WebcamDeviceId ?? $"ID: {Id.ToString()[..8]}",
+            SourceType.Website => WebsiteUrl ?? $"ID: {Id.ToString()[..8]}",
             _ => $"ID: {Id.ToString()[..8]}"
         };
     }
@@ -245,6 +326,11 @@ public class SourceItem : INotifyPropertyChanged
         OnPropertyChanged(propertyName);
         return true;
     }
+
+    public SourceItem Clone()
+    {
+        return (SourceItem)this.MemberwiseClone();
+    }
 }
 
 public enum SourceType
@@ -252,5 +338,6 @@ public enum SourceType
     Monitor,
     Process,
     Region,
-    Webcam
+    Webcam,
+    Website
 } 

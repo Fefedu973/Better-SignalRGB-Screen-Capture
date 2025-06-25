@@ -2,78 +2,238 @@
     x:Class="Better_SignalRGB_Screen_Capture.Views.DraggableSourceItem"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:Better_SignalRGB_Screen_Capture.Views"
-    xmlns:models="using:Better_SignalRGB_Screen_Capture.Models">
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    MinWidth="100"
+    MinHeight="80"
+    Opacity="{x:Bind Source.Opacity, Mode=OneWay}"
+    mc:Ignorable="d">
 
-    <Border x:Name="SourceBorder"
+    <Grid
+        x:Name="RootGrid"
+        Background="Transparent"
+        RenderTransformOrigin="0.5,0.5"
+        RightTapped="OnRightTapped">
+        <Grid.RenderTransform>
+            <TransformGroup>
+                <RotateTransform x:Name="RotateTransform" />
+                <ScaleTransform x:Name="MirrorTransform" 
+                    ScaleX="{x:Bind Source.IsMirroredHorizontally, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" 
+                    ScaleY="{x:Bind Source.IsMirroredVertically, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" />
+            </TransformGroup>
+        </Grid.RenderTransform>
+
+        <Border
+            x:Name="ItemBorder"
             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource ControlCornerRadius}">
+            <Border.Clip>
+                <RectangleGeometry x:Name="CropClip" />
+            </Border.Clip>
+            <Grid Padding="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <TextBlock
+                    x:Name="DisplayNameText"
+                    Grid.Row="0"
+                    HorizontalAlignment="Left"
+                    Style="{ThemeResource CaptionTextBlockStyle}"
+                    Text="Source Name"
+                    TextTrimming="CharacterEllipsis" />
+                <TextBlock
+                    x:Name="TypeText"
+                    Grid.Row="1"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    FontWeight="SemiBold"
+                    Style="{ThemeResource BodyTextBlockStyle}"
+                    Text="Source Type" />
+            </Grid>
+        </Border>
+
+        <Border
+            x:Name="HoverBorder"
+            BorderBrush="{ThemeResource SystemAccentColorLight2}"
             BorderThickness="2"
-            CornerRadius="4"
-            MinWidth="80"
-            MinHeight="60">
-        
-        <Grid>
-            <!-- Main content -->
-            <StackPanel Margin="8" 
-                       VerticalAlignment="Center" 
-                       HorizontalAlignment="Center">
-                <TextBlock Text="{x:Bind Source.DisplayName, Mode=OneWay}"
-                          FontSize="11"
-                          FontWeight="SemiBold"
-                          TextWrapping="Wrap"
-                          TextAlignment="Center"
-                          MaxLines="2"/>
-                
-                <TextBlock Text="{x:Bind Source.DisplaySubtitle, Mode=OneWay}"
-                          FontSize="9"
-                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                          TextAlignment="Center"
-                          Margin="0,1,0,0"/>
-                
-                <TextBlock Text="{x:Bind GetTypeDisplayString(Source.Type), Mode=OneWay}"
-                          FontSize="8"
-                          Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                          TextAlignment="Center"
-                          Margin="0,1,0,0"/>
+            CornerRadius="{StaticResource ControlCornerRadius}"
+            Opacity="0" />
+
+        <Border
+            x:Name="SelectionBorder"
+            BorderBrush="{ThemeResource SystemAccentColor}"
+            BorderThickness="2"
+            CornerRadius="{StaticResource ControlCornerRadius}"
+            Opacity="0" />
+
+        <!--  Resize Handles  -->
+        <Rectangle
+            x:Name="TopLeftHandle"
+            Width="8"
+            Height="8"
+            Margin="-4,-4,0,0"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Fill="Transparent" />
+        <Rectangle
+            x:Name="TopRightHandle"
+            Width="8"
+            Height="8"
+            Margin="0,-4,-4,0"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Fill="Transparent" />
+        <Rectangle
+            x:Name="BottomLeftHandle"
+            Width="8"
+            Height="8"
+            Margin="-4,0,0,-4"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Bottom"
+            Fill="Transparent" />
+        <Rectangle
+            x:Name="BottomRightHandle"
+            Width="8"
+            Height="8"
+            Margin="0,0,-4,-4"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Bottom"
+            Fill="Transparent" />
+        <Rectangle
+            x:Name="TopHandle"
+            Width="8"
+            Height="8"
+            Margin="0,-4,0,0"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Top"
+            Fill="Transparent" />
+        <Rectangle
+            x:Name="BottomHandle"
+            Width="8"
+            Height="8"
+            Margin="0,0,0,-4"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Bottom"
+            Fill="Transparent" />
+        <Rectangle
+            x:Name="LeftHandle"
+            Width="8"
+            Height="8"
+            Margin="-4,0,0,0"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Center"
+            Fill="Transparent" />
+        <Rectangle
+            x:Name="RightHandle"
+            Width="8"
+            Height="8"
+            Margin="0,0,-4,0"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Center"
+            Fill="Transparent" />
+
+        <Canvas
+            x:Name="RotationHandleCanvas"
+            Opacity="{Binding ElementName=SelectionBorder, Path=Opacity}"
+            PointerMoved="OnPointerMoved"
+            PointerPressed="OnPointerPressed"
+            PointerReleased="OnPointerReleased">
+            <Line
+                x:Name="RotationHandleLine"
+                Stroke="{ThemeResource SystemAccentColor}"
+                StrokeThickness="2" />
+            <Ellipse
+                x:Name="RotationHandle"
+                Width="16"
+                Height="16"
+                Fill="{ThemeResource SystemAccentColor}" />
+        </Canvas>
+
+        <Canvas
+            x:Name="CropCanvas"
+            PointerMoved="CropCanvas_PointerMoved"
+            PointerPressed="CropCanvas_PointerPressed"
+            PointerReleased="CropCanvas_PointerReleased"
+            Visibility="Collapsed">
+            <!--  Darkening overlay  -->
+            <Rectangle
+                x:Name="CropOverlayT"
+                Fill="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+                Opacity="0.7" />
+            <Rectangle
+                x:Name="CropOverlayB"
+                Fill="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+                Opacity="0.7" />
+            <Rectangle
+                x:Name="CropOverlayL"
+                Fill="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+                Opacity="0.7" />
+            <Rectangle
+                x:Name="CropOverlayR"
+                Fill="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+                Opacity="0.7" />
+
+            <!--  Crop selection rectangle  -->
+            <Rectangle
+                x:Name="CropRect"
+                Fill="Transparent"
+                Stroke="{ThemeResource SystemAccentColor}"
+                StrokeThickness="2" />
+
+            <!--  Resize Handles  -->
+            <Rectangle x:Name="CropHandleTL" Style="{StaticResource CropHandleStyle}" />
+            <Rectangle x:Name="CropHandleT" Style="{StaticResource CropHandleStyle}" />
+            <Rectangle x:Name="CropHandleTR" Style="{StaticResource CropHandleStyle}" />
+            <Rectangle x:Name="CropHandleL" Style="{StaticResource CropHandleStyle}" />
+            <Rectangle x:Name="CropHandleR" Style="{StaticResource CropHandleStyle}" />
+            <Rectangle x:Name="CropHandleBL" Style="{StaticResource CropHandleStyle}" />
+            <Rectangle x:Name="CropHandleB" Style="{StaticResource CropHandleStyle}" />
+            <Rectangle x:Name="CropHandleBR" Style="{StaticResource CropHandleStyle}" />
+
+            <!--  Accept/Cancel Buttons  -->
+            <StackPanel
+                x:Name="CropActionsPanel"
+                Orientation="Horizontal"
+                Spacing="5">
+                <AppBarButton
+                    x:Name="AcceptCropButton"
+                    Click="AcceptCropButton_Click"
+                    Icon="Accept"
+                    Label="Accept"
+                    Style="{StaticResource CropButtonStyle}" />
+                <AppBarButton
+                    x:Name="CancelCropButton"
+                    Click="CancelCropButton_Click"
+                    Icon="Cancel"
+                    Label="Cancel"
+                    Style="{StaticResource CropButtonStyle}" />
             </StackPanel>
-
-            <!-- Resize handles -->
-            <!-- Top-left handle -->
-            <Rectangle x:Name="TopLeftHandle"
-                      Width="8" Height="8"
-                      Fill="{ThemeResource AccentFillColorDefaultBrush}"
-                      HorizontalAlignment="Left"
-                      VerticalAlignment="Top"
-                      Margin="-4,-4,0,0"
-                      Opacity="0"/>
-
-            <!-- Top-right handle -->
-            <Rectangle x:Name="TopRightHandle"
-                      Width="8" Height="8"
-                      Fill="{ThemeResource AccentFillColorDefaultBrush}"
-                      HorizontalAlignment="Right"
-                      VerticalAlignment="Top"
-                      Margin="0,-4,-4,0"
-                      Opacity="0"/>
-
-            <!-- Bottom-left handle -->
-            <Rectangle x:Name="BottomLeftHandle"
-                      Width="8" Height="8"
-                      Fill="{ThemeResource AccentFillColorDefaultBrush}"
-                      HorizontalAlignment="Left"
-                      VerticalAlignment="Bottom"
-                      Margin="-4,0,0,-4"
-                      Opacity="0"/>
-
-            <!-- Bottom-right handle -->
-            <Rectangle x:Name="BottomRightHandle"
-                      Width="8" Height="8"
-                      Fill="{ThemeResource AccentFillColorDefaultBrush}"
-                      HorizontalAlignment="Right"
-                      VerticalAlignment="Bottom"
-                      Margin="0,0,-4,-4"
-                      Opacity="0"/>
-        </Grid>
-    </Border>
+        </Canvas>
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="CommonStates">
+                <VisualState x:Name="Normal" />
+                <VisualState x:Name="PointerOver">
+                    <Storyboard>
+                        <DoubleAnimation
+                            Storyboard.TargetName="HoverBorder"
+                            Storyboard.TargetProperty="Opacity"
+                            To="1"
+                            Duration="0:0:0.1" />
+                    </Storyboard>
+                </VisualState>
+                <VisualState x:Name="Selected">
+                    <Storyboard>
+                        <DoubleAnimation
+                            Storyboard.TargetName="SelectionBorder"
+                            Storyboard.TargetProperty="Opacity"
+                            To="1"
+                            Duration="0:0:0.1" />
+                    </Storyboard>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+    </Grid>
 </UserControl> 

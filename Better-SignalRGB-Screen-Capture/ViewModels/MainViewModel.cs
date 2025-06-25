@@ -18,15 +18,18 @@ public partial class MainViewModel : ObservableRecipient
     private const string SourcesSettingsKey = "SavedSources";
     private const string PreviewFpsSettingsKey = "PreviewFps";
     private CancellationTokenSource? _testFrameCancellation;
+    private List<SourceItem> _copiedSources = new();
     
     public ObservableCollection<SourceItem> Sources { get; } = new();
-    
-    [ObservableProperty]
-    private SourceItem? selectedSource;
+
+    public ObservableCollection<SourceItem> SelectedSources { get; } = new();
     
     [ObservableProperty]
     private int previewFps = 30; // Default to 30 FPS
     
+    [ObservableProperty]
+    private bool isPreviewing;
+
     [ObservableProperty]
     private string? streamingUrl;
 
@@ -50,6 +53,9 @@ public partial class MainViewModel : ObservableRecipient
         
         // Start MJPEG streaming
         _ = Task.Run(async () => await _mjpegStreamingService.StartStreamingAsync());
+
+        // Listen to selection changes
+        SelectedSources.CollectionChanged += (s, e) => OnSelectionChanged();
     }
     
     partial void OnPreviewFpsChanged(int value)
@@ -80,42 +86,613 @@ public partial class MainViewModel : ObservableRecipient
     }
     
     [RelayCommand]
-    private async Task DeleteSourceAsync(SourceItem? source)
+    private async Task DeleteSourceAsync(object? parameter)
     {
-        if (source != null && Sources.Contains(source))
+        var sourcesToDelete = new List<SourceItem>();
+        if (parameter is SourceItem source)
         {
-            // Stop capture for the source
+            sourcesToDelete.Add(source);
+        }
+        else if (parameter is IEnumerable<SourceItem> sources)
+        {
+            sourcesToDelete.AddRange(sources);
+        }
+        else
+        {
+            sourcesToDelete.AddRange(SelectedSources);
+        }
+
+        foreach(var s in sourcesToDelete.ToList())
+        {
+            await DeleteSingleSourceAsync(s);
+        }
+    }
+
+    private async Task DeleteSingleSourceAsync(SourceItem source)
+    {
+        if (Sources.Contains(source))
+        {
             await _captureService.StopCaptureAsync(source);
-            
-            // Remove from composite frame service
             _compositeFrameService.RemoveSource(source);
-            
             Sources.Remove(source);
             await SaveSourcesAsync();
         }
     }
     
     [RelayCommand]
-    private async Task EditSourceAsync(SourceItem? source)
+    private void CopySource(object? parameter)
     {
+        _copiedSources.Clear();
+        var sourcesToCopy = new List<SourceItem>();
+        if (parameter is SourceItem source)
+        {
+            sourcesToCopy.Add(source);
+        }
+        else if (parameter is IEnumerable<SourceItem> sources)
+        {
+            sourcesToCopy.AddRange(sources);
+        }
+        else
+        {
+            sourcesToCopy.AddRange(SelectedSources);
+        }
+
+        if (sourcesToCopy.Any())
+        {
+            foreach (var s in sourcesToCopy)
+            {
+                _copiedSources.Add(s.Clone());
+            }
+        }
+    }
+    
+    [RelayCommand(CanExecute = nameof(CanPasteSource))]
+    private async Task PasteSourceAsync()
+    {
+        foreach (var copiedSource in _copiedSources)
+        {
+            var newSource = copiedSource.Clone();
+            newSource.Id = Guid.NewGuid(); // Give it a new ID
+            
+            // Find a new position
+            var (x, y) = FindAvailableCanvasPosition();
+            newSource.CanvasX = x;
+            newSource.CanvasY = y;
+
+            await AddSourceAsync(newSource);
+        }
+    }
+
+    private bool CanPasteSource() => _copiedSources.Any();
+    
+    [RelayCommand]
+    private async Task CenterSourceAsync(SourceItem? source)
+    {
+        var sourcesToCenter = new List<SourceItem>();
         if (source != null)
         {
-            // This will be handled by the view to open edit dialog
-            // The dialog can modify the source properties directly
+            sourcesToCenter.Add(source);
+        }
+        else
+        {
+            sourcesToCenter.AddRange(SelectedSources);
+        }
+
+        if (sourcesToCenter.Any())
+        {
+            // Canvas size is 800x600
+            var canvasWidth = 800;
+            var canvasHeight = 600;
+
+            foreach (var s in sourcesToCenter)
+            {
+                s.CanvasX = (canvasWidth - s.CanvasWidth) / 2;
+                s.CanvasY = (canvasHeight - s.CanvasHeight) / 2;
+            }
+
             await SaveSourcesAsync();
         }
     }
     
     [RelayCommand]
-    private async Task UpdateSourcePositionAsync(SourceItem source)
+    private async Task ResetCanvasAsync()
     {
-        // Called when source is moved/resized on canvas
+        await StopAllCapturesAsync();
+        Sources.Clear();
         await SaveSourcesAsync();
     }
     
+    [RelayCommand]
+    public async Task SaveSourcesAsync()
+    {
+        try
+        {
+            await _localSettingsService.SaveSettingAsync(SourcesSettingsKey, Sources.ToArray());
+        }
+        catch
+        {
+            // Handle save error if needed
+        }
+    }
+
+    public void UpdateSelectedSources(IEnumerable<SourceItem> newSelection)
+    {
+        var newSelectionList = newSelection.ToList();
+        var currentSelectionList = SelectedSources.ToList();
+
+        if (newSelectionList.Count == currentSelectionList.Count && newSelectionList.All(currentSelectionList.Contains))
+        {
+            return; // No change
+        }
+
+        SelectedSources.Clear();
+        foreach (var item in newSelectionList)
+        {
+            SelectedSources.Add(item);
+        }
+        // OnSelectionChanged will be called by the collection changed event
+    }
+
+    private void OnSelectionChanged()
+    {
+        OnPropertyChanged(nameof(IsSourceSelected));
+        OnPropertyChanged(nameof(IsSingleSelect));
+        OnPropertyChanged(nameof(IsMultiSelect));
+        OnPropertyChanged(nameof(SelectedSourceName));
+        OnPropertyChanged(nameof(SelectedSourceOpacity));
+        OnPropertyChanged(nameof(SelectedSourceWidth));
+        OnPropertyChanged(nameof(SelectedSourceHeight));
+        OnPropertyChanged(nameof(SelectedSourceX));
+        OnPropertyChanged(nameof(SelectedSourceY));
+        OnPropertyChanged(nameof(SelectedSourceCropLeft));
+        OnPropertyChanged(nameof(SelectedSourceCropRight));
+        OnPropertyChanged(nameof(SelectedSourceCropTop));
+        OnPropertyChanged(nameof(SelectedSourceCropBottom));
+        OnPropertyChanged(nameof(SelectedSourceIsMirroredHorizontally));
+        OnPropertyChanged(nameof(SelectedSourceIsMirroredVertically));
+        OnPropertyChanged(nameof(SelectedSourceRotation));
+
+        AlignLeftCommand.NotifyCanExecuteChanged();
+        AlignRightCommand.NotifyCanExecuteChanged();
+        AlignCenterCommand.NotifyCanExecuteChanged();
+        AlignTopCommand.NotifyCanExecuteChanged();
+        AlignBottomCommand.NotifyCanExecuteChanged();
+        AlignMiddleCommand.NotifyCanExecuteChanged();
+    }
+
+    public bool IsSourceSelected => SelectedSources.Any();
+    public bool IsMultiSelect => SelectedSources.Count > 1;
+    public bool IsSingleSelect => SelectedSources.Count == 1;
+    [ObservableProperty]
+    private bool isAspectRatioLocked;
+    private bool _isUpdatingDimensions;
+
+    #region Selection Properties
+
+    public string? SelectedSourceName
+    {
+        get
+        {
+            if (SelectedSources.Count == 0) return null;
+            if (SelectedSources.Count == 1) return SelectedSources[0].Name;
+
+            var firstName = SelectedSources[0].Name;
+            return SelectedSources.Skip(1).All(s => s.Name == firstName) ? firstName : "Multiple Values";
+        }
+        set
+        {
+            if (value != null && SelectedSources.Count > 0 && value != "Multiple Values")
+            {
+                foreach (var source in SelectedSources)
+                {
+                    source.Name = value;
+                }
+                _ = SaveSourcesAsync();
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double SelectedSourceOpacity
+    {
+        get
+        {
+            if (SelectedSources.Count == 0) return 1.0;
+            return SelectedSources.Count == 1 ? SelectedSources[0].Opacity : 1.0; // Slider doesn't have a good "multiple values" state, so we just return a default.
+        }
+        set
+        {
+            if (SelectedSources.Count > 0)
+            {
+                foreach (var source in SelectedSources)
+                {
+                    source.Opacity = value;
+                }
+                _ = SaveSourcesAsync();
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double SelectedSourceWidth
+    {
+        get => IsSingleSelect ? SelectedSources[0].CanvasWidth : 0;
+        set
+        {
+            if (_isUpdatingDimensions) return;
+            if (IsSingleSelect && SelectedSources[0].CanvasWidth != value)
+            {
+                var source = SelectedSources[0];
+                var oldWidth = source.CanvasWidth;
+                var oldHeight = source.CanvasHeight;
+                
+                // Apply bounds checking
+                var maxWidth = 800 - source.CanvasX;
+                var newWidth = Math.Max(10, Math.Min(value, maxWidth));
+                source.CanvasWidth = (int)newWidth;
+                OnPropertyChanged(nameof(SelectedSourceWidth));
+
+                if (IsAspectRatioLocked && oldWidth > 0)
+                {
+                    _isUpdatingDimensions = true;
+                    var aspectRatio = (double)oldHeight / oldWidth;
+                    var newHeight = newWidth * aspectRatio;
+                    var maxHeight = 600 - source.CanvasY;
+                    source.CanvasHeight = (int)Math.Max(10, Math.Min(newHeight, maxHeight));
+                    OnPropertyChanged(nameof(SelectedSourceHeight));
+                    _isUpdatingDimensions = false;
+                }
+                SaveSourcesAsync();
+            }
+        }
+    }
+
+    public double SelectedSourceHeight
+    {
+        get => IsSingleSelect ? SelectedSources[0].CanvasHeight : 0;
+        set
+        {
+            if (_isUpdatingDimensions) return;
+            if (IsSingleSelect && SelectedSources[0].CanvasHeight != value)
+            {
+                var source = SelectedSources[0];
+                var oldHeight = source.CanvasHeight;
+                var oldWidth = source.CanvasWidth;
+                
+                // Apply bounds checking
+                var maxHeight = 600 - source.CanvasY;
+                var newHeight = Math.Max(10, Math.Min(value, maxHeight));
+                source.CanvasHeight = (int)newHeight;
+                OnPropertyChanged(nameof(SelectedSourceHeight));
+
+                if (IsAspectRatioLocked && oldHeight > 0)
+                {
+                    _isUpdatingDimensions = true;
+                    var aspectRatio = (double)oldWidth / oldHeight;
+                    var newWidth = newHeight * aspectRatio;
+                    var maxWidth = 800 - source.CanvasX;
+                    source.CanvasWidth = (int)Math.Max(10, Math.Min(newWidth, maxWidth));
+                    OnPropertyChanged(nameof(SelectedSourceWidth));
+                    _isUpdatingDimensions = false;
+                }
+                SaveSourcesAsync();
+            }
+        }
+    }
+
+    public double SelectedSourceX
+    {
+        get
+        {
+            if (SelectedSources.Count == 0) return double.NaN;
+            if (SelectedSources.Count == 1) return SelectedSources[0].CanvasX;
+            var first = SelectedSources[0].CanvasX;
+            return SelectedSources.Skip(1).All(s => s.CanvasX == first) ? first : double.NaN;
+        }
+        set
+        {
+            if (!double.IsNaN(value) && SelectedSources.Count > 0)
+            {
+                foreach (var source in SelectedSources)
+                {
+                    // Apply bounds checking
+                    var maxX = 800 - source.CanvasWidth;
+                    source.CanvasX = (int)Math.Max(0, Math.Min(value, maxX));
+                }
+                _ = SaveSourcesAsync();
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double SelectedSourceY
+    {
+        get
+        {
+            if (SelectedSources.Count == 0) return double.NaN;
+            if (SelectedSources.Count == 1) return SelectedSources[0].CanvasY;
+            var first = SelectedSources[0].CanvasY;
+            return SelectedSources.Skip(1).All(s => s.CanvasY == first) ? first : double.NaN;
+        }
+        set
+        {
+            if (!double.IsNaN(value) && SelectedSources.Count > 0)
+            {
+                foreach (var source in SelectedSources)
+                {
+                    // Apply bounds checking
+                    var maxY = 600 - source.CanvasHeight;
+                    source.CanvasY = (int)Math.Max(0, Math.Min(value, maxY));
+                }
+                _ = SaveSourcesAsync();
+                OnPropertyChanged();
+            }
+        }
+    }
+    
+    public double SelectedSourceCropLeft
+    {
+        get
+        {
+            if (SelectedSources.Count == 0) return double.NaN;
+            if (SelectedSources.Count == 1) return SelectedSources[0].CropLeft;
+            var first = SelectedSources[0].CropLeft;
+            return SelectedSources.Skip(1).All(s => s.CropLeft == first) ? first : double.NaN;
+        }
+        set
+        {
+            if (!double.IsNaN(value) && SelectedSources.Count > 0)
+            {
+                foreach (var source in SelectedSources)
+                {
+                    source.CropLeft = (int)value;
+                }
+                _ = SaveSourcesAsync();
+                OnPropertyChanged();
+            }
+        }
+    }
+    
+    public double SelectedSourceCropRight
+    {
+        get
+        {
+            if (SelectedSources.Count == 0) return double.NaN;
+            if (SelectedSources.Count == 1) return SelectedSources[0].CropRight;
+            var first = SelectedSources[0].CropRight;
+            return SelectedSources.Skip(1).All(s => s.CropRight == first) ? first : double.NaN;
+        }
+        set
+        {
+            if (!double.IsNaN(value) && SelectedSources.Count > 0)
+            {
+                foreach (var source in SelectedSources)
+                {
+                    source.CropRight = (int)value;
+                }
+                _ = SaveSourcesAsync();
+                OnPropertyChanged();
+            }
+        }
+    }
+    
+    public double SelectedSourceCropTop
+    {
+        get
+        {
+            if (SelectedSources.Count == 0) return double.NaN;
+            if (SelectedSources.Count == 1) return SelectedSources[0].CropTop;
+            var first = SelectedSources[0].CropTop;
+            return SelectedSources.Skip(1).All(s => s.CropTop == first) ? first : double.NaN;
+        }
+        set
+        {
+            if (!double.IsNaN(value) && SelectedSources.Count > 0)
+            {
+                foreach (var source in SelectedSources)
+                {
+                    source.CropTop = (int)value;
+                }
+                _ = SaveSourcesAsync();
+                OnPropertyChanged();
+            }
+        }
+    }
+    
+    public double SelectedSourceCropBottom
+    {
+        get
+        {
+            if (SelectedSources.Count == 0) return double.NaN;
+            if (SelectedSources.Count == 1) return SelectedSources[0].CropBottom;
+            var first = SelectedSources[0].CropBottom;
+            return SelectedSources.Skip(1).All(s => s.CropBottom == first) ? first : double.NaN;
+        }
+        set
+        {
+            if (!double.IsNaN(value) && SelectedSources.Count > 0)
+            {
+                foreach (var source in SelectedSources)
+                {
+                    source.CropBottom = (int)value;
+                }
+                _ = SaveSourcesAsync();
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public bool SelectedSourceIsMirroredHorizontally
+    {
+        get
+        {
+            if (SelectedSources.Count == 0) return false;
+            if (SelectedSources.Count == 1) return SelectedSources[0].IsMirroredHorizontally;
+            var first = SelectedSources[0].IsMirroredHorizontally;
+            return SelectedSources.Skip(1).All(s => s.IsMirroredHorizontally == first) ? first : false;
+        }
+        set
+        {
+            if (SelectedSources.Count > 0)
+            {
+                foreach (var source in SelectedSources)
+                {
+                    source.IsMirroredHorizontally = value;
+                }
+                _ = SaveSourcesAsync();
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public bool SelectedSourceIsMirroredVertically
+    {
+        get => IsSingleSelect ? SelectedSources[0].IsMirroredVertically : false;
+        set
+        {
+            if (IsSingleSelect && SelectedSources[0].IsMirroredVertically != value)
+            {
+                SelectedSources[0].IsMirroredVertically = value;
+                OnPropertyChanged(nameof(SelectedSourceIsMirroredVertically));
+                SaveSourcesAsync();
+            }
+        }
+    }
+
+    public double SelectedSourceRotation
+    {
+        get => IsSingleSelect ? SelectedSources[0].Rotation : 0;
+        set
+        {
+            if (IsSingleSelect && SelectedSources[0].Rotation != value)
+            {
+                SelectedSources[0].Rotation = value;
+                OnPropertyChanged(nameof(SelectedSourceRotation));
+                SaveSourcesAsync();
+            }
+        }
+    }
+
+    #endregion
+
+    #region Alignment Commands
+
+    [RelayCommand(CanExecute = nameof(IsMultiSelect))]
+    private async Task AlignLeftAsync()
+    {
+        if (SelectedSources.Count < 2) return;
+        var minX = SelectedSources.Min(s => s.CanvasX);
+        foreach (var s in SelectedSources) s.CanvasX = minX;
+        await SaveSourcesAsync();
+    }
+    
+    [RelayCommand(CanExecute = nameof(IsMultiSelect))]
+    private async Task AlignRightAsync()
+    {
+        if (SelectedSources.Count < 2) return;
+        var maxR = SelectedSources.Max(s => s.CanvasX + s.CanvasWidth);
+        foreach (var s in SelectedSources) s.CanvasX = maxR - s.CanvasWidth;
+        await SaveSourcesAsync();
+    }
+    
+    [RelayCommand(CanExecute = nameof(IsMultiSelect))]
+    private async Task AlignTopAsync()
+    {
+        var minY = SelectedSources.Min(s => s.CanvasY);
+        foreach (var s in SelectedSources) s.CanvasY = minY;
+        await SaveSourcesAsync();
+    }
+    
+    [RelayCommand(CanExecute = nameof(IsMultiSelect))]
+    private async Task AlignBottomAsync()
+    {
+        var maxY = SelectedSources.Max(s => s.CanvasY + s.CanvasHeight);
+        foreach (var s in SelectedSources) s.CanvasY = maxY - s.CanvasHeight;
+        await SaveSourcesAsync();
+    }
+
+    [RelayCommand(CanExecute = nameof(IsMultiSelect))]
+    private async Task AlignCenterAsync()
+    {
+        var averageCenterX = SelectedSources.Average(s => s.CanvasX + s.CanvasWidth / 2.0);
+        foreach (var s in SelectedSources) s.CanvasX = (int)(averageCenterX - s.CanvasWidth / 2.0);
+        await SaveSourcesAsync();
+    }
+    
+    [RelayCommand(CanExecute = nameof(IsMultiSelect))]
+    private async Task AlignMiddleAsync()
+    {
+        if (SelectedSources.Count < 2) return;
+        var avgCenterY = SelectedSources.Average(s => s.CanvasY + s.CanvasHeight / 2.0);
+        foreach (var s in SelectedSources) s.CanvasY = (int)(avgCenterY - s.CanvasHeight / 2.0);
+        await SaveSourcesAsync();
+    }
+
+    #endregion
+
+    [RelayCommand]
+    private async Task ToggleFlipHorizontalAsync()
+    {
+        if (SelectedSources.Count == 0) return;
+
+        if (SelectedSources.Count == 1)
+        {
+            SelectedSources[0].IsMirroredHorizontally = !SelectedSources[0].IsMirroredHorizontally;
+        }
+        else
+        {
+            var selectionRect = new System.Drawing.Rectangle(
+                SelectedSources.Min(s => s.CanvasX),
+                SelectedSources.Min(s => s.CanvasY),
+                SelectedSources.Max(s => s.CanvasX + s.CanvasWidth) - SelectedSources.Min(s => s.CanvasX),
+                SelectedSources.Max(s => s.CanvasY + s.CanvasHeight) - SelectedSources.Min(s => s.CanvasY)
+            );
+            var selectionCenterX = selectionRect.X + selectionRect.Width / 2.0;
+
+            foreach (var s in SelectedSources)
+            {
+                var sourceCenter = s.CanvasX + s.CanvasWidth / 2.0;
+                var newSourceCenter = selectionCenterX + (selectionCenterX - sourceCenter);
+                s.CanvasX = (int)(newSourceCenter - s.CanvasWidth / 2.0);
+                s.IsMirroredHorizontally = !s.IsMirroredHorizontally;
+            }
+        }
+        await SaveSourcesAsync();
+    }
+
+    [RelayCommand]
+    private async Task ToggleFlipVerticalAsync()
+    {
+        if (SelectedSources.Count == 0) return;
+
+        if (SelectedSources.Count == 1)
+        {
+            SelectedSources[0].IsMirroredVertically = !SelectedSources[0].IsMirroredVertically;
+        }
+        else
+        {
+            var selectionRect = new System.Drawing.Rectangle(
+                SelectedSources.Min(s => s.CanvasX),
+                SelectedSources.Min(s => s.CanvasY),
+                SelectedSources.Max(s => s.CanvasX + s.CanvasWidth) - SelectedSources.Min(s => s.CanvasX),
+                SelectedSources.Max(s => s.CanvasY + s.CanvasHeight) - SelectedSources.Min(s => s.CanvasY)
+            );
+            var selectionCenterY = selectionRect.Y + selectionRect.Height / 2.0;
+
+            foreach (var s in SelectedSources)
+            {
+                var sourceCenter = s.CanvasY + s.CanvasHeight / 2.0;
+                var newSourceCenter = selectionCenterY + (selectionCenterY - sourceCenter);
+                s.CanvasY = (int)(newSourceCenter - s.CanvasHeight / 2.0);
+                s.IsMirroredVertically = !s.IsMirroredVertically;
+            }
+        }
+        await SaveSourcesAsync();
+    }
+
     private (int x, int y) FindAvailableCanvasPosition()
     {
-        const int gridSize = 120; // Size of each grid cell
+        const int gridSize = 10;
         const int canvasWidth = 800;
         const int canvasHeight = 600;
         
@@ -160,18 +737,6 @@ public partial class MainViewModel : ObservableRecipient
         catch
         {
             // If loading fails, start with empty collection
-        }
-    }
-    
-    private async Task SaveSourcesAsync()
-    {
-        try
-        {
-            await _localSettingsService.SaveSettingAsync(SourcesSettingsKey, Sources.ToArray());
-        }
-        catch
-        {
-            // Handle save error if needed
         }
     }
     
@@ -286,5 +851,31 @@ public partial class MainViewModel : ObservableRecipient
         _testFrameCancellation?.Cancel();
         
         await _captureService.StopAllCapturesAsync();
+    }
+
+    [RelayCommand]
+    private void BringToFront()
+    {
+        var sourcesToMove = SelectedSources.ToList();
+        if (!sourcesToMove.Any()) return;
+
+        foreach (var source in sourcesToMove.OrderBy(s => Sources.IndexOf(s)))
+        {
+            if (Sources.Remove(source))
+                Sources.Add(source);
+        }
+    }
+
+    [RelayCommand]
+    private void SendToBack()
+    {
+        var sourcesToMove = SelectedSources.ToList();
+        if (!sourcesToMove.Any()) return;
+
+        foreach (var source in sourcesToMove.OrderByDescending(s => Sources.IndexOf(s)))
+        {
+            if (Sources.Remove(source))
+                Sources.Insert(0, source);
+        }
     }
 }

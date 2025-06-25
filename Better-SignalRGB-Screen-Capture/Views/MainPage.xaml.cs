@@ -1,45 +1,62 @@
-﻿using System.Threading.Tasks;
+﻿using System;
 using System.Collections.Specialized;
 using System.Linq;
-using Better_SignalRGB_Screen_Capture.ViewModels;
+using System.Threading.Tasks;
 using Better_SignalRGB_Screen_Capture.Models;
-using Microsoft.UI.Xaml.Controls;
+using Better_SignalRGB_Screen_Capture.ViewModels;
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
-using System;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
+using Windows.Foundation;
+using Windows.System;
+using Microsoft.UI.Xaml.Media;
 
 namespace Better_SignalRGB_Screen_Capture.Views;
 
 public sealed partial class MainPage : Page
 {
-    public MainViewModel ViewModel
-    {
-        get;
-    }
-
-    private bool _isPreviewMode = false;
+    public MainViewModel ViewModel { get; }
+    private bool _isSelecting;
+    private Point _selectionStartPoint;
+    private Dictionary<Guid, Point> _dragStartPositions = new();
+    private bool _isPanning;
+    private Point _panStartPoint;
+    private double _panStartScrollX;
+    private double _panStartScrollY;
 
     public MainPage()
     {
         ViewModel = App.GetService<MainViewModel>();
         InitializeComponent();
-        
-        // Subscribe to collection changes to update canvas
         ViewModel.Sources.CollectionChanged += OnSourcesCollectionChanged;
-        
-        // Initialize canvas with existing sources
-        UpdateCanvas();
+        Loaded += (s, e) =>
+        {
+            UpdateCanvas();
+            // Ensure the canvas can receive keyboard focus
+            ContentArea.Focus(FocusState.Programmatic);
+            
+            // Subscribe to zoom changes to sync the slider
+            if (CanvasScrollViewer != null)
+            {
+                CanvasScrollViewer.ViewChanged += CanvasScrollViewer_ViewChanged;
+                
+                // Initialize zoom slider with current zoom factor
+                if (ZoomSlider != null && ZoomPercentageText != null)
+                {
+                    ZoomSlider.Value = CanvasScrollViewer.ZoomFactor;
+                    ZoomPercentageText.Text = $"{CanvasScrollViewer.ZoomFactor * 100:F0}%";
+                }
+            }
+        };
     }
 
-    private async void Add_Sources(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+    private async void Add_Sources(object sender, RoutedEventArgs e)
     {
-        var dlg = new AddSourceDialog
-        {
-            XamlRoot = this.XamlRoot   // always set this in WinUI 3
-        };
-
+        var dlg = new AddSourceDialog { XamlRoot = XamlRoot };
         if (await dlg.ShowAsync() == ContentDialogResult.Primary)
         {
-            // Create a new source item from dialog results
             var newSource = CreateSourceFromDialog(dlg);
             if (newSource != null)
             {
@@ -47,250 +64,773 @@ public sealed partial class MainPage : Page
             }
         }
     }
-    
+
     private SourceItem? CreateSourceFromDialog(AddSourceDialog dialog)
     {
         var source = new SourceItem();
-        
-        // Get the friendly name from the dialog
         var friendlyName = dialog.FriendlyName;
         if (!string.IsNullOrEmpty(friendlyName))
         {
             source.Name = friendlyName;
         }
-        
-        // Determine source type and set properties based on dialog results
+
         if (!string.IsNullOrEmpty(dialog.SelectedMonitorDeviceId))
         {
             source.Type = SourceType.Monitor;
             source.MonitorDeviceId = dialog.SelectedMonitorDeviceId;
-            
-            // Set default name if no friendly name provided
             if (string.IsNullOrEmpty(source.Name))
-            {
                 source.Name = $"Monitor {dialog.SelectedMonitorDeviceId}";
-            }
         }
         else if (!string.IsNullOrEmpty(dialog.SelectedProcessPath))
         {
             source.Type = SourceType.Process;
-            // Don't save ProcessId - it's not persistent
             source.ProcessId = null;
             source.ProcessPath = dialog.SelectedProcessPath;
-            
-            // Set default name if no friendly name provided
             if (string.IsNullOrEmpty(source.Name))
-            {
                 source.Name = System.IO.Path.GetFileNameWithoutExtension(dialog.SelectedProcessPath);
-            }
         }
         else if (dialog.SelectedRegion.HasValue)
         {
             source.Type = SourceType.Region;
             source.RegionBounds = dialog.SelectedRegion;
             var region = dialog.SelectedRegion.Value;
-            
-            // Set default name if no friendly name provided
             if (string.IsNullOrEmpty(source.Name))
-            {
                 source.Name = $"Region {region.Width}x{region.Height}";
-            }
         }
         else if (!string.IsNullOrEmpty(dialog.SelectedWebcamDeviceId))
         {
             source.Type = SourceType.Webcam;
             source.WebcamDeviceId = dialog.SelectedWebcamDeviceId;
-            
-            // Set default name if no friendly name provided
             if (string.IsNullOrEmpty(source.Name))
-            {
                 source.Name = "Webcam Source";
-            }
+        }
+        else if (!string.IsNullOrEmpty(dialog.WebsiteUrl))
+        {
+            source.Type = SourceType.Website;
+            source.WebsiteUrl = dialog.WebsiteUrl;
+            if (string.IsNullOrEmpty(source.Name))
+                source.Name = dialog.WebsiteUrl;
         }
         else
         {
-            return null; // No valid source selected
+            return null;
         }
-        
         return source;
     }
-    
+
     private void OnSourcesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         UpdateCanvas();
+
+        // If an item was added, select it
+        if (e.Action == NotifyCollectionChangedAction.Add && e.NewItems != null && e.NewItems.Count > 0)
+        {
+            if (e.NewItems[0] is SourceItem newItem)
+            {
+                var newSelection = new List<SourceItem> { newItem };
+                ViewModel.UpdateSelectedSources(newSelection);
+                UpdateListViewSelection();
+            }
+        }
     }
-    
+
     private void UpdateCanvas()
     {
-        // Clear existing draggable items
-        var itemsToRemove = SourceCanvas.Children.OfType<DraggableSourceItem>().ToList();
-        foreach (var item in itemsToRemove)
-        {
-            SourceCanvas.Children.Remove(item);
-        }
-        
-        // Add new draggable items for each source
+        SourceCanvas.Children.Clear();
+        _dragStartPositions.Clear(); // Clear old positions
+
         foreach (var source in ViewModel.Sources)
         {
-            var draggableItem = new DraggableSourceItem
-            {
-                Source = source
-            };
-            
-            // Subscribe to events
-            draggableItem.PositionChanged += OnSourcePositionChanged;
-            draggableItem.EditRequested += OnSourceEditRequested;
-            draggableItem.DeleteRequested += OnSourceDeleteRequested;
-            
-            // Add to canvas first
-            SourceCanvas.Children.Add(draggableItem);
-            
-            // Set position immediately after adding to canvas
-            Canvas.SetLeft(draggableItem, source.CanvasX);
-            Canvas.SetTop(draggableItem, source.CanvasY);
-            draggableItem.Width = source.CanvasWidth;
-            draggableItem.Height = source.CanvasHeight;
-            
-            // Also ensure position is refreshed on loaded (as backup)
-            draggableItem.Loaded += (s, e) => 
-            {
-                if (s is DraggableSourceItem item)
-                {
-                    item.RefreshPosition();
-                }
-            };
+            var item = new DraggableSourceItem { Source = source };
+            item.DragStarted += OnDraggableItemDragStarted;
+            item.DragDelta += OnDraggableItemDragDelta;
+            item.Tapped += OnDraggableItemTapped;
+            item.RightTapped += (s, e) => OnDraggableItemRightTapped(s as DraggableSourceItem, e);
+            item.DeleteRequested += OnSourceDeleteRequested;
+            item.CopyRequested += OnSourceCopyRequested;
+            item.PasteRequested += async (s, e) => await OnSourcePasteRequested(s, e);
+            item.CenterRequested += OnSourceCenterRequested;
+            item.EditRequested += OnSourceEditRequested;
+
+            SourceCanvas.Children.Add(item);
+            item.RefreshPosition();
         }
-        
-        // Force a final position refresh for all items after they've all been added
-        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-        {
-            foreach (var draggableItem in SourceCanvas.Children.OfType<DraggableSourceItem>())
-            {
-                draggableItem.ForcePositionUpdate();
-            }
-        });
+
+        UpdateSelectionOnCanvas();
     }
-    
-    private async void OnSourcePositionChanged(object? sender, SourceItem source)
+
+    private async void OnSourceEditRequested(DraggableSourceItem sender, RoutedEventArgs e)
     {
-        // Update the source position in the view model (this will save to settings)
-        await ViewModel.UpdateSourcePositionCommand.ExecuteAsync(source);
+        await EditSourceAsync(sender.Source);
     }
-    
-    private async void OnSourceEditRequested(object? sender, SourceItem source)
+
+    private async Task EditSourceAsync(SourceItem sourceToEdit)
     {
-        // Open edit dialog with pre-filled data
-        var dlg = new AddSourceDialog(source)
+        var dialog = new AddSourceDialog(sourceToEdit)
         {
-            XamlRoot = this.XamlRoot
+            XamlRoot = this.XamlRoot,
+            Title = "Edit Source"
         };
-        
-        if (await dlg.ShowAsync() == ContentDialogResult.Primary)
+
+        var result = await dialog.ShowAsync();
+
+        if (result == ContentDialogResult.Primary)
         {
-            // Update source with new data from dialog
-            var updatedSource = CreateSourceFromDialog(dlg);
-            if (updatedSource != null)
-            {
-                // Copy the new values but keep the same ID and canvas position
-                updatedSource.Id = source.Id;
-                updatedSource.CanvasX = source.CanvasX;
-                updatedSource.CanvasY = source.CanvasY;
-                updatedSource.CanvasWidth = source.CanvasWidth;
-                updatedSource.CanvasHeight = source.CanvasHeight;
-                
-                // Replace the source in the collection
-                var index = ViewModel.Sources.IndexOf(source);
-                if (index >= 0)
-                {
-                    ViewModel.Sources[index] = updatedSource;
-                    await ViewModel.EditSourceCommand.ExecuteAsync(updatedSource);
-                }
-            }
-        }
-    }
-    
-    private async void OnSourceDeleteRequested(object? sender, SourceItem source)
-    {
-        // Show confirmation dialog
-        var dialog = new ContentDialog
-        {
-            Title = "Delete Source",
-            Content = $"Are you sure you want to delete '{source.DisplayName}'?",
-            PrimaryButtonText = "Delete",
-            CloseButtonText = "Cancel",
-            XamlRoot = this.XamlRoot
-        };
-        
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-        {
-            await ViewModel.DeleteSourceCommand.ExecuteAsync(source);
-        }
-    }
-    
-    private void EditSource_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
-    {
-        if (sender is Microsoft.UI.Xaml.Controls.Button button && button.Tag is SourceItem source)
-        {
-            OnSourceEditRequested(sender, source);
-        }
-    }
-    
-    private void DeleteSource_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
-    {
-        if (sender is Microsoft.UI.Xaml.Controls.Button button && button.Tag is SourceItem source)
-        {
-            OnSourceDeleteRequested(sender, source);
-        }
-    }
-    
-    private void PreviewModeToggle_Click(object sender, RoutedEventArgs e)
-    {
-        _isPreviewMode = !_isPreviewMode;
-        
-        if (_isPreviewMode)
-        {
-            // Switch to live preview mode
-            SourceCanvas.Visibility = Visibility.Collapsed;
-            PreviewCanvas.Visibility = Visibility.Visible;
-            PreviewModeToggle.Content = "Switch to Layout";
-            CanvasModeTitle.Text = "Live Preview";
+            UpdateSourceFromDialog(sourceToEdit, dialog);
+            await ViewModel.SaveSourcesAsync();
             
-            UpdatePreviewCanvas();
+            // The canvas needs to be updated if the source type changed display text
+            UpdateCanvas();
+        }
+    }
+
+    private void UpdateSourceFromDialog(SourceItem source, AddSourceDialog dialog)
+    {
+        source.Name = dialog.FriendlyName ?? "Unnamed Source";
+        source.Type = dialog.SelectedSourceType;
+
+        switch (source.Type)
+        {
+            case SourceType.Monitor:
+                source.MonitorDeviceId = dialog.SelectedMonitorDeviceId;
+                break;
+            case SourceType.Process:
+                source.ProcessId = dialog.SelectedProcessId;
+                source.ProcessPath = dialog.SelectedProcessPath;
+                break;
+            case SourceType.Region:
+                source.RegionBounds = dialog.SelectedRegion;
+                break;
+            case SourceType.Webcam:
+                source.WebcamDeviceId = dialog.SelectedWebcamDeviceId;
+                break;
+            case SourceType.Website:
+                source.WebsiteUrl = dialog.WebsiteUrl;
+                break;
+        }
+    }
+
+    private async void OnSourceDeleteRequested(DraggableSourceItem sender, RoutedEventArgs e)
+    {
+        if (sender.Source == null) return;
+
+        // If the item to be deleted is part of a multiple selection, ask to delete all selected items.
+        if (ViewModel.SelectedSources.Count > 1 && ViewModel.SelectedSources.Contains(sender.Source))
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "Delete Multiple Sources",
+                Content = $"You have {ViewModel.SelectedSources.Count} sources selected. Do you want to delete all of them?",
+                PrimaryButtonText = "Delete All",
+                SecondaryButtonText = "Delete Only This",
+                CloseButtonText = "Cancel",
+                XamlRoot = XamlRoot
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                await ViewModel.DeleteSourceCommand.ExecuteAsync(ViewModel.SelectedSources.ToList());
+            }
+            else if (result == ContentDialogResult.Secondary)
+            {
+                await ViewModel.DeleteSourceCommand.ExecuteAsync(sender.Source);
+            }
         }
         else
         {
-            // Switch to layout mode
-            SourceCanvas.Visibility = Visibility.Visible;
-            PreviewCanvas.Visibility = Visibility.Collapsed;
-            PreviewModeToggle.Content = "Switch to Live Preview";
-            CanvasModeTitle.Text = "Layout Preview";
+            var dialog = new ContentDialog
+            {
+                Title = "Delete Source",
+                Content = $"Are you sure you want to delete '{sender.Source.DisplayName}'?",
+                PrimaryButtonText = "Delete",
+                CloseButtonText = "Cancel",
+                XamlRoot = XamlRoot
+            };
+
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            {
+                await ViewModel.DeleteSourceCommand.ExecuteAsync(sender.Source);
+            }
+        }
+    }
+
+    private void OnSourceCopyRequested(DraggableSourceItem sender, RoutedEventArgs e)
+    {
+        if (ViewModel.SelectedSources.Count > 1 && ViewModel.SelectedSources.Contains(sender.Source))
+        {
+            ViewModel.CopySourceCommand.Execute(ViewModel.SelectedSources.ToList());
+        }
+        else if (sender.Source != null)
+        {
+            ViewModel.CopySourceCommand.Execute(sender.Source);
+        }
+    }
+
+    private async Task OnSourcePasteRequested(DraggableSourceItem sender, RoutedEventArgs e)
+    {
+        await ViewModel.PasteSourceCommand.ExecuteAsync(null);
+    }
+
+    private async void OnSourceCenterRequested(DraggableSourceItem sender, RoutedEventArgs e)
+    {
+        if (sender.Source != null)
+            await ViewModel.CenterSourceCommand.ExecuteAsync(sender.Source);
+    }
+
+    private void OnDraggableItemTapped(object sender, TappedRoutedEventArgs e)
+    {
+        // Selection is now handled in the DraggableSourceItem's OnPointerPressed
+        e.Handled = true;
+    }
+
+    private void OnDraggableItemDragStarted(object? sender, EventArgs e)
+    {
+        if (sender is DraggableSourceItem draggedItem && draggedItem.Source != null)
+        {
+            // Ensure the dragged item is selected if it's not already part of the selection
+            if (!ViewModel.SelectedSources.Contains(draggedItem.Source))
+            {
+                // If not holding Ctrl/Shift, select just this item
+                // If holding modifier keys, add to selection
+                var isCtrlDown = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+                var isShiftDown = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+                
+                SelectSourceItem(draggedItem.Source, isCtrlDown || isShiftDown);
+            }
+        }
+
+        _dragStartPositions.Clear();
+        foreach (var source in ViewModel.SelectedSources)
+        {
+            _dragStartPositions[source.Id] = new Point(source.CanvasX, source.CanvasY);
+        }
+    }
+
+    private void OnDraggableItemDragDelta(object? sender, Point e)
+    {
+        if (sender is DraggableSourceItem draggedItem && SourceCanvas != null)
+        {
+            var parentWidth = SourceCanvas.ActualWidth;
+            var parentHeight = SourceCanvas.ActualHeight;
+
+            // Calculate the maximum allowed movement for all selected items to stay within bounds
+            double maxDeltaX = double.MaxValue;
+            double maxDeltaY = double.MaxValue;
+            double minDeltaX = double.MinValue;
+            double minDeltaY = double.MinValue;
+
+            foreach (var item in SourceCanvas.Children.OfType<DraggableSourceItem>())
+            {
+                if (ViewModel.SelectedSources.Contains(item.Source))
+                {
+                    var startPos = _dragStartPositions[item.Source.Id];
+                    
+                    // Calculate the limits for this item using its actual current size
+                    var itemWidth = item.Source.CanvasWidth;
+                    var itemHeight = item.Source.CanvasHeight;
+                    
+                    var maxX = parentWidth - itemWidth;
+                    var maxY = parentHeight - itemHeight;
+                    
+                    var itemMaxDeltaX = maxX - startPos.X;
+                    var itemMaxDeltaY = maxY - startPos.Y;
+                    var itemMinDeltaX = 0 - startPos.X;
+                    var itemMinDeltaY = 0 - startPos.Y;
+                    
+                    // Find the most restrictive limits across all selected items
+                    maxDeltaX = Math.Min(maxDeltaX, itemMaxDeltaX);
+                    maxDeltaY = Math.Min(maxDeltaY, itemMaxDeltaY);
+                    minDeltaX = Math.Max(minDeltaX, itemMinDeltaX);
+                    minDeltaY = Math.Max(minDeltaY, itemMinDeltaY);
+                }
+            }
+
+            // Clamp the delta to the most restrictive bounds
+            var constrainedDeltaX = Math.Max(minDeltaX, Math.Min(maxDeltaX, e.X));
+            var constrainedDeltaY = Math.Max(minDeltaY, Math.Min(maxDeltaY, e.Y));
+
+            // Apply the constrained movement to all selected items
+            foreach (var item in SourceCanvas.Children.OfType<DraggableSourceItem>())
+            {
+                if (ViewModel.SelectedSources.Contains(item.Source))
+                {
+                    var startPos = _dragStartPositions[item.Source.Id];
+                    var newX = startPos.X + constrainedDeltaX;
+                    var newY = startPos.Y + constrainedDeltaY;
+
+                    // Final safety check to ensure bounds are respected
+                    newX = Math.Max(0, Math.Min(newX, parentWidth - item.Source.CanvasWidth));
+                    newY = Math.Max(0, Math.Min(newY, parentHeight - item.Source.CanvasHeight));
+
+                    item.Source.CanvasX = (int)newX;
+                    item.Source.CanvasY = (int)newY;
+                }
+            }
+        }
+    }
+
+    private void SourceCanvas_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        var properties = e.GetCurrentPoint(SourceCanvas).Properties;
+        
+        // Handle middle mouse button for panning
+        if (properties.IsMiddleButtonPressed)
+        {
+            _isPanning = true;
+            _panStartPoint = e.GetCurrentPoint(CanvasScrollViewer).Position;
+            _panStartScrollX = CanvasScrollViewer.HorizontalOffset;
+            _panStartScrollY = CanvasScrollViewer.VerticalOffset;
+            SourceCanvas.CapturePointer(e.Pointer);
+            
+            // Handle release on the page to capture events outside the canvas
+            this.PointerReleased += MainPage_PointerReleased_ForSelection;
+            e.Handled = true;
+            return;
+        }
+        
+        if (!properties.IsLeftButtonPressed) return;
+
+        // Check if clicking on an item
+        var point = e.GetCurrentPoint(SourceCanvas).Position;
+        var hitTestResult = VisualTreeHelper.FindElementsInHostCoordinates(point, SourceCanvas);
+        var hitItem = hitTestResult.OfType<DraggableSourceItem>().FirstOrDefault();
+        
+        if (hitItem != null)
+        {
+            // Item interaction is handled by the item itself
+            return;
+        }
+
+        // Clicking on empty canvas
+        var isCtrlDown = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var isShiftDown = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        
+        if (!isCtrlDown && !isShiftDown)
+        {
+            // Clear selection when clicking empty space (unless modifier keys are held)
+            ClearSelection();
+        }
+
+        // Start zone selection
+        _isSelecting = true;
+        _selectionStartPoint = point;
+        Canvas.SetLeft(SelectionRectangle, point.X);
+        Canvas.SetTop(SelectionRectangle, point.Y);
+        SelectionRectangle.Width = 0;
+        SelectionRectangle.Height = 0;
+        SelectionRectangle.Visibility = Visibility.Visible;
+        
+        // Ensure the selection rectangle is brought to front
+        Canvas.SetZIndex(SelectionRectangle, 1000);
+        
+        // Capture pointer for selection
+        SourceCanvas.CapturePointer(e.Pointer);
+        
+        // Handle release on the page to capture events outside the canvas
+        this.PointerReleased += MainPage_PointerReleased_ForSelection;
+        e.Handled = true;
+    }
+
+    private void SourceCanvas_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        // Handle panning
+        if (_isPanning)
+        {
+            var panPoint = e.GetCurrentPoint(CanvasScrollViewer).Position;
+            var deltaX = _panStartPoint.X - panPoint.X;
+            var deltaY = _panStartPoint.Y - panPoint.Y;
+            
+            var newScrollX = _panStartScrollX + deltaX;
+            var newScrollY = _panStartScrollY + deltaY;
+            
+            CanvasScrollViewer.ChangeView(newScrollX, newScrollY, null, true);
+            e.Handled = true;
+            return;
+        }
+        
+        if (!_isSelecting) return;
+        
+        var currentPoint = e.GetCurrentPoint(SourceCanvas).Position;
+        var x = Math.Min(_selectionStartPoint.X, currentPoint.X);
+        var y = Math.Min(_selectionStartPoint.Y, currentPoint.Y);
+        var width = Math.Abs(_selectionStartPoint.X - currentPoint.X);
+        var height = Math.Abs(_selectionStartPoint.Y - currentPoint.Y);
+        Canvas.SetLeft(SelectionRectangle, x);
+        Canvas.SetTop(SelectionRectangle, y);
+        SelectionRectangle.Width = width;
+        SelectionRectangle.Height = height;
+    }
+
+    private void MainPage_PointerReleased_ForSelection(object sender, PointerRoutedEventArgs e)
+    {
+        // Handle panning release
+        if (_isPanning)
+        {
+            _isPanning = false;
+            SourceCanvas.ReleasePointerCapture(e.Pointer);
+            this.PointerReleased -= MainPage_PointerReleased_ForSelection;
+            e.Handled = true;
+            return;
+        }
+        
+        if (_isSelecting)
+        {
+            _isSelecting = false;
+            SelectionRectangle.Visibility = Visibility.Collapsed;
+            
+            // Release pointer capture
+            SourceCanvas.ReleasePointerCapture(e.Pointer);
+            
+            var selectionRect = new Rect(Canvas.GetLeft(SelectionRectangle), Canvas.GetTop(SelectionRectangle), SelectionRectangle.Width, SelectionRectangle.Height);
+
+            // Only proceed with selection if the rectangle has meaningful size
+            if (selectionRect.Width > 3 && selectionRect.Height > 3)
+            {
+                var selectedSources = new List<SourceItem>();
+                foreach (var item in SourceCanvas.Children.OfType<DraggableSourceItem>())
+                {
+                    var itemRect = new Rect(Canvas.GetLeft(item), Canvas.GetTop(item), item.ActualWidth, item.ActualHeight);
+                    if (RectsIntersect(selectionRect, itemRect))
+                    {
+                        selectedSources.Add(item.Source);
+                    }
+                }
+                
+                var ctrlPressed = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+                var shiftPressed = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+                
+                if (selectedSources.Any())
+                {
+                    SelectMultipleItems(selectedSources, ctrlPressed || shiftPressed);
+                }
+            }
+        }
+
+        this.PointerReleased -= MainPage_PointerReleased_ForSelection;
+        e.Handled = true;
+    }
+
+    private void SourceCanvas_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        var menuFlyout = new MenuFlyout();
+
+        var pasteItem = new MenuFlyoutItem { Text = "Paste", Icon = new FontIcon { Glyph = "\uE77F" } };
+        pasteItem.Click += async (s, a) => await ViewModel.PasteSourceCommand.ExecuteAsync(null);
+        pasteItem.IsEnabled = ViewModel.PasteSourceCommand.CanExecute(null);
+        menuFlyout.Items.Add(pasteItem);
+
+        menuFlyout.Items.Add(new MenuFlyoutSeparator());
+        
+        var resetCanvasItem = new MenuFlyoutItem { Text = "Reset Canvas", Icon = new FontIcon { Glyph = "\uE777" } };
+        resetCanvasItem.Click += async (s, a) => await ViewModel.ResetCanvasCommand.ExecuteAsync(null);
+        menuFlyout.Items.Add(resetCanvasItem);
+
+        menuFlyout.ShowAt(SourceCanvas, e.GetPosition(SourceCanvas));
+    }
+
+    private bool RectsIntersect(Rect r1, Rect r2) => r1.X < r2.X + r2.Width && r1.X + r1.Width > r2.X && r1.Y < r2.Y + r2.Height && r1.Y + r1.Height > r2.Y;
+
+    private async void DeleteSource_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is SourceItem source)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "Delete Source",
+                Content = $"Are you sure you want to delete '{source.DisplayName}'?",
+                PrimaryButtonText = "Delete",
+                CloseButtonText = "Cancel",
+                XamlRoot = XamlRoot
+            };
+
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            {
+                await ViewModel.DeleteSourceCommand.ExecuteAsync(source);
+            }
+        }
+    }
+
+    private async void MainPage_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        var isCtrlDown = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        
+        if (e.Key == VirtualKey.Delete)
+        {
+            var selectedSources = ViewModel.Sources.Where(s => s.IsSelected).ToList();
+            if (selectedSources.Any())
+            {
+                var dialog = new ContentDialog
+                {
+                    Title = selectedSources.Count == 1 ? "Delete Source" : "Delete Multiple Sources",
+                    Content = selectedSources.Count == 1 
+                        ? $"Are you sure you want to delete '{selectedSources[0].DisplayName}'?"
+                        : $"Are you sure you want to delete {selectedSources.Count} selected sources?",
+                    PrimaryButtonText = "Delete",
+                    CloseButtonText = "Cancel",
+                    XamlRoot = XamlRoot
+                };
+
+                if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+                {
+                    await ViewModel.DeleteSourceCommand.ExecuteAsync(selectedSources);
+                }
+            }
+            e.Handled = true;
+        }
+        else if (isCtrlDown && e.Key == VirtualKey.C)
+        {
+            var selectedSources = ViewModel.Sources.Where(s => s.IsSelected).ToList();
+            if (selectedSources.Any())
+                ViewModel.CopySourceCommand.Execute(selectedSources);
+        }
+        else if (isCtrlDown && e.Key == VirtualKey.V)
+        {
+            await ViewModel.PasteSourceCommand.ExecuteAsync(null);
+        }
+        else if (isCtrlDown && e.Key == VirtualKey.A)
+        {
+            // Select all sources
+            SelectMultipleItems(ViewModel.Sources, false);
+            e.Handled = true;
+        }
+        else if (e.Key == VirtualKey.Escape)
+        {
+            // Clear selection on Escape
+            ClearSelection();
+            e.Handled = true;
+        }
+    }
+
+    private void SourceSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // Prevent recursive updates by temporarily removing the event handler
+        SourcesListView.SelectionChanged -= SourceSelectionChanged;
+        
+        try
+        {
+            // Sync the IsSelected property on the source items with the ListView selection
+            foreach (var item in e.AddedItems.Cast<SourceItem>())
+            {
+                item.IsSelected = true;
+            }
+            foreach (var item in e.RemovedItems.Cast<SourceItem>())
+            {
+                item.IsSelected = false;
+            }
+
+            UpdateSelectionOnCanvas();
+            UpdateSelectionInViewModel();
+        }
+        finally
+        {
+            // Always re-attach the event handler
+            SourcesListView.SelectionChanged += SourceSelectionChanged;
         }
     }
     
+    private void UpdateSelectionInViewModel()
+    {
+        var selected = ViewModel.Sources.Where(s => s.IsSelected).ToList();
+        ViewModel.UpdateSelectedSources(selected);
+    }
+
+    private void UpdateListViewSelection()
+    {
+        SourcesListView.SelectionChanged -= SourceSelectionChanged;
+        SourcesListView.SelectedItems.Clear();
+        foreach (var source in ViewModel.Sources.Where(s => s.IsSelected))
+        {
+            SourcesListView.SelectedItems.Add(source);
+        }
+        SourcesListView.SelectionChanged += SourceSelectionChanged;
+    }
+
+    private void UpdateSelectionOnCanvas()
+    {
+        foreach (var item in SourceCanvas.Children.OfType<DraggableSourceItem>())
+        {
+            item.SetSelected(item.Source.IsSelected);
+        }
+    }
+
+    private void ZoomToFit_Click(object sender, RoutedEventArgs e)
+    {
+        if (CanvasScrollViewer != null && SourceCanvas.Width > 0 && SourceCanvas.Height > 0)
+        {
+            var zoomX = CanvasScrollViewer.ViewportWidth / SourceCanvas.Width;
+            var zoomY = CanvasScrollViewer.ViewportHeight / SourceCanvas.Height;
+            var targetZoom = Math.Min(zoomX, zoomY);
+            
+            // Calculate scroll position to center the canvas in the viewport
+            var scaledCanvasWidth = SourceCanvas.Width * targetZoom;
+            var scaledCanvasHeight = SourceCanvas.Height * targetZoom;
+            
+            var scrollX = (scaledCanvasWidth - CanvasScrollViewer.ViewportWidth) / 2;
+            var scrollY = (scaledCanvasHeight - CanvasScrollViewer.ViewportHeight) / 2;
+            
+            // Let the Grid centering handle small zoom levels automatically
+            // Only adjust scroll position if content is larger than viewport
+            if (scaledCanvasWidth <= CanvasScrollViewer.ViewportWidth) scrollX = 0;
+            if (scaledCanvasHeight <= CanvasScrollViewer.ViewportHeight) scrollY = 0;
+            
+            CanvasScrollViewer.ChangeView(scrollX, scrollY, (float)targetZoom);
+        }
+    }
+
+    private void Zoom100_Click(object sender, RoutedEventArgs e)
+    {
+        if (CanvasScrollViewer != null)
+        {
+            var currentZoom = CanvasScrollViewer.ZoomFactor;
+            var targetZoom = 1.0f;
+            
+            // Get the center point of the current view in content coordinates
+            var viewportCenterX = CanvasScrollViewer.ViewportWidth / 2;
+            var viewportCenterY = CanvasScrollViewer.ViewportHeight / 2;
+            
+            // Convert viewport center to content coordinates at current zoom
+            var contentCenterX = (CanvasScrollViewer.HorizontalOffset + viewportCenterX) / currentZoom;
+            var contentCenterY = (CanvasScrollViewer.VerticalOffset + viewportCenterY) / currentZoom;
+            
+            // Calculate where this content point should be positioned at 100% zoom
+            var newContentCenterX = contentCenterX * targetZoom;
+            var newContentCenterY = contentCenterY * targetZoom;
+            
+            // Calculate the scroll position to center this point in the viewport
+            var newScrollX = newContentCenterX - viewportCenterX;
+            var newScrollY = newContentCenterY - viewportCenterY;
+            
+            CanvasScrollViewer.ChangeView(newScrollX, newScrollY, targetZoom);
+        }
+    }
+
+    private void PreviewModeToggle_Click(object sender, RoutedEventArgs e)
+    {
+        UpdatePreviewCanvas();
+    }
+
     private void UpdatePreviewCanvas()
     {
-        // Clear existing preview elements
-        PreviewCanvas.Children.Clear();
+        var isPreview = ViewModel.IsPreviewing;
         
-        // Add live preview elements for each source
+        CanvasModeTitle.Text = isPreview ? "Live Preview" : "Layout Preview";
+        
+        // The actual preview will be rendered inside the DraggableSourceItems in a future update.
+        // For now, we just toggle the state and title.
+        // SourceCanvas.Visibility = isPreview ? Visibility.Collapsed : Visibility.Visible;
+        // PreviewCanvas.Visibility = isPreview ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnDraggableItemRightTapped(DraggableSourceItem? sender, RightTappedRoutedEventArgs e)
+    {
+        // This is now handled by the DraggableSourceItem's own RightTapped event
+        // We can add canvas-level context menu logic here if needed in the future
+    }
+
+    private bool _isUpdatingZoomSlider = false;
+
+    private void ZoomSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (CanvasScrollViewer != null && sender is Slider slider && !_isUpdatingZoomSlider)
+        {
+            var zoomFactor = (float)slider.Value;
+            var currentZoom = CanvasScrollViewer.ZoomFactor;
+            
+            if (Math.Abs(zoomFactor - currentZoom) < 0.001) return; // Avoid unnecessary updates
+            
+            // Get the center point of the current view in content coordinates
+            var viewportCenterX = CanvasScrollViewer.ViewportWidth / 2;
+            var viewportCenterY = CanvasScrollViewer.ViewportHeight / 2;
+            
+            // Convert viewport center to content coordinates at current zoom
+            var contentCenterX = (CanvasScrollViewer.HorizontalOffset + viewportCenterX) / currentZoom;
+            var contentCenterY = (CanvasScrollViewer.VerticalOffset + viewportCenterY) / currentZoom;
+            
+            // Calculate where this content point should be positioned at the new zoom
+            var newContentCenterX = contentCenterX * zoomFactor;
+            var newContentCenterY = contentCenterY * zoomFactor;
+            
+            // Calculate the scroll position to center this point in the viewport
+            var newScrollX = newContentCenterX - viewportCenterX;
+            var newScrollY = newContentCenterY - viewportCenterY;
+            
+            // Apply the zoom change - let the Grid centering handle small zoom levels automatically
+            CanvasScrollViewer.ChangeView(newScrollX, newScrollY, zoomFactor, false); // false = don't animate
+            
+            // Update the percentage text
+            if (ZoomPercentageText != null)
+            {
+                ZoomPercentageText.Text = $"{slider.Value * 100:F0}%";
+            }
+        }
+    }
+
+    private void CanvasScrollViewer_ViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
+    {
+        if (CanvasScrollViewer != null && ZoomSlider != null && ZoomPercentageText != null)
+        {
+            _isUpdatingZoomSlider = true;
+            ZoomSlider.Value = CanvasScrollViewer.ZoomFactor;
+            ZoomPercentageText.Text = $"{CanvasScrollViewer.ZoomFactor * 100:F0}%";
+            _isUpdatingZoomSlider = false;
+        }
+    }
+
+    // Central Selection Management
+    public void SelectSourceItem(SourceItem sourceItem, bool isMultiSelect)
+    {
+        if (sourceItem == null) return;
+
+        if (isMultiSelect)
+        {
+            // Multi-select mode (Ctrl/Shift held)
+            sourceItem.IsSelected = !sourceItem.IsSelected;
+        }
+        else
+        {
+            // Single-select mode - deselect all others
+            foreach (var source in ViewModel.Sources.Where(s => s != sourceItem))
+            {
+                source.IsSelected = false;
+            }
+            sourceItem.IsSelected = true;
+        }
+
+        UpdateSelectionInViewModel();
+        UpdateListViewSelection();
+        UpdateSelectionOnCanvas();
+    }
+
+    public void ClearSelection()
+    {
         foreach (var source in ViewModel.Sources)
         {
-            var previewElement = new WebView2
-            {
-                Width = source.CanvasWidth,
-                Height = source.CanvasHeight
-            };
-            
-            // Set the source URI to the MJPEG stream
-            if (!string.IsNullOrEmpty(ViewModel.StreamingUrl))
-            {
-                previewElement.Source = new Uri(ViewModel.StreamingUrl);
-            }
-            
-            Canvas.SetLeft(previewElement, source.CanvasX);
-            Canvas.SetTop(previewElement, source.CanvasY);
-            
-            PreviewCanvas.Children.Add(previewElement);
+            source.IsSelected = false;
         }
+        ViewModel.UpdateSelectedSources(new List<SourceItem>());
+        UpdateListViewSelection();
+        UpdateSelectionOnCanvas();
+    }
+
+    public void SelectMultipleItems(IEnumerable<SourceItem> items, bool addToSelection = false)
+    {
+        if (!addToSelection)
+        {
+            // Clear existing selection first
+            foreach (var source in ViewModel.Sources)
+            {
+                source.IsSelected = false;
+            }
+        }
+
+        foreach (var item in items)
+        {
+            item.IsSelected = true;
+        }
+
+        UpdateSelectionInViewModel();
+        UpdateListViewSelection();
+        UpdateSelectionOnCanvas();
     }
 }
