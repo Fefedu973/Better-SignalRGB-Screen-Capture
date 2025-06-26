@@ -260,8 +260,17 @@ public sealed partial class MainPage : Page
 
     private async void OnSourceCenterRequested(DraggableSourceItem sender, RoutedEventArgs e)
     {
-        if (sender.Source != null)
+        // If the item is part of a multi-selection, pass null to the command
+        // to indicate that the whole selection should be centered as a group.
+        if (ViewModel.SelectedSources.Count > 1 && sender.Source.IsSelected)
+        {
+            await ViewModel.CenterSourceCommand.ExecuteAsync(null);
+        }
+        else
+        {
+            // Otherwise, just center the single source that was clicked.
             await ViewModel.CenterSourceCommand.ExecuteAsync(sender.Source);
+        }
     }
 
     private void OnDraggableItemTapped(object sender, TappedRoutedEventArgs e)

@@ -167,7 +167,7 @@ public partial class MainViewModel : ObservableRecipient
         }
     }
 
-    private bool CanPasteSource() => _copiedSources.Any();
+    public bool CanPasteSource() => _copiedSources.Any();
     
     [RelayCommand]
     private async Task CenterSourceAsync(SourceItem? source)
@@ -182,20 +182,55 @@ public partial class MainViewModel : ObservableRecipient
             sourcesToCenter.AddRange(SelectedSources);
         }
 
-        if (sourcesToCenter.Any())
-        {
-            // Canvas size is 800x600
-            var canvasWidth = 800;
-            var canvasHeight = 600;
+        if (!sourcesToCenter.Any()) return;
 
+        // Canvas size is 800x600
+        const double canvasWidth = 800;
+        const double canvasHeight = 600;
+        var canvasCenter = new Point(canvasWidth / 2.0, canvasHeight / 2.0);
+
+        if (sourcesToCenter.Count == 1)
+        {
+            var s = sourcesToCenter[0];
+            s.CanvasX = (int)Math.Round((canvasWidth - s.CanvasWidth) / 2.0);
+            s.CanvasY = (int)Math.Round((canvasHeight - s.CanvasHeight) / 2.0);
+        }
+        else
+        {
+            // For multiple items, calculate the bounding box of the entire selection
+            Rect selectionBounds = Rect.Empty;
             foreach (var s in sourcesToCenter)
             {
-                s.CanvasX = (canvasWidth - s.CanvasWidth) / 2;
-                s.CanvasY = (canvasHeight - s.CanvasHeight) / 2;
+                var itemCenter = new Point(s.CanvasX + s.CanvasWidth / 2.0, s.CanvasY + s.CanvasHeight / 2.0);
+                var itemSize = new Size(s.CanvasWidth, s.CanvasHeight);
+                var itemAabb = GetRotatedAabb(itemCenter, itemSize, s.Rotation);
+
+                if (selectionBounds.IsEmpty)
+                {
+                    selectionBounds = itemAabb;
+                }
+                else
+                {
+                    selectionBounds.Union(itemAabb);
+                }
             }
 
-            await SaveSourcesAsync();
+            // Calculate the center of the selection's bounding box
+            var selectionCenter = new Point(selectionBounds.X + selectionBounds.Width / 2.0, selectionBounds.Y + selectionBounds.Height / 2.0);
+
+            // Calculate the offset needed to move the selection to the canvas center
+            var offsetX = canvasCenter.X - selectionCenter.X;
+            var offsetY = canvasCenter.Y - selectionCenter.Y;
+
+            // Apply the offset to each source in the selection
+            foreach (var s in sourcesToCenter)
+            {
+                s.CanvasX += (int)Math.Round(offsetX);
+                s.CanvasY += (int)Math.Round(offsetY);
+            }
         }
+
+        await SaveSourcesAsync();
     }
     
     [RelayCommand]
@@ -263,6 +298,10 @@ public partial class MainViewModel : ObservableRecipient
         AlignTopCommand.NotifyCanExecuteChanged();
         AlignBottomCommand.NotifyCanExecuteChanged();
         AlignMiddleCommand.NotifyCanExecuteChanged();
+        BringToFrontCommand.NotifyCanExecuteChanged();
+        SendToBackCommand.NotifyCanExecuteChanged();
+        BringForwardCommand.NotifyCanExecuteChanged();
+        SendBackwardCommand.NotifyCanExecuteChanged();
     }
 
     public bool IsSourceSelected => SelectedSources.Any();
@@ -903,12 +942,27 @@ public partial class MainViewModel : ObservableRecipient
         await _captureService.StopAllCapturesAsync();
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(IsSourceSelected))]
     private void BringToFront()
     {
         var sourcesToMove = SelectedSources.ToList();
         if (!sourcesToMove.Any()) return;
 
+        // Move to front means move to index 0 (top of list = foreground)
+        foreach (var source in sourcesToMove.OrderByDescending(s => Sources.IndexOf(s)))
+        {
+            if (Sources.Remove(source))
+                Sources.Insert(0, source);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(IsSourceSelected))]
+    private void SendToBack()
+    {
+        var sourcesToMove = SelectedSources.ToList();
+        if (!sourcesToMove.Any()) return;
+
+        // Move to back means move to end of list (bottom of list = background)
         foreach (var source in sourcesToMove.OrderBy(s => Sources.IndexOf(s)))
         {
             if (Sources.Remove(source))
@@ -916,16 +970,37 @@ public partial class MainViewModel : ObservableRecipient
         }
     }
 
-    [RelayCommand]
-    private void SendToBack()
+    [RelayCommand(CanExecute = nameof(IsSourceSelected))]
+    private void BringForward()
     {
         var sourcesToMove = SelectedSources.ToList();
         if (!sourcesToMove.Any()) return;
 
+        // Move forward means move one step closer to index 0 (towards foreground)
+        foreach (var source in sourcesToMove.OrderBy(s => Sources.IndexOf(s)))
+        {
+            var currentIndex = Sources.IndexOf(source);
+            if (currentIndex > 0)
+            {
+                Sources.Move(currentIndex, currentIndex - 1);
+            }
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(IsSourceSelected))]
+    private void SendBackward()
+    {
+        var sourcesToMove = SelectedSources.ToList();
+        if (!sourcesToMove.Any()) return;
+
+        // Move backward means move one step away from index 0 (towards background)
         foreach (var source in sourcesToMove.OrderByDescending(s => Sources.IndexOf(s)))
         {
-            if (Sources.Remove(source))
-                Sources.Insert(0, source);
+            var currentIndex = Sources.IndexOf(source);
+            if (currentIndex < Sources.Count - 1)
+            {
+                Sources.Move(currentIndex, currentIndex + 1);
+            }
         }
     }
 

@@ -321,7 +321,7 @@ public class SourceItem : INotifyPropertyChanged
 
     protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
-        if (Equals(field, value)) return false;
+        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
         field = value;
         OnPropertyChanged(propertyName);
         return true;
@@ -329,7 +329,38 @@ public class SourceItem : INotifyPropertyChanged
 
     public SourceItem Clone()
     {
-        return (SourceItem)this.MemberwiseClone();
+        var newItem = new SourceItem
+        {
+            // Do not copy Id, a new one will be assigned on paste
+            Name = this.Name,
+            Type = this.Type,
+
+            // Copy source-specific properties
+            MonitorDeviceId = this.MonitorDeviceId,
+            ProcessId = this.ProcessId,
+            ProcessPath = this.ProcessPath,
+            RegionBounds = this.RegionBounds.HasValue ? new RectInt32(this.RegionBounds.Value.X, this.RegionBounds.Value.Y, this.RegionBounds.Value.Width, this.RegionBounds.Value.Height) : null,
+            WebcamDeviceId = this.WebcamDeviceId,
+            WebsiteUrl = this.WebsiteUrl,
+
+            // Copy canvas and visual properties
+            CanvasX = this.CanvasX,
+            CanvasY = this.CanvasY,
+            CanvasWidth = this.CanvasWidth,
+            CanvasHeight = this.CanvasHeight,
+            Opacity = this.Opacity,
+            CropLeftPct = this.CropLeftPct,
+            CropTopPct = this.CropTopPct,
+            CropRightPct = this.CropRightPct,
+            CropBottomPct = this.CropBottomPct,
+            IsMirroredHorizontally = this.IsMirroredHorizontally,
+            IsMirroredVertically = this.IsMirroredVertically,
+            Rotation = this.Rotation,
+
+            // Do not copy selection state
+            IsSelected = false
+        };
+        return newItem;
     }
 }
 

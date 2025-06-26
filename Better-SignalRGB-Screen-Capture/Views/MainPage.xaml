@@ -357,6 +357,49 @@
                             <NumberBox Header="Right (%)" Value="{x:Bind ViewModel.SelectedSourceCropRightPct, Mode=TwoWay}" Minimum="0" Maximum="100" />
                             <NumberBox Header="Bottom (%)" Value="{x:Bind ViewModel.SelectedSourceCropBottomPct, Mode=TwoWay}" Minimum="0" Maximum="100" />
                         </StackPanel>
+
+                        <!--  Layer Properties  -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Layer" />
+                            <Grid ColumnSpacing="8" RowSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                
+                                <!-- Top row - Extreme layer movements -->
+                                <Button Grid.Column="0" Grid.Row="0" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.BringToFrontCommand}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE746;" FontSize="14" />
+                                        <TextBlock Text="Bring to Front" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="1" Grid.Row="0" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.SendToBackCommand}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE747;" FontSize="14" />
+                                        <TextBlock Text="Send to Back" />
+                                    </StackPanel>
+                                </Button>
+                                
+                                <!-- Bottom row - Single step movements -->
+                                <Button Grid.Column="0" Grid.Row="1" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.BringForwardCommand}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE760;" FontSize="14" />
+                                        <TextBlock Text="Bring Forward" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="1" Grid.Row="1" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.SendBackwardCommand}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE761;" FontSize="14" />
+                                        <TextBlock Text="Send Backward" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </StackPanel>
                     </StackPanel>
                     
                     <!-- Selected Source Properties (Multiple) -->
@@ -384,6 +427,49 @@
                                  <Button Grid.Column="1" Grid.Row="1" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.AlignMiddleCommand}" Content="Middle" />
                                  <Button Grid.Column="2" Grid.Row="1" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.AlignBottomCommand}" Content="Bottom" />
                              </Grid>
+                        </StackPanel>
+                        
+                        <!--  Layer Properties  -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Layer" />
+                            <Grid ColumnSpacing="8" RowSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                
+                                <!-- Top row - Extreme layer movements -->
+                                <Button Grid.Column="0" Grid.Row="0" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.BringToFrontCommand}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE746;" FontSize="14" />
+                                        <TextBlock Text="Bring to Front" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="1" Grid.Row="0" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.SendToBackCommand}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE747;" FontSize="14" />
+                                        <TextBlock Text="Send to Back" />
+                                    </StackPanel>
+                                </Button>
+                                
+                                <!-- Bottom row - Single step movements -->
+                                <Button Grid.Column="0" Grid.Row="1" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.BringForwardCommand}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE760;" FontSize="14" />
+                                        <TextBlock Text="Bring Forward" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="1" Grid.Row="1" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.SendBackwardCommand}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE761;" FontSize="14" />
+                                        <TextBlock Text="Send Backward" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
                         </StackPanel>
                     </StackPanel>
                     

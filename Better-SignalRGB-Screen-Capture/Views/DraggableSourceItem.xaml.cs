@@ -420,12 +420,12 @@ public sealed partial class DraggableSourceItem : UserControl
                 var rotatedAabb = GetRotatedAabb(newCenter, size, Source.Rotation);
 
                 // Clamp the AABB to canvas bounds
-                var clampedAabb = new Rect(
-                    Math.Max(0, rotatedAabb.X),
-                    Math.Max(0, rotatedAabb.Y),
-                    Math.Min(rotatedAabb.Width, parent.ActualWidth - Math.Max(0, rotatedAabb.X)),
-                    Math.Min(rotatedAabb.Height, parent.ActualHeight - Math.Max(0, rotatedAabb.Y))
-                );
+                var clampedX = Math.Max(0, rotatedAabb.X);
+                var clampedY = Math.Max(0, rotatedAabb.Y);
+                var clampedWidth = Math.Max(0, Math.Min(rotatedAabb.Width, parent.ActualWidth - clampedX));
+                var clampedHeight = Math.Max(0, Math.Min(rotatedAabb.Height, parent.ActualHeight - clampedY));
+                
+                var clampedAabb = new Rect(clampedX, clampedY, clampedWidth, clampedHeight);
 
                 // If clamping changed the AABB, back-solve the position
                 if (Math.Abs(clampedAabb.X - rotatedAabb.X) > 0.1 || Math.Abs(clampedAabb.Y - rotatedAabb.Y) > 0.1 ||
@@ -646,11 +646,48 @@ public sealed partial class DraggableSourceItem : UserControl
         var isCtrlDown = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
         var isShiftDown = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(CoreVirtualKeyStates.Down);
         
-        HandleSelection(isCtrlDown || isShiftDown);
+        var mainPage = FindParent<MainPage>(this);
+        var viewModel = mainPage?.ViewModel;
+
+        if (viewModel == null) return;
+
+        // If right-clicking an item that is NOT selected, and it's not a ctrl/shift click,
+        // clear the existing selection and select only this item.
+        if (!Source.IsSelected && !isCtrlDown && !isShiftDown)
+        {
+            viewModel.UpdateSelectedSources(new[] { Source });
+        }
+        // If right-clicking an item that IS selected, and there's a multi-selection,
+        // we assume the user wants to act on the entire selection.
+        else if (Source.IsSelected && viewModel.SelectedSources.Count > 1)
+        {
+            // Do nothing, keep the multi-selection as is.
+        }
+        else
+        {
+            HandleSelection(isCtrlDown || isShiftDown);
+        }
 
         var menuFlyout = new MenuFlyout();
-        var viewModel = App.GetService<MainViewModel>();
+        
+        // Decide whether to show the single-item or multi-item menu
+        bool isMultiSelectAction = viewModel.SelectedSources.Count > 1 && Source.IsSelected;
 
+        if (isMultiSelectAction)
+        {
+            BuildMultiSelectContextMenu(menuFlyout, viewModel);
+        }
+        else
+        {
+            BuildSingleSelectContextMenu(menuFlyout, viewModel);
+        }
+
+        menuFlyout.ShowAt(this, e.GetPosition(this));
+        e.Handled = true;
+    }
+
+    private void BuildSingleSelectContextMenu(MenuFlyout menuFlyout, MainViewModel viewModel)
+    {
         var editItem = new MenuFlyoutItem { Text = "Edit", Icon = new FontIcon { Glyph = "\uE70F" } };
         editItem.Click += (s, a) => EditRequested?.Invoke(this, a);
         menuFlyout.Items.Add(editItem);
@@ -659,53 +696,39 @@ public sealed partial class DraggableSourceItem : UserControl
         copyItem.Click += CopyMenuItem_Click;
         menuFlyout.Items.Add(copyItem);
 
-        var pasteItem = new MenuFlyoutItem { Text = "Paste", Icon = new FontIcon { Glyph = "\uE77F" } };
+        var pasteItem = new MenuFlyoutItem { Text = "Paste", Icon = new FontIcon { Glyph = "\uE77F" }, IsEnabled = viewModel.CanPasteSource() };
         pasteItem.Click += PasteMenuItem_Click;
         menuFlyout.Items.Add(pasteItem);
 
         menuFlyout.Items.Add(new MenuFlyoutSeparator());
 
-        var bringToFrontItem = new MenuFlyoutItem { Text = "Bring to Front", Icon = new FontIcon { Glyph = "\uE746" } };
-        bringToFrontItem.Command = viewModel.BringToFrontCommand;
-        menuFlyout.Items.Add(bringToFrontItem);
-
-        var sendToBackItem = new MenuFlyoutItem { Text = "Send to Back", Icon = new FontIcon { Glyph = "\uE747" } };
-        sendToBackItem.Command = viewModel.SendToBackCommand;
-        menuFlyout.Items.Add(sendToBackItem);
+        // Layer submenu
+        var layerSubMenu = new MenuFlyoutSubItem { Text = "Layer", Icon = new FontIcon { Glyph = "\uE8FD" } };
+        BuildLayerMenuItems(layerSubMenu, viewModel);
+        menuFlyout.Items.Add(layerSubMenu);
 
         menuFlyout.Items.Add(new MenuFlyoutSeparator());
-        
-        // Alignment options for multi-select
-        if (viewModel.IsMultiSelect)
+
+        var flipHorizontalItem = new MenuFlyoutItem { Text = "Flip Horizontally", Icon = new FontIcon { Glyph = "\uE7F7" } };
+        flipHorizontalItem.Click += async (s, a) => 
         {
-            var alignSubMenu = new MenuFlyoutSubItem { Text = "Align" };
-            
-            var alignLeft = new MenuFlyoutItem { Text = "Align Left", Command = viewModel.AlignLeftCommand };
-            var alignCenter = new MenuFlyoutItem { Text = "Align Center", Command = viewModel.AlignCenterCommand };
-            var alignRight = new MenuFlyoutItem { Text = "Align Right", Command = viewModel.AlignRightCommand };
-            var alignTop = new MenuFlyoutItem { Text = "Align Top", Command = viewModel.AlignTopCommand };
-            var alignMiddle = new MenuFlyoutItem { Text = "Align Middle", Command = viewModel.AlignMiddleCommand };
-            var alignBottom = new MenuFlyoutItem { Text = "Align Bottom", Command = viewModel.AlignBottomCommand };
-            
-            alignSubMenu.Items.Add(alignLeft);
-            alignSubMenu.Items.Add(alignCenter);
-            alignSubMenu.Items.Add(alignRight);
-            alignSubMenu.Items.Add(new MenuFlyoutSeparator());
-            alignSubMenu.Items.Add(alignTop);
-            alignSubMenu.Items.Add(alignMiddle);
-            alignSubMenu.Items.Add(alignBottom);
-            
-            menuFlyout.Items.Add(alignSubMenu);
-            menuFlyout.Items.Add(new MenuFlyoutSeparator());
-        }
-
-        var flipHorizontalItem = new MenuFlyoutItem { Text = "Flip Horizontal", Icon = new FontIcon { Glyph = "\uE7A7" } };
-        flipHorizontalItem.Click += (s, a) => viewModel.ToggleFlipHorizontalCommand.Execute(null);
+            if (viewModel?.SelectedSources.Any() != true) return;
+            var targetState = !viewModel.SelectedSources[0].IsMirroredHorizontally;
+            foreach(var source in viewModel.SelectedSources) source.IsMirroredHorizontally = targetState;
+            await viewModel.SaveSourcesAsync();
+        };
+        var flipVerticalItem = new MenuFlyoutItem { Text = "Flip Vertically", Icon = new FontIcon { Glyph = "\uE7F8" } };
+        flipVerticalItem.Click += async (s, a) => 
+        {
+            if (viewModel?.SelectedSources.Any() != true) return;
+            var targetState = !viewModel.SelectedSources[0].IsMirroredVertically;
+            foreach(var source in viewModel.SelectedSources) source.IsMirroredVertically = targetState;
+            await viewModel.SaveSourcesAsync();
+        };
         menuFlyout.Items.Add(flipHorizontalItem);
-
-        var flipVerticalItem = new MenuFlyoutItem { Text = "Flip Vertical", Icon = new FontIcon { Glyph = "\uE7A8" } };
-        flipVerticalItem.Click += (s, a) => viewModel.ToggleFlipVerticalCommand.Execute(null);
         menuFlyout.Items.Add(flipVerticalItem);
+
+        menuFlyout.Items.Add(new MenuFlyoutSeparator());
 
         var centerItem = new MenuFlyoutItem { Text = "Center", Icon = new FontIcon { Glyph = "\uE843" } };
         centerItem.Click += CenterMenuItem_Click;
@@ -722,11 +745,148 @@ public sealed partial class DraggableSourceItem : UserControl
         var deleteItem = new MenuFlyoutItem { Text = "Delete", Icon = new FontIcon { Glyph = "\uE74D" } };
         deleteItem.Click += DeleteMenuItem_Click;
         menuFlyout.Items.Add(deleteItem);
+    }
 
-        menuFlyout.ShowAt(this, e.GetPosition(this));
-        e.Handled = true;
+    private void BuildMultiSelectContextMenu(MenuFlyout menuFlyout, MainViewModel viewModel)
+    {
+        var copyItem = new MenuFlyoutItem { Text = "Copy", Icon = new FontIcon { Glyph = "\uE8C8" } };
+        copyItem.Click += CopyMenuItem_Click;
+        menuFlyout.Items.Add(copyItem);
+
+        var pasteItem = new MenuFlyoutItem { Text = "Paste", Icon = new FontIcon { Glyph = "\uE77F" }, IsEnabled = viewModel.CanPasteSource() };
+        pasteItem.Click += PasteMenuItem_Click;
+        menuFlyout.Items.Add(pasteItem);
+
+        menuFlyout.Items.Add(new MenuFlyoutSeparator());
+
+        var alignSubMenu = new MenuFlyoutSubItem { Text = "Align", Icon = new FontIcon { Glyph = "\uE834" } };
+        BuildAlignMenuItems(alignSubMenu, viewModel);
+        menuFlyout.Items.Add(alignSubMenu);
+
+        var centerItem = new MenuFlyoutItem { Text = "Center", Icon = new FontIcon { Glyph = "\uE843" } };
+        centerItem.Click += CenterMenuItem_Click;
+        menuFlyout.Items.Add(centerItem);
+
+        menuFlyout.Items.Add(new MenuFlyoutSeparator());
+        
+        var layerSubMenu = new MenuFlyoutSubItem { Text = "Layer", Icon = new FontIcon { Glyph = "\uE8FD" } };
+        BuildLayerMenuItems(layerSubMenu, viewModel);
+        menuFlyout.Items.Add(layerSubMenu);
+
+        menuFlyout.Items.Add(new MenuFlyoutSeparator());
+
+        var flipHorizontalItem = new MenuFlyoutItem { Text = "Flip Horizontally", Icon = new FontIcon { Glyph = "\uE7F7" } };
+        flipHorizontalItem.Click += async (s, a) => 
+        {
+            if (viewModel?.SelectedSources.Any() != true) return;
+            var targetState = !viewModel.SelectedSources[0].IsMirroredHorizontally;
+            foreach (var source in viewModel.SelectedSources) source.IsMirroredHorizontally = targetState;
+            await viewModel.SaveSourcesAsync();
+        };
+        var flipVerticalItem = new MenuFlyoutItem { Text = "Flip Vertically", Icon = new FontIcon { Glyph = "\uE7F8" } };
+        flipVerticalItem.Click += async (s, a) =>
+        {
+            if (viewModel?.SelectedSources.Any() != true) return;
+            var targetState = !viewModel.SelectedSources[0].IsMirroredVertically;
+            foreach (var source in viewModel.SelectedSources) source.IsMirroredVertically = targetState;
+            await viewModel.SaveSourcesAsync();
+        };
+        menuFlyout.Items.Add(flipHorizontalItem);
+        menuFlyout.Items.Add(flipVerticalItem);
+
+        menuFlyout.Items.Add(new MenuFlyoutSeparator());
+
+        var deleteItem = new MenuFlyoutItem { Text = $"Delete {viewModel.SelectedSources.Count} items", Icon = new FontIcon { Glyph = "\uE74D" } };
+        deleteItem.Click += DeleteMenuItem_Click;
+        menuFlyout.Items.Add(deleteItem);
     }
     
+    private void BuildLayerMenuItems(MenuFlyoutSubItem layerSubMenu, MainViewModel viewModel)
+    {
+        var bringToFrontItem = new MenuFlyoutItem { Text = "Bring to Front", Icon = new FontIcon { Glyph = "\uE746" } };
+        bringToFrontItem.Click += async (s, a) =>
+        {
+            if (viewModel == null) return;
+            var sourcesToMove = viewModel.SelectedSources.ToList();
+            if (!sourcesToMove.Any()) return;
+            foreach (var source in sourcesToMove.OrderByDescending(src => viewModel.Sources.IndexOf(src)))
+            {
+                if (viewModel.Sources.Remove(source))
+                    viewModel.Sources.Insert(0, source);
+            }
+            await viewModel.SaveSourcesAsync();
+        };
+        layerSubMenu.Items.Add(bringToFrontItem);
+
+        var bringForwardItem = new MenuFlyoutItem { Text = "Bring Forward", Icon = new FontIcon { Glyph = "\uE760" } };
+        bringForwardItem.Click += async (s, a) =>
+        {
+            if (viewModel == null) return;
+            var sourcesToMove = viewModel.SelectedSources.ToList();
+            if (!sourcesToMove.Any()) return;
+            foreach (var source in sourcesToMove.OrderBy(src => viewModel.Sources.IndexOf(src)))
+            {
+                var index = viewModel.Sources.IndexOf(source);
+                if (index > 0)
+                    viewModel.Sources.Move(index, index - 1);
+            }
+            await viewModel.SaveSourcesAsync();
+        };
+        layerSubMenu.Items.Add(bringForwardItem);
+
+        layerSubMenu.Items.Add(new MenuFlyoutSeparator());
+
+        var sendBackwardItem = new MenuFlyoutItem { Text = "Send Backward", Icon = new FontIcon { Glyph = "\uE761" } };
+        sendBackwardItem.Click += async (s, a) =>
+        {
+            if (viewModel == null) return;
+            var sourcesToMove = viewModel.SelectedSources.ToList();
+            if (!sourcesToMove.Any()) return;
+            foreach (var source in sourcesToMove.OrderByDescending(src => viewModel.Sources.IndexOf(src)))
+            {
+                var index = viewModel.Sources.IndexOf(source);
+                if (index < viewModel.Sources.Count - 1)
+                    viewModel.Sources.Move(index, index + 1);
+            }
+            await viewModel.SaveSourcesAsync();
+        };
+        layerSubMenu.Items.Add(sendBackwardItem);
+
+        var sendToBackItem = new MenuFlyoutItem { Text = "Send to Back", Icon = new FontIcon { Glyph = "\uE747" } };
+        sendToBackItem.Click += async (s, a) =>
+        {
+            if (viewModel == null) return;
+            var sourcesToMove = viewModel.SelectedSources.ToList();
+            if (!sourcesToMove.Any()) return;
+            foreach (var source in sourcesToMove.OrderBy(src => viewModel.Sources.IndexOf(src)))
+            {
+                if (viewModel.Sources.Remove(source))
+                    viewModel.Sources.Add(source);
+            }
+            await viewModel.SaveSourcesAsync();
+        };
+        layerSubMenu.Items.Add(sendToBackItem);
+    }
+
+    private void BuildAlignMenuItems(MenuFlyoutSubItem alignSubMenu, MainViewModel viewModel)
+    {
+        var alignLeft = new MenuFlyoutItem { Text = "Align Left", Command = viewModel.AlignLeftCommand };
+        var alignCenter = new MenuFlyoutItem { Text = "Align Center", Command = viewModel.AlignCenterCommand };
+        var alignRight = new MenuFlyoutItem { Text = "Align Right", Command = viewModel.AlignRightCommand };
+        alignSubMenu.Items.Add(alignLeft);
+        alignSubMenu.Items.Add(alignCenter);
+        alignSubMenu.Items.Add(alignRight);
+
+        alignSubMenu.Items.Add(new MenuFlyoutSeparator());
+
+        var alignTop = new MenuFlyoutItem { Text = "Align Top", Command = viewModel.AlignTopCommand };
+        var alignMiddle = new MenuFlyoutItem { Text = "Align Middle", Command = viewModel.AlignMiddleCommand };
+        var alignBottom = new MenuFlyoutItem { Text = "Align Bottom", Command = viewModel.AlignBottomCommand };
+        alignSubMenu.Items.Add(alignTop);
+        alignSubMenu.Items.Add(alignMiddle);
+        alignSubMenu.Items.Add(alignBottom);
+    }
+
     private void DeleteMenuItem_Click(object sender, RoutedEventArgs e)
     {
         DeleteRequested?.Invoke(this, e);
@@ -751,17 +911,19 @@ public sealed partial class DraggableSourceItem : UserControl
     {
         _isCropping = true;
         CropCanvas.Visibility = Visibility.Visible;
-        SelectionBorder.Opacity = 0; // Hide selection visuals
+        SelectionBorder.Visibility = Visibility.Collapsed; // Hide selection visuals
+        RotationHandleCanvas.Visibility = Visibility.Collapsed;
 
         // Convert percentage to pixels for crop editing
-        double left = ActualWidth * Source.CropLeftPct;
-        double top = ActualHeight * Source.CropTopPct;
-        double right = ActualWidth * Source.CropRightPct;
-        double bottom = ActualHeight * Source.CropBottomPct;
+        double left = ActualWidth * (Source?.CropLeftPct ?? 0);
+        double top = ActualHeight * (Source?.CropTopPct ?? 0);
+        double right = ActualWidth * (Source?.CropRightPct ?? 0);
+        double bottom = ActualHeight * (Source?.CropBottomPct ?? 0);
         
         _cropStartRect = new Rect(left, top,
             Math.Max(0, ActualWidth - left - right),
-            Math.Max(0, ActualHeight - top - bottom));
+            Math.Max(0, ActualHeight - top - bottom)
+        );
 
         UpdateCropVisuals(_cropStartRect);
     }
@@ -770,7 +932,9 @@ public sealed partial class DraggableSourceItem : UserControl
     {
         _isCropping = false;
         CropCanvas.Visibility = Visibility.Collapsed;
-        SelectionBorder.Opacity = 1; // Restore selection visuals
+        // Restore visibility based on the actual selection state
+        SelectionBorder.Visibility = _isSelected ? Visibility.Visible : Visibility.Collapsed;
+        RotationHandleCanvas.Visibility = _isSelected ? Visibility.Visible : Visibility.Collapsed;
         _cropResizeMode = ResizeMode.None;
     }
 
