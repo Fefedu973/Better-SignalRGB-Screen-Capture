@@ -51,6 +51,56 @@ public sealed partial class DraggableSourceItem : UserControl
 
     private enum ResizeMode { None, TopLeft, TopRight, BottomLeft, BottomRight, Top, Bottom, Left, Right, Rotate, Move }
 
+    /// <summary>
+    /// Converts a point from rotated coordinate space back to unrotated coordinate space
+    /// </summary>
+    /// <param name="p">Point in rotated coordinate space</param>
+    /// <returns>Point in unrotated coordinate space</returns>
+    private Point ToUnrotated(Point p)
+    {
+        if (RotateTransform == null || RotateTransform.Angle == 0) return p;
+        
+        var centerX = ActualWidth * 0.5;
+        var centerY = ActualHeight * 0.5;
+        
+        // Translate to origin
+        var translatedX = p.X - centerX;
+        var translatedY = p.Y - centerY;
+        
+        // Apply reverse rotation
+        var angleRad = -RotateTransform.Angle * Math.PI / 180.0;
+        var cos = Math.Cos(angleRad);
+        var sin = Math.Sin(angleRad);
+        
+        var unrotatedX = translatedX * cos - translatedY * sin;
+        var unrotatedY = translatedX * sin + translatedY * cos;
+        
+        // Translate back
+        return new Point(unrotatedX + centerX, unrotatedY + centerY);
+    }
+
+    /// <summary>
+    /// Returns the axis-aligned bounding box (AABB) of a rotated rectangle
+    /// </summary>
+    /// <param name="center">Center point of the rectangle</param>
+    /// <param name="size">Size of the rectangle</param>
+    /// <param name="angleDeg">Rotation angle in degrees</param>
+    /// <returns>The AABB that fully contains the rotated rectangle</returns>
+    private static Rect GetRotatedAabb(Point center, Size size, double angleDeg)
+    {
+        var angle = angleDeg * Math.PI / 180;
+        var cos = Math.Abs(Math.Cos(angle));
+        var sin = Math.Abs(Math.Sin(angle));
+
+        var w = size.Width * cos + size.Height * sin;
+        var h = size.Width * sin + size.Height * cos;
+
+        return new Rect(
+            center.X - w / 2,
+            center.Y - h / 2,
+            w, h);
+    }
+
     public DraggableSourceItem()
     {
         InitializeComponent();
@@ -282,7 +332,17 @@ public sealed partial class DraggableSourceItem : UserControl
                 newAngle = Math.Round(newAngle / 15.0) * 15.0; // Snap to 15-degree increments
             }
 
-            Source.Rotation = (int)Math.Round(newAngle);
+            // Check if the new rotation would cause the rectangle to overflow the canvas
+            var size = new Size(_actionStartBounds.Width, _actionStartBounds.Height);
+            var rotatedAabb = GetRotatedAabb(centerPoint, size, newAngle);
+
+            // If the rotated AABB would overflow, don't apply the rotation
+            if (rotatedAabb.Left >= 0 && rotatedAabb.Top >= 0 && 
+                rotatedAabb.Right <= parent.ActualWidth && rotatedAabb.Bottom <= parent.ActualHeight)
+            {
+                Source.Rotation = (int)Math.Round(newAngle);
+            }
+            // If overflow would occur, keep the current rotation (no update)
         }
         else if (_isResizing)
         {
@@ -341,7 +401,7 @@ public sealed partial class DraggableSourceItem : UserControl
                     dy = Math.Clamp(dy, -maxDyTop,  maxShrinkY);
                     break;
             }
-
+            
             ApplyResize(dx, dy, isShiftDown);
         }
         else if (_isDragging)
@@ -352,9 +412,37 @@ public sealed partial class DraggableSourceItem : UserControl
             var newX = _actionStartBounds.X + deltaX;
             var newY = _actionStartBounds.Y + deltaY;
 
-            // Confine to parent canvas
-            newX = Math.Max(0, Math.Min(newX, parent.ActualWidth - _actionStartBounds.Width));
-            newY = Math.Max(0, Math.Min(newY, parent.ActualHeight - _actionStartBounds.Height));
+            // For rotated rectangles, check the oriented bounding box
+            if (Source.Rotation != 0)
+            {
+                var newCenter = new Point(newX + _actionStartBounds.Width / 2, newY + _actionStartBounds.Height / 2);
+                var size = new Size(_actionStartBounds.Width, _actionStartBounds.Height);
+                var rotatedAabb = GetRotatedAabb(newCenter, size, Source.Rotation);
+
+                // Clamp the AABB to canvas bounds
+                var clampedAabb = new Rect(
+                    Math.Max(0, rotatedAabb.X),
+                    Math.Max(0, rotatedAabb.Y),
+                    Math.Min(rotatedAabb.Width, parent.ActualWidth - Math.Max(0, rotatedAabb.X)),
+                    Math.Min(rotatedAabb.Height, parent.ActualHeight - Math.Max(0, rotatedAabb.Y))
+                );
+
+                // If clamping changed the AABB, back-solve the position
+                if (Math.Abs(clampedAabb.X - rotatedAabb.X) > 0.1 || Math.Abs(clampedAabb.Y - rotatedAabb.Y) > 0.1 ||
+                    Math.Abs(clampedAabb.Width - rotatedAabb.Width) > 0.1 || Math.Abs(clampedAabb.Height - rotatedAabb.Height) > 0.1)
+                {
+                    // Calculate the new center from the clamped AABB
+                    var clampedCenter = new Point(clampedAabb.X + clampedAabb.Width / 2, clampedAabb.Y + clampedAabb.Height / 2);
+                    newX = clampedCenter.X - _actionStartBounds.Width / 2;
+                    newY = clampedCenter.Y - _actionStartBounds.Height / 2;
+                }
+            }
+            else
+            {
+                // For non-rotated rectangles, use simple axis-aligned bounds
+                newX = Math.Max(0, Math.Min(newX, parent.ActualWidth - _actionStartBounds.Width));
+                newY = Math.Max(0, Math.Min(newY, parent.ActualHeight - _actionStartBounds.Height));
+            }
             
             if(Source != null)
             {
@@ -415,31 +503,70 @@ public sealed partial class DraggableSourceItem : UserControl
         // ---------- 4. clamp to canvas (shrink, never shift anchored edge) ------
         void shrinkToFit()
         {
-            // left
-            if (newX < 0)
+            // For rotated rectangles, check the oriented bounding box
+            if (Source.Rotation != 0)
             {
-                double overshoot = -newX;
-                newW -= overshoot;
-                newX  = 0;
+                var center = new Point(newX + newW / 2, newY + newH / 2);
+                var size = new Size(newW, newH);
+                var rotatedAabb = GetRotatedAabb(center, size, Source.Rotation);
+
+                // Check if the rotated AABB overflows the canvas
+                var overflow = new Point(0, 0);
+                
+                if (rotatedAabb.Left < 0)
+                    overflow.X = Math.Max(overflow.X, -rotatedAabb.Left);
+                if (rotatedAabb.Top < 0)
+                    overflow.Y = Math.Max(overflow.Y, -rotatedAabb.Top);
+                if (rotatedAabb.Right > canvas.ActualWidth)
+                    overflow.X = Math.Max(overflow.X, rotatedAabb.Right - canvas.ActualWidth);
+                if (rotatedAabb.Bottom > canvas.ActualHeight)
+                    overflow.Y = Math.Max(overflow.Y, rotatedAabb.Bottom - canvas.ActualHeight);
+
+                // If there's overflow, shrink the rectangle proportionally
+                if (overflow.X > 0 || overflow.Y > 0)
+                {
+                    // Calculate shrink factors based on the maximum overflow
+                    var shrinkFactorX = overflow.X > 0 ? 1 - (overflow.X / rotatedAabb.Width) : 1;
+                    var shrinkFactorY = overflow.Y > 0 ? 1 - (overflow.Y / rotatedAabb.Height) : 1;
+                    var shrinkFactor = Math.Min(shrinkFactorX, shrinkFactorY);
+
+                    // Apply the shrink factor while maintaining the center point
+                    var oldCenter = new Point(newX + newW / 2, newY + newH / 2);
+                    newW *= shrinkFactor;
+                    newH *= shrinkFactor;
+                    newX = oldCenter.X - newW / 2;
+                    newY = oldCenter.Y - newH / 2;
+                }
             }
-            // top
-            if (newY < 0)
+            else
             {
-                double overshoot = -newY;
-                newH -= overshoot;
-                newY  = 0;
-            }
-            // right
-            if (newX + newW > canvas.ActualWidth)
-            {
-                double overshoot = newX + newW - canvas.ActualWidth;
-                newW -= overshoot;
-            }
-            // bottom
-            if (newY + newH > canvas.ActualHeight)
-            {
-                double overshoot = newY + newH - canvas.ActualHeight;
-                newH -= overshoot;
+                // For non-rotated rectangles, use simple axis-aligned bounds
+                // left
+                if (newX < 0)
+                {
+                    double overshoot = -newX;
+                    newW -= overshoot;
+                    newX  = 0;
+                }
+                // top
+                if (newY < 0)
+                {
+                    double overshoot = -newY;
+                    newH -= overshoot;
+                    newY  = 0;
+                }
+                // right
+                if (newX + newW > canvas.ActualWidth)
+                {
+                    double overshoot = newX + newW - canvas.ActualWidth;
+                    newW -= overshoot;
+                }
+                // bottom
+                if (newY + newH > canvas.ActualHeight)
+                {
+                    double overshoot = newY + newH - canvas.ActualHeight;
+                    newH -= overshoot;
+                }
             }
         }
 
@@ -809,6 +936,13 @@ public sealed partial class DraggableSourceItem : UserControl
     
     private ResizeMode GetCropResizeMode(Point point)
     {
+        // Apply rotation compensation
+        var unrotatedPoint = ToUnrotated(point);
+        return GetCropResizeModeCore(unrotatedPoint);
+    }
+
+    private ResizeMode GetCropResizeModeCore(Point point)
+    {
         const int handleSize = 10;
         var cropRect = new Rect(Canvas.GetLeft(CropRect), Canvas.GetTop(CropRect), CropRect.Width, CropRect.Height);
 
@@ -839,6 +973,13 @@ public sealed partial class DraggableSourceItem : UserControl
     }
 
     private ResizeMode GetResizeMode(Point point)
+    {
+        // Apply rotation compensation
+        var unrotatedPoint = ToUnrotated(point);
+        return GetResizeModeCore(unrotatedPoint);
+    }
+
+    private ResizeMode GetResizeModeCore(Point point)
     {
         if (_isCropping) return ResizeMode.None;
 

@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Better_SignalRGB_Screen_Capture.Models;
 using Better_SignalRGB_Screen_Capture.Contracts.Services;
+using Windows.Foundation;
 
 namespace Better_SignalRGB_Screen_Capture.ViewModels;
 
@@ -563,6 +564,28 @@ public partial class MainViewModel : ObservableRecipient
         }
     }
 
+    /// <summary>
+    /// Returns the axis-aligned bounding box (AABB) of a rotated rectangle
+    /// </summary>
+    /// <param name="center">Center point of the rectangle</param>
+    /// <param name="size">Size of the rectangle</param>
+    /// <param name="angleDeg">Rotation angle in degrees</param>
+    /// <returns>The AABB that fully contains the rotated rectangle</returns>
+    private static Rect GetRotatedAabb(Point center, Size size, double angleDeg)
+    {
+        var angle = angleDeg * Math.PI / 180;
+        var cos = Math.Abs(Math.Cos(angle));
+        var sin = Math.Abs(Math.Sin(angle));
+
+        var w = size.Width * cos + size.Height * sin;
+        var h = size.Width * sin + size.Height * cos;
+
+        return new Rect(
+            center.X - w / 2,
+            center.Y - h / 2,
+            w, h);
+    }
+
     public int SelectedSourceRotation
     {
         get => IsSingleSelect ? SelectedSources[0].Rotation : 0;
@@ -570,9 +593,31 @@ public partial class MainViewModel : ObservableRecipient
         {
             if (IsSingleSelect && SelectedSources[0].Rotation != value)
             {
-                SelectedSources[0].Rotation = value;
-                OnPropertyChanged(nameof(SelectedSourceRotation));
-                SaveSourcesAsync();
+                var source = SelectedSources[0];
+                
+                // Check if the new rotation would cause the rectangle to overflow the canvas
+                var center = new Point(source.CanvasX + source.CanvasWidth / 2.0, source.CanvasY + source.CanvasHeight / 2.0);
+                var size = new Size(source.CanvasWidth, source.CanvasHeight);
+                var rotatedAabb = GetRotatedAabb(center, size, value);
+
+                // Canvas size is 800x600 (hardcoded in this app)
+                const double canvasWidth = 800;
+                const double canvasHeight = 600;
+
+                // Only apply the rotation if it won't cause overflow
+                if (rotatedAabb.Left >= 0 && rotatedAabb.Top >= 0 && 
+                    rotatedAabb.Right <= canvasWidth && rotatedAabb.Bottom <= canvasHeight)
+                {
+                    source.Rotation = value;
+                    OnPropertyChanged(nameof(SelectedSourceRotation));
+                    SaveSourcesAsync();
+                }
+                // If the rotation would cause overflow, ignore the change (keeping the current rotation)
+                else
+                {
+                    // Notify that the property "changed" to refresh the UI with the current valid value
+                    OnPropertyChanged(nameof(SelectedSourceRotation));
+                }
             }
         }
     }

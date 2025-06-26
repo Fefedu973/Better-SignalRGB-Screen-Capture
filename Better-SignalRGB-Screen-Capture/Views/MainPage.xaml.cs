@@ -312,23 +312,50 @@ public sealed partial class MainPage : Page
                 {
                     var startPos = _dragStartPositions[item.Source.Id];
                     
-                    // Calculate the limits for this item using its actual current size
-                    var itemWidth = item.Source.CanvasWidth;
-                    var itemHeight = item.Source.CanvasHeight;
-                    
-                    var maxX = parentWidth - itemWidth;
-                    var maxY = parentHeight - itemHeight;
-                    
-                    var itemMaxDeltaX = maxX - startPos.X;
-                    var itemMaxDeltaY = maxY - startPos.Y;
-                    var itemMinDeltaX = 0 - startPos.X;
-                    var itemMinDeltaY = 0 - startPos.Y;
-                    
-                    // Find the most restrictive limits across all selected items
-                    maxDeltaX = Math.Min(maxDeltaX, itemMaxDeltaX);
-                    maxDeltaY = Math.Min(maxDeltaY, itemMaxDeltaY);
-                    minDeltaX = Math.Max(minDeltaX, itemMinDeltaX);
-                    minDeltaY = Math.Max(minDeltaY, itemMinDeltaY);
+                    // For rotated items, use the oriented bounding box
+                    if (item.Source.Rotation != 0)
+                    {
+                        var center = new Point(startPos.X + item.Source.CanvasWidth / 2.0, startPos.Y + item.Source.CanvasHeight / 2.0);
+                        var size = new Size(item.Source.CanvasWidth, item.Source.CanvasHeight);
+                        
+                        // Calculate AABB bounds for different delta values
+                        var testDeltaX = e.X;
+                        var testDeltaY = e.Y;
+                        
+                        var newCenter = new Point(center.X + testDeltaX, center.Y + testDeltaY);
+                        var rotatedAabb = GetRotatedAabb(newCenter, size, item.Source.Rotation);
+                        
+                        // Calculate the maximum deltas that keep this item within bounds
+                        var itemMaxDeltaX = parentWidth - rotatedAabb.Right + testDeltaX;
+                        var itemMaxDeltaY = parentHeight - rotatedAabb.Bottom + testDeltaY;
+                        var itemMinDeltaX = -rotatedAabb.Left + testDeltaX;
+                        var itemMinDeltaY = -rotatedAabb.Top + testDeltaY;
+                        
+                        maxDeltaX = Math.Min(maxDeltaX, itemMaxDeltaX);
+                        maxDeltaY = Math.Min(maxDeltaY, itemMaxDeltaY);
+                        minDeltaX = Math.Max(minDeltaX, itemMinDeltaX);
+                        minDeltaY = Math.Max(minDeltaY, itemMinDeltaY);
+                    }
+                    else
+                    {
+                        // For non-rotated items, use simple axis-aligned bounds
+                        var itemWidth = item.Source.CanvasWidth;
+                        var itemHeight = item.Source.CanvasHeight;
+                        
+                        var maxX = parentWidth - itemWidth;
+                        var maxY = parentHeight - itemHeight;
+                        
+                        var itemMaxDeltaX = maxX - startPos.X;
+                        var itemMaxDeltaY = maxY - startPos.Y;
+                        var itemMinDeltaX = 0 - startPos.X;
+                        var itemMinDeltaY = 0 - startPos.Y;
+                        
+                        // Find the most restrictive limits across all selected items
+                        maxDeltaX = Math.Min(maxDeltaX, itemMaxDeltaX);
+                        maxDeltaY = Math.Min(maxDeltaY, itemMaxDeltaY);
+                        minDeltaX = Math.Max(minDeltaX, itemMinDeltaX);
+                        minDeltaY = Math.Max(minDeltaY, itemMinDeltaY);
+                    }
                 }
             }
 
@@ -345,9 +372,38 @@ public sealed partial class MainPage : Page
                     var newX = startPos.X + constrainedDeltaX;
                     var newY = startPos.Y + constrainedDeltaY;
 
-                    // Final safety check to ensure bounds are respected
-                    newX = Math.Max(0, Math.Min(newX, parentWidth - item.Source.CanvasWidth));
-                    newY = Math.Max(0, Math.Min(newY, parentHeight - item.Source.CanvasHeight));
+                    // Final safety check using OBB for rotated items
+                    if (item.Source.Rotation != 0)
+                    {
+                        var newCenter = new Point(newX + item.Source.CanvasWidth / 2.0, newY + item.Source.CanvasHeight / 2.0);
+                        var size = new Size(item.Source.CanvasWidth, item.Source.CanvasHeight);
+                        var rotatedAabb = GetRotatedAabb(newCenter, size, item.Source.Rotation);
+                        
+                        // Clamp the AABB to canvas bounds
+                        if (rotatedAabb.Left < 0 || rotatedAabb.Top < 0 || 
+                            rotatedAabb.Right > parentWidth || rotatedAabb.Bottom > parentHeight)
+                        {
+                            // If the rotated AABB would overflow, adjust the position
+                            var clampedLeft = Math.Max(0, rotatedAabb.Left);
+                            var clampedTop = Math.Max(0, rotatedAabb.Top);
+                            var clampedRight = Math.Min(parentWidth, rotatedAabb.Right);
+                            var clampedBottom = Math.Min(parentHeight, rotatedAabb.Bottom);
+                            
+                            var clampedCenter = new Point(
+                                (clampedLeft + clampedRight) / 2,
+                                (clampedTop + clampedBottom) / 2
+                            );
+                            
+                            newX = clampedCenter.X - item.Source.CanvasWidth / 2.0;
+                            newY = clampedCenter.Y - item.Source.CanvasHeight / 2.0;
+                        }
+                    }
+                    else
+                    {
+                        // Final safety check for non-rotated items
+                        newX = Math.Max(0, Math.Min(newX, parentWidth - item.Source.CanvasWidth));
+                        newY = Math.Max(0, Math.Min(newY, parentHeight - item.Source.CanvasHeight));
+                    }
 
                     item.Source.CanvasX = (int)newX;
                     item.Source.CanvasY = (int)newY;
@@ -516,6 +572,28 @@ public sealed partial class MainPage : Page
     }
 
     private bool RectsIntersect(Rect r1, Rect r2) => r1.X < r2.X + r2.Width && r1.X + r1.Width > r2.X && r1.Y < r2.Y + r2.Height && r1.Y + r1.Height > r2.Y;
+
+    /// <summary>
+    /// Returns the axis-aligned bounding box (AABB) of a rotated rectangle
+    /// </summary>
+    /// <param name="center">Center point of the rectangle</param>
+    /// <param name="size">Size of the rectangle</param>
+    /// <param name="angleDeg">Rotation angle in degrees</param>
+    /// <returns>The AABB that fully contains the rotated rectangle</returns>
+    private static Rect GetRotatedAabb(Point center, Size size, double angleDeg)
+    {
+        var angle = angleDeg * Math.PI / 180;
+        var cos = Math.Abs(Math.Cos(angle));
+        var sin = Math.Abs(Math.Sin(angle));
+
+        var w = size.Width * cos + size.Height * sin;
+        var h = size.Width * sin + size.Height * cos;
+
+        return new Rect(
+            center.X - w / 2,
+            center.Y - h / 2,
+            w, h);
+    }
 
     private async void DeleteSource_Click(object sender, RoutedEventArgs e)
     {
