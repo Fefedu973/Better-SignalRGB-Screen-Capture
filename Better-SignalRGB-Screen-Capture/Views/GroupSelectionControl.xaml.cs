@@ -738,26 +738,64 @@ public sealed partial class GroupSelectionControl : UserControl
 
     private async Task FlipGroup(bool horizontal, bool vertical, MainViewModel viewModel)
     {
-        var groupCenter = new Point(Canvas.GetLeft(this) + Width / 2, Canvas.GetTop(this) + Height / 2);
+        var sourcesToFlip = SelectedSources.ToList();
+        if (!sourcesToFlip.Any()) return;
 
-        foreach (var source in SelectedSources)
+        viewModel.SaveUndoState();
+
+        /* ------------------------------------------------------------
+         * 1) Decide the *target* mirror state for the whole group
+         *    (opposite of whatever the first item has right now)
+         * ------------------------------------------------------------ */
+        bool horizTarget = horizontal
+            ? !sourcesToFlip[0].IsMirroredHorizontally
+            : default;                // value won't be used
+        bool vertTarget  = vertical
+            ? !sourcesToFlip[0].IsMirroredVertically
+            : default;
+
+        /* ------------------------------------------------------------
+         * 2) Stable pivot – same as before
+         * ------------------------------------------------------------ */
+        Rect groupBounds = Rect.Empty;
+        foreach (var s in sourcesToFlip)
         {
-            var itemCenter = new Point(source.CanvasX + source.CanvasWidth / 2.0, source.CanvasY + source.CanvasHeight / 2.0);
-            var relativePos = new Point(itemCenter.X - groupCenter.X, itemCenter.Y - groupCenter.Y);
+            var c = new Point(s.CanvasX + s.CanvasWidth * .5,
+                              s.CanvasY + s.CanvasHeight * .5);
+            var sz = new Size(s.CanvasWidth, s.CanvasHeight);
+            var box = GetRotatedAabb(c, sz, s.Rotation);
 
-            // Flip position relative to group center
-            if (horizontal) relativePos = new Point(-relativePos.X, relativePos.Y);
-            if (vertical) relativePos = new Point(relativePos.X, -relativePos.Y);
+            if (groupBounds.IsEmpty)
+            {
+                groupBounds = box;
+            }
+            else
+            {
+                groupBounds.Union(box);
+            }
+        }
+        var groupCenter = new Point(groupBounds.X + groupBounds.Width  * .5,
+                                    groupBounds.Y + groupBounds.Height * .5);
 
-            var newItemCenter = new Point(groupCenter.X + relativePos.X, groupCenter.Y + relativePos.Y);
-            var newItemPos = new Point(newItemCenter.X - source.CanvasWidth / 2, newItemCenter.Y - source.CanvasHeight / 2);
+        /* ------------------------------------------------------------
+         * 3) Mirror every card around that pivot, and
+         *    set the SAME mirror flag on every one of them
+         * ------------------------------------------------------------ */
+        foreach (var src in sourcesToFlip)
+        {
+            if (horizontal)
+            {
+                src.CanvasX = (int)Math.Round(
+                    2 * groupCenter.X - src.CanvasX - src.CanvasWidth);
+                src.IsMirroredHorizontally = horizTarget;
+            }
 
-            source.CanvasX = (int)Math.Round(newItemPos.X);
-            source.CanvasY = (int)Math.Round(newItemPos.Y);
-
-            // Also flip the individual items
-            if (horizontal) source.IsMirroredHorizontally = !source.IsMirroredHorizontally;
-            if (vertical) source.IsMirroredVertically = !source.IsMirroredVertically;
+            if (vertical)
+            {
+                src.CanvasY = (int)Math.Round(
+                    2 * groupCenter.Y - src.CanvasY - src.CanvasHeight);
+                src.IsMirroredVertically = vertTarget;
+            }
         }
 
         await viewModel.SaveSourcesAsync();

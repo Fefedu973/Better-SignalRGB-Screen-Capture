@@ -34,6 +34,7 @@ public sealed partial class MainPage : Page
         InitializeComponent();
         ViewModel.Sources.CollectionChanged += OnSourcesCollectionChanged;
         ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+        ViewModel.SourcesMoved += OnSourcesMoved;
         Loaded += (s, e) =>
         {
             UpdateCanvas();
@@ -896,5 +897,13 @@ public sealed partial class MainPage : Page
     {
         // This is handled by the GroupSelectionControl itself
         // The individual items are updated directly by the control
+    }
+
+    private void OnSourcesMoved(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            UpdateGroupSelection();
+        });
     }
 }

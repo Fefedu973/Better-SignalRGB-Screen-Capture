@@ -52,28 +52,10 @@
                         Text="Source Type" />
                 </Grid>
 
-                <!--  Crop Shading Overlays  -->
-                <Canvas x:Name="CropShadingCanvas">
-                    <Canvas.Clip>
-                        <RectangleGeometry x:Name="CropShadingCanvasClip" />
-                    </Canvas.Clip>
-                    <Rectangle
-                        x:Name="CropShadeT"
-                        Fill="Black"
-                        Opacity="0.35" />
-                    <Rectangle
-                        x:Name="CropShadeB"
-                        Fill="Black"
-                        Opacity="0.35" />
-                    <Rectangle
-                        x:Name="CropShadeL"
-                        Fill="Black"
-                        Opacity="0.35" />
-                    <Rectangle
-                        x:Name="CropShadeR"
-                        Fill="Black"
-                        Opacity="0.35" />
-                </Canvas>
+                <!--  Crop shading (one path, even-odd fill)  -->
+                <Path x:Name="CropShadePath"
+                      Fill="Black"
+                      Opacity="0.35"/>
             </Grid>
         </Border>
 
@@ -180,23 +162,7 @@
             PointerPressed="CropCanvas_PointerPressed"
             PointerReleased="CropCanvas_PointerReleased"
             Visibility="Collapsed">
-            <!--  Darkening overlay  -->
-            <Rectangle
-                x:Name="CropOverlayT"
-                Fill="{ThemeResource ApplicationPageBackgroundThemeBrush}"
-                Opacity="0.7" />
-            <Rectangle
-                x:Name="CropOverlayB"
-                Fill="{ThemeResource ApplicationPageBackgroundThemeBrush}"
-                Opacity="0.7" />
-            <Rectangle
-                x:Name="CropOverlayL"
-                Fill="{ThemeResource ApplicationPageBackgroundThemeBrush}"
-                Opacity="0.7" />
-            <Rectangle
-                x:Name="CropOverlayR"
-                Fill="{ThemeResource ApplicationPageBackgroundThemeBrush}"
-                Opacity="0.7" />
+            <!--  Overlay rectangles removed - using CropShade rectangles instead  -->
 
             <!--  Crop selection rectangle  -->
             <Rectangle

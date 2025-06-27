@@ -22,6 +22,7 @@ public partial class MainViewModel : ObservableRecipient
     private List<SourceItem> _copiedSources = new();
     private readonly UndoRedoManager _undoRedoManager = new();
     private bool _isUndoRedoOperation = false; // To prevent saving undo state during undo/redo
+    public event EventHandler? SourcesMoved;
     
     [ObservableProperty]
     private bool _isPasting;
@@ -266,6 +267,7 @@ public partial class MainViewModel : ObservableRecipient
         }
 
         await SaveSourcesWithUndoAsync();
+        SourcesMoved?.Invoke(this, EventArgs.Empty);
     }
     
     [RelayCommand]
@@ -422,89 +424,85 @@ public partial class MainViewModel : ObservableRecipient
 
     public double SelectedSourceWidth
     {
-        get => IsSingleSelect ? SelectedSources[0].CanvasWidth : 0;
+        get => SelectedSources.FirstOrDefault()?.CanvasWidth ?? 0;
         set
         {
-            if (!IsSingleSelect || SelectedSources[0].CanvasWidth == value) return;
-            var s = SelectedSources[0];
-            var newW = (int)value;
-            var newH = s.CanvasHeight;
-            
-            if (IsAspectRatioLocked && s.CanvasHeight > 0)
-            {
-                var ratio = (double)s.CanvasWidth / s.CanvasHeight;
-                newH = (int)Math.Round(newW / ratio);
-                if (!FitsInCanvas(s.CanvasX, s.CanvasY, newW, newH, s.Rotation, s))
-                    return;                       // refuse the change
-            }
+            if (SelectedSources.FirstOrDefault()?.CanvasWidth == value) return;
+            if (_isUpdatingDimensions) return;
 
-            if (FitsInCanvas(s.CanvasX, s.CanvasY, newW, newH, s.Rotation, s))
+            foreach (var s in SelectedSources)
             {
-                s.CanvasWidth = newW;
-                s.CanvasHeight = newH; // Update height if aspect ratio is locked
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(SelectedSourceHeight));
+                var testSource = s.Clone();
+                testSource.CanvasWidth = (int)value;
+                if (FitsInCanvas(testSource, 800, 600))
+                {
+                    s.CanvasWidth = (int)value;
+                }
             }
+            _ = SaveSourcesWithUndoAsync();
         }
     }
 
     public double SelectedSourceHeight
     {
-        get => IsSingleSelect ? SelectedSources[0].CanvasHeight : 0;
+        get => SelectedSources.FirstOrDefault()?.CanvasHeight ?? 0;
         set
         {
-            if (!IsSingleSelect || SelectedSources[0].CanvasHeight == value) return;
-            var s = SelectedSources[0];
-            var newH = (int)value;
-            var newW = s.CanvasWidth;
+            if (SelectedSources.FirstOrDefault()?.CanvasHeight == value) return;
+            if (_isUpdatingDimensions) return;
 
-            if (IsAspectRatioLocked && s.CanvasWidth > 0)
+            foreach (var s in SelectedSources)
             {
-                var ratio = (double)s.CanvasHeight / s.CanvasWidth;
-                newW = (int)Math.Round(newH / ratio);
-                if (!FitsInCanvas(s.CanvasX, s.CanvasY, newW, newH, s.Rotation, s))
-                    return;                       // refuse the change
+                var testSource = s.Clone();
+                testSource.CanvasHeight = (int)value;
+                if (FitsInCanvas(testSource, 800, 600))
+                {
+                    s.CanvasHeight = (int)value;
+                }
             }
-
-            if (FitsInCanvas(s.CanvasX, s.CanvasY, newW, newH, s.Rotation, s))
-            {
-                s.CanvasHeight = newH;
-                s.CanvasWidth = newW; // Update width if aspect ratio is locked
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(SelectedSourceWidth));
-            }
+            _ = SaveSourcesWithUndoAsync();
         }
     }
 
     public double SelectedSourceX
     {
-        get => IsSingleSelect ? SelectedSources[0].CanvasX : 0;
+        get => SelectedSources.FirstOrDefault()?.CanvasX ?? 0;
         set
         {
-            if (!IsSingleSelect || SelectedSources[0].CanvasX == value) return;
-            var s = SelectedSources[0];
-            var newX = (int)value;
-            if (FitsInCanvas(newX, s.CanvasY, s.CanvasWidth, s.CanvasHeight, s.Rotation, s))
+            if (SelectedSources.FirstOrDefault()?.CanvasX == value) return;
+            if (_isUpdatingDimensions) return;
+            
+            foreach (var s in SelectedSources)
             {
-                s.CanvasX = newX;
-                OnPropertyChanged();
+                var testSource = s.Clone();
+                testSource.CanvasX = (int)value;
+                if (FitsInCanvas(testSource, 800, 600))
+                {
+                    s.CanvasX = (int)value;
+                }
             }
+            _ = SaveSourcesWithUndoAsync();
         }
     }
 
     public double SelectedSourceY
     {
-        get => IsSingleSelect ? SelectedSources[0].CanvasY : 0;
+        get => SelectedSources.FirstOrDefault()?.CanvasY ?? 0;
         set
         {
-            if (!IsSingleSelect || SelectedSources[0].CanvasY == value) return;
-            var s = SelectedSources[0];
-            var newY = (int)value;
-            if (FitsInCanvas(s.CanvasX, newY, s.CanvasWidth, s.CanvasHeight, s.Rotation, s))
+            if (SelectedSources.FirstOrDefault()?.CanvasY == value) return;
+            if (_isUpdatingDimensions) return;
+            
+            foreach (var s in SelectedSources)
             {
-                s.CanvasY = newY;
-                OnPropertyChanged();
+                var testSource = s.Clone();
+                testSource.CanvasY = (int)value;
+                if (FitsInCanvas(testSource, 800, 600))
+                {
+                    s.CanvasY = (int)value;
+                }
             }
+            _ = SaveSourcesWithUndoAsync();
         }
     }
     
@@ -654,25 +652,52 @@ public partial class MainViewModel : ObservableRecipient
 
     public bool SelectedSourceIsMirroredVertically
     {
-        get => IsSingleSelect ? SelectedSources[0].IsMirroredVertically : false;
+        get => SelectedSources.FirstOrDefault()?.IsMirroredVertically ?? false;
         set
         {
-            if (IsSingleSelect && SelectedSources[0].IsMirroredVertically != value)
+            if (SelectedSources.FirstOrDefault()?.IsMirroredVertically != value)
             {
-                SelectedSources[0].IsMirroredVertically = value;
-                OnPropertyChanged(nameof(SelectedSourceIsMirroredVertically));
-                SaveSourcesAsync();
+                foreach (var source in SelectedSources)
+                {
+                    source.IsMirroredVertically = value;
+                }
+                _ = SaveSourcesWithUndoAsync();
             }
         }
     }
 
     /// <summary>
-    /// Returns the axis-aligned bounding box (AABB) of a rotated rectangle
+    /// Calculates the Axis-Aligned Bounding Box (AABB) of a source's visible (cropped) area.
+    /// This is the definitive check for whether a source is "inside" the canvas.
     /// </summary>
-    /// <param name="center">Center point of the rectangle</param>
-    /// <param name="size">Size of the rectangle</param>
-    /// <param name="angleDeg">Rotation angle in degrees</param>
-    /// <returns>The AABB that fully contains the rotated rectangle</returns>
+    /// <param name="src">The source item to check.</param>
+    /// <returns>The AABB of the visible, rotated, cropped area in canvas coordinates.</returns>
+    public static Rect GetVisibleAreaAabb(SourceItem src)
+    {
+        if (src == null) return Rect.Empty;
+
+        // 1. Get the size of the full control
+        var w = src.CanvasWidth;
+        var h = src.CanvasHeight;
+
+        // 2. Calculate the size of the visible (non-cropped) part
+        var effW = w * (1 - src.CropLeftPct - src.CropRightPct);
+        var effH = h * (1 - src.CropTopPct - src.CropBottomPct);
+        if (effW <= 0 || effH <= 0) return Rect.Empty; // Fully cropped, no visible area
+
+        // 3. Calculate the offset of the visible part inside the control
+        var offX = w * src.CropLeftPct;
+        var offY = h * src.CropTopPct;
+
+        // 4. Determine the center of the visible part in canvas coordinates
+        var centre = new Point(
+            src.CanvasX + offX + effW / 2,
+            src.CanvasY + offY + effH / 2);
+
+        // 5. Get the AABB of the rotated visible part
+        return GetRotatedAabb(centre, new Size(effW, effH), src.Rotation + src.CropRotation);
+    }
+
     private static Rect GetRotatedAabb(Point center, Size size, double angleDeg)
     {
         if (angleDeg == 0) return new Rect(center.X - size.Width / 2, center.Y - size.Height / 2, size.Width, size.Height);
@@ -702,47 +727,50 @@ public partial class MainViewModel : ObservableRecipient
     }
 
     /// <summary>
-    /// True when the *visible* (cropped+rotated) part fits inside 800×600
+    /// Checks if a source item's visible (cropped) area is within the canvas boundaries.
     /// </summary>
-    private bool FitsInCanvas(int x,int y,int w,int h,int rotationDeg, SourceItem src)
+    private bool FitsInCanvas(SourceItem src, double canvasWidth, double canvasHeight)
     {
-        // 1. size after cropping
-        var effW = w * (1 - src.CropLeftPct  - src.CropRightPct);
-        var effH = h * (1 - src.CropTopPct   - src.CropBottomPct);
-        if (effW <= 0 || effH <= 0) return true;          // nothing to show
+        var aabb = GetVisibleAreaAabb(src);
+        if (aabb.IsEmpty) return true; // Fully cropped is "valid"
 
-        // 2. where that visible rectangle sits inside the control
-        var offX = w * src.CropLeftPct;
-        var offY = h * src.CropTopPct;
+        return aabb.Left >= 0 &&
+               aabb.Top >= 0 &&
+               aabb.Right <= canvasWidth &&
+               aabb.Bottom <= canvasHeight;
+    }
 
-        // 3. centre of the visible part in canvas coords
-        var centre = new Point(x + offX + effW/2,
-                               y + offY + effH/2);
-
-        // 4. AABB of the visible part after both rotations
-        var aabb = GetRotatedAabb(centre,
-                                  new Size(effW, effH),
-                                  rotationDeg + src.CropRotation);
-
-        return aabb.Left   >= 0 &&
-               aabb.Top    >= 0 &&
-               aabb.Right  <= 800 &&
-               aabb.Bottom <= 600;
+    private bool FitsInCanvas(int x, int y, int w, int h, int rotationDeg, SourceItem src)
+    {
+        // Create a temporary clone to test the new values
+        var testSource = src.Clone();
+        testSource.CanvasX = x;
+        testSource.CanvasY = y;
+        testSource.CanvasWidth = w;
+        testSource.CanvasHeight = h;
+        testSource.Rotation = rotationDeg;
+        
+        return FitsInCanvas(testSource, 800, 600); // Assuming 800x600 canvas
     }
 
     public int SelectedSourceRotation
     {
-        get => IsSingleSelect ? SelectedSources[0].Rotation : 0;
+        get => SelectedSources.FirstOrDefault()?.Rotation ?? 0;
         set
         {
-            if (!IsSingleSelect || SelectedSources[0].Rotation == value) return;
-            var s = SelectedSources[0];
-            var newRotation = (int)value;
-            if (FitsInCanvas(s.CanvasX, s.CanvasY, s.CanvasWidth, s.CanvasHeight, newRotation, s))
+            if (SelectedSources.FirstOrDefault()?.Rotation == value) return;
+            if (_isUpdatingDimensions) return;
+
+            foreach (var s in SelectedSources)
             {
-                s.Rotation = newRotation;
-                OnPropertyChanged();
+                var testSource = s.Clone();
+                testSource.Rotation = value;
+                if (FitsInCanvas(testSource, 800, 600))
+                {
+                    s.Rotation = value;
+                }
             }
+            _ = SaveSourcesWithUndoAsync();
         }
     }
 
