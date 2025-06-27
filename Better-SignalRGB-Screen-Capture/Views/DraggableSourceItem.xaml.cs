@@ -48,8 +48,9 @@ public sealed partial class DraggableSourceItem : UserControl
     private ResizeMode _cropResizeMode = ResizeMode.None;
     private Point _cropActionStartPointerPosition;
     private Rect _cropActionStartBounds;
+    private double _cropActionStartRotation;
 
-    private enum ResizeMode { None, TopLeft, TopRight, BottomLeft, BottomRight, Top, Bottom, Left, Right, Rotate, Move }
+    private enum ResizeMode { None, TopLeft, TopRight, BottomLeft, BottomRight, Top, Bottom, Left, Right, Rotate, Move, CropRotate }
 
     /// <summary>
     /// Converts a point from rotated coordinate space back to unrotated coordinate space
@@ -99,6 +100,40 @@ public sealed partial class DraggableSourceItem : UserControl
             center.X - w / 2,
             center.Y - h / 2,
             w, h);
+    }
+
+    /// <summary>
+    /// Gets the effective hit box for this source item, taking into account cropping
+    /// </summary>
+    /// <returns>The hit box rectangle in canvas coordinates</returns>
+    public Rect GetEffectiveHitBox()
+    {
+        if (Source == null) return new Rect();
+
+        // Calculate the visible (non-cropped) area
+        double visibleLeft = ActualWidth * Source.CropLeftPct;
+        double visibleTop = ActualHeight * Source.CropTopPct;
+        double visibleRight = ActualWidth * Source.CropRightPct;
+        double visibleBottom = ActualHeight * Source.CropBottomPct;
+        
+        double visibleWidth = ActualWidth - visibleLeft - visibleRight;
+        double visibleHeight = ActualHeight - visibleTop - visibleBottom;
+        
+        if (visibleWidth <= 0 || visibleHeight <= 0)
+            return new Rect(); // Completely cropped
+        
+        // The visible area within this control
+        var visibleRect = new Rect(visibleLeft, visibleTop, visibleWidth, visibleHeight);
+        
+        // Transform to canvas coordinates
+        var canvasRect = new Rect(
+            Source.CanvasX + visibleRect.X,
+            Source.CanvasY + visibleRect.Y,
+            visibleRect.Width,
+            visibleRect.Height
+        );
+        
+        return canvasRect;
     }
 
     public DraggableSourceItem()
@@ -165,6 +200,7 @@ public sealed partial class DraggableSourceItem : UserControl
                 case nameof(SourceItem.CropTopPct):
                 case nameof(SourceItem.CropRightPct):
                 case nameof(SourceItem.CropBottomPct):
+                case nameof(SourceItem.CropRotation):
                     UpdateCropShading();
                     break;
 
@@ -229,20 +265,87 @@ public sealed partial class DraggableSourceItem : UserControl
         double right = ActualWidth * Source.CropRightPct;
         double bottom = ActualHeight * Source.CropBottomPct;
 
-        // Top & bottom stripes
-        CropShadeT.Width = CropShadeB.Width = ActualWidth;
-        CropShadeT.Height = top;
-        Canvas.SetTop(CropShadeB, ActualHeight - bottom);
-        CropShadeB.Height = bottom;
+        // Check if we have crop rotation
+        if (Math.Abs(Source.CropRotation) > 0.001)
+        {
+            // For rotated crops, position the shade rectangles with rotation transforms
+            var centerX = ActualWidth / 2;
+            var centerY = ActualHeight / 2;
+            
+            // Top shade
+            CropShadeT.Width = ActualWidth * 2;
+            CropShadeT.Height = Math.Max(0, centerY - (ActualHeight / 2 - top) + ActualHeight);
+            Canvas.SetLeft(CropShadeT, -ActualWidth / 2);
+            Canvas.SetTop(CropShadeT, -ActualHeight);
+            
+            var topTransform = new RotateTransform();
+            topTransform.Angle = Source.CropRotation;
+            topTransform.CenterX = ActualWidth / 2 + centerX;
+            topTransform.CenterY = ActualHeight + centerY;
+            CropShadeT.RenderTransform = topTransform;
+            
+            // Bottom shade
+            CropShadeB.Width = ActualWidth * 2;
+            CropShadeB.Height = Math.Max(0, centerY - (ActualHeight / 2 - bottom) + ActualHeight);
+            Canvas.SetLeft(CropShadeB, -ActualWidth / 2);
+            Canvas.SetTop(CropShadeB, ActualHeight - bottom);
+            
+            var bottomTransform = new RotateTransform();
+            bottomTransform.Angle = Source.CropRotation;
+            bottomTransform.CenterX = ActualWidth / 2 + centerX;
+            bottomTransform.CenterY = centerY - (ActualHeight - bottom);
+            CropShadeB.RenderTransform = bottomTransform;
+            
+            // Left shade
+            CropShadeL.Width = Math.Max(0, centerX - (ActualWidth / 2 - left) + ActualWidth);
+            CropShadeL.Height = ActualHeight - top - bottom;
+            Canvas.SetLeft(CropShadeL, -ActualWidth);
+            Canvas.SetTop(CropShadeL, top);
+            
+            var leftTransform = new RotateTransform();
+            leftTransform.Angle = Source.CropRotation;
+            leftTransform.CenterX = ActualWidth + centerX;
+            leftTransform.CenterY = (ActualHeight - top - bottom) / 2;
+            CropShadeL.RenderTransform = leftTransform;
+            
+            // Right shade
+            CropShadeR.Width = Math.Max(0, centerX - (ActualWidth / 2 - right) + ActualWidth);
+            CropShadeR.Height = ActualHeight - top - bottom;
+            Canvas.SetLeft(CropShadeR, ActualWidth - right);
+            Canvas.SetTop(CropShadeR, top);
+            
+            var rightTransform = new RotateTransform();
+            rightTransform.Angle = Source.CropRotation;
+            rightTransform.CenterX = centerX - (ActualWidth - right);
+            rightTransform.CenterY = (ActualHeight - top - bottom) / 2;
+            CropShadeR.RenderTransform = rightTransform;
+        }
+        else
+        {
+            // No rotation - use simple positioning
+            CropShadeT.Width = CropShadeB.Width = ActualWidth;
+            CropShadeT.Height = top;
+            Canvas.SetLeft(CropShadeT, 0);
+            Canvas.SetTop(CropShadeT, 0);
+            CropShadeT.RenderTransform = null;
+            
+            Canvas.SetTop(CropShadeB, ActualHeight - bottom);
+            CropShadeB.Height = bottom;
+            Canvas.SetLeft(CropShadeB, 0);
+            CropShadeB.RenderTransform = null;
 
-        // Left & right stripes
-        CropShadeL.Height = CropShadeR.Height = ActualHeight - top - bottom;
-        CropShadeL.Width = left;
-        Canvas.SetLeft(CropShadeL, 0);
-        CropShadeR.Width = right;
-        Canvas.SetLeft(CropShadeR, ActualWidth - right);
-        Canvas.SetTop(CropShadeL, top);
-        Canvas.SetTop(CropShadeR, top);
+            // Left & right stripes
+            CropShadeL.Height = CropShadeR.Height = ActualHeight - top - bottom;
+            CropShadeL.Width = left;
+            Canvas.SetLeft(CropShadeL, 0);
+            Canvas.SetTop(CropShadeL, top);
+            CropShadeL.RenderTransform = null;
+            
+            CropShadeR.Width = right;
+            Canvas.SetLeft(CropShadeR, ActualWidth - right);
+            Canvas.SetTop(CropShadeR, top);
+            CropShadeR.RenderTransform = null;
+        }
     }
 
     public string GetTypeDisplayString(SourceType type)
@@ -311,6 +414,14 @@ public sealed partial class DraggableSourceItem : UserControl
         var mainPage = FindParent<MainPage>(this);
         if (mainPage == null) return;
 
+        // If there's a group selection active and this item is not part of it, clear group selection first
+        var viewModel = mainPage.ViewModel;
+        if (viewModel != null && viewModel.SelectedSources.Count > 1 && !Source.IsSelected && !isMultiSelect)
+        {
+            // Clear multi-selection before selecting this single item
+            mainPage.ClearSelection();
+        }
+
         // Call the centralized selection method
         mainPage.SelectSourceItem(Source, isMultiSelect);
     }
@@ -348,9 +459,11 @@ public sealed partial class DraggableSourceItem : UserControl
                 newAngle = Math.Round(newAngle / 15.0) * 15.0; // Snap to 15-degree increments
             }
 
-            // Check if the new rotation would cause the rectangle to overflow the canvas
-            var size = new Size(_actionStartBounds.Width, _actionStartBounds.Height);
-            var rotatedAabb = GetRotatedAabb(centerPoint, size, newAngle);
+            // Check if the new rotation would cause the effective (cropped) rectangle to overflow the canvas
+            var effectiveWidth = _actionStartBounds.Width * (1 - Source.CropLeftPct - Source.CropRightPct);
+            var effectiveHeight = _actionStartBounds.Height * (1 - Source.CropTopPct - Source.CropBottomPct);
+            var effectiveSize = new Size(Math.Max(10, effectiveWidth), Math.Max(10, effectiveHeight));
+            var rotatedAabb = GetRotatedAabb(centerPoint, effectiveSize, newAngle);
 
             // If the rotated AABB would overflow, don't apply the rotation
             if (rotatedAabb.Left >= 0 && rotatedAabb.Top >= 0 && 
@@ -374,11 +487,37 @@ public sealed partial class DraggableSourceItem : UserControl
             double w = _actionStartBounds.Width;
             double h = _actionStartBounds.Height;
 
-            // 4.  Limits for this handle
-            double maxDxRight  = parent.ActualWidth  - (_actionStartBounds.Right);
-            double maxDyBottom = parent.ActualHeight - (_actionStartBounds.Bottom);
-            double maxDxLeft   = _actionStartBounds.Left;
-            double maxDyTop    = _actionStartBounds.Top;
+            // 4.  Limits for this handle - considering cropped dimensions
+            // Calculate effective bounds based on crop
+            var effectiveLeft = _actionStartBounds.Left + _actionStartBounds.Width * Source.CropLeftPct;
+            var effectiveTop = _actionStartBounds.Top + _actionStartBounds.Height * Source.CropTopPct;
+            var effectiveRight = _actionStartBounds.Right - _actionStartBounds.Width * Source.CropRightPct;
+            var effectiveBottom = _actionStartBounds.Bottom - _actionStartBounds.Height * Source.CropBottomPct;
+            
+            // For non-rotated rectangles, use effective bounds for limits
+            double maxDxRight, maxDyBottom, maxDxLeft, maxDyTop;
+            if (Math.Abs(Source.Rotation) < 0.001 && Math.Abs(Source.CropRotation) < 0.001)
+            {
+                // Non-rotated: Allow the full rectangle to extend beyond canvas
+                // as long as the effective (cropped) area stays within bounds
+                
+                // For right/bottom expansion: limit is based on effective edge reaching canvas edge
+                maxDxRight = parent.ActualWidth - effectiveRight + (_actionStartBounds.Width * Source.CropRightPct);
+                maxDyBottom = parent.ActualHeight - effectiveBottom + (_actionStartBounds.Height * Source.CropBottomPct);
+                
+                // For left/top movement: allow negative positions as long as effective area is visible
+                maxDxLeft = effectiveLeft - (_actionStartBounds.Width * Source.CropLeftPct);
+                maxDyTop = effectiveTop - (_actionStartBounds.Height * Source.CropTopPct);
+            }
+            else
+            {
+                // For rotated rectangles, we need more complex calculations
+                // For now, allow more freedom and let ApplyResize handle the final bounds check
+                maxDxRight = parent.ActualWidth;
+                maxDyBottom = parent.ActualHeight;
+                maxDxLeft = _actionStartBounds.Left + _actionStartBounds.Width - minW;
+                maxDyTop = _actionStartBounds.Top + _actionStartBounds.Height - minH;
+            }
 
             double maxShrinkX = w - minW;   // positive
             double maxShrinkY = h - minH;   // positive
@@ -424,48 +563,55 @@ public sealed partial class DraggableSourceItem : UserControl
         {
             var deltaX = currentPoint.X - _actionStartPointerPosition.X;
             var deltaY = currentPoint.Y - _actionStartPointerPosition.Y;
-
             var newX = _actionStartBounds.X + deltaX;
             var newY = _actionStartBounds.Y + deltaY;
 
-            // For rotated rectangles, check the oriented bounding box
-            if (Source.Rotation != 0)
-            {
-                var newCenter = new Point(newX + _actionStartBounds.Width / 2, newY + _actionStartBounds.Height / 2);
-                var size = new Size(_actionStartBounds.Width, _actionStartBounds.Height);
-                var rotatedAabb = GetRotatedAabb(newCenter, size, Source.Rotation);
+            // Effective (visible) geometry
+            var w = _actionStartBounds.Width;
+            var h = _actionStartBounds.Height;
+            var effW = w * (1 - Source.CropLeftPct - Source.CropRightPct);
+            var effH = h * (1 - Source.CropTopPct - Source.CropBottomPct);
 
-                // Clamp the AABB to canvas bounds
-                var clampedX = Math.Max(0, rotatedAabb.X);
-                var clampedY = Math.Max(0, rotatedAabb.Y);
-                var clampedWidth = Math.Max(0, Math.Min(rotatedAabb.Width, parent.ActualWidth - clampedX));
-                var clampedHeight = Math.Max(0, Math.Min(rotatedAabb.Height, parent.ActualHeight - clampedY));
-                
-                var clampedAabb = new Rect(clampedX, clampedY, clampedWidth, clampedHeight);
-
-                // If clamping changed the AABB, back-solve the position
-                if (Math.Abs(clampedAabb.X - rotatedAabb.X) > 0.1 || Math.Abs(clampedAabb.Y - rotatedAabb.Y) > 0.1 ||
-                    Math.Abs(clampedAabb.Width - rotatedAabb.Width) > 0.1 || Math.Abs(clampedAabb.Height - rotatedAabb.Height) > 0.1)
-                {
-                    // Calculate the new center from the clamped AABB
-                    var clampedCenter = new Point(clampedAabb.X + clampedAabb.Width / 2, clampedAabb.Y + clampedAabb.Height / 2);
-                    newX = clampedCenter.X - _actionStartBounds.Width / 2;
-                    newY = clampedCenter.Y - _actionStartBounds.Height / 2;
-                }
-            }
-            else
+            if (effW <= 0 || effH <= 0) // Fully cropped, allow any move
             {
-                // For non-rotated rectangles, use simple axis-aligned bounds
-                newX = Math.Max(0, Math.Min(newX, parent.ActualWidth - _actionStartBounds.Width));
-                newY = Math.Max(0, Math.Min(newY, parent.ActualHeight - _actionStartBounds.Height));
+                Source.CanvasX = (int)Math.Round(newX);
+                Source.CanvasY = (int)Math.Round(newY);
+                return;
             }
+
+            // Mimic the logic from MainViewModel.FitsInCanvas which is known to work for manual entry.
+            // This ensures consistent behavior between dragging and direct coordinate input.
+
+            // 1. Offset of the visible part inside the control (unrotated)
+            var offX = w * Source.CropLeftPct;
+            var offY = h * Source.CropTopPct;
+
+            // 2. Center of the visible part at its proposed new canvas position
+            var centre = new Point(newX + offX + effW / 2, newY + offY + effH / 2);
+
+            // 3. AABB of the visible part, using summed rotation (same as manual entry check)
+            var aabb = GetRotatedAabb(centre, new Size(effW, effH), Source.Rotation + Source.CropRotation);
+
+            // 4. Clamp the AABB's top-left corner to the canvas boundaries
+            var parentW = parent.ActualWidth;
+            var parentH = parent.ActualHeight;
             
+            var clampedAabbX = Math.Max(0, Math.Min(aabb.X, parentW - aabb.Width));
+            var clampedAabbY = Math.Max(0, Math.Min(aabb.Y, parentH - aabb.Height));
+
+            // 5. Calculate the adjustment needed and apply it to the control's position
+            var adjustX = clampedAabbX - aabb.X;
+            var adjustY = clampedAabbY - aabb.Y;
+            
+            var finalNewX = newX + adjustX;
+            var finalNewY = newY + adjustY;
+
             if(Source != null)
             {
-                Source.CanvasX = (int)newX;
-                Source.CanvasY = (int)newY;
+                Source.CanvasX = (int)Math.Round(finalNewX);
+                Source.CanvasY = (int)Math.Round(finalNewY);
             }
-            DragDelta?.Invoke(this, new Point(newX - _actionStartBounds.X, newY - _actionStartBounds.Y));
+            DragDelta?.Invoke(this, new Point(finalNewX - _actionStartBounds.X, finalNewY - _actionStartBounds.Y));
         }
         else
         {
@@ -507,7 +653,7 @@ public sealed partial class DraggableSourceItem : UserControl
         newH = Math.Max(MinHeight, newH);
 
         // ---------- 3.  Keep aspect ratio if Shift not held ---------------------
-        if (keepRatio)
+        if (keepRatio && startH > 0 && startW > 0)
         {
             double ratio = startW / startH;
             if (Math.Abs(deltaLocal.X) >= Math.Abs(deltaLocal.Y))
@@ -542,7 +688,12 @@ public sealed partial class DraggableSourceItem : UserControl
         double newY = centre1.Y - newH / 2.0;
 
         // ---------- 5.  Check if the oriented box would overflow the canvas -------
-        Rect aabb = GetRotatedAabb(centre1, new Size(newW, newH), Source.Rotation);
+        // Use effective (cropped) dimensions for overflow checking
+        var effectiveNewW = newW * (1 - Source.CropLeftPct - Source.CropRightPct);
+        var effectiveNewH = newH * (1 - Source.CropTopPct - Source.CropBottomPct);
+        var effectiveSize = new Size(Math.Max(10, effectiveNewW), Math.Max(10, effectiveNewH));
+        
+        Rect aabb = GetRotatedAabb(centre1, effectiveSize, Source.Rotation);
         
         // If it would overflow, don't apply the change
         if (aabb.Left < 0 || aabb.Top < 0 || 
@@ -570,7 +721,12 @@ public sealed partial class DraggableSourceItem : UserControl
         // Final save to trigger persistence after drag/resize is complete
         if (Source != null)
         {
-           App.GetService<MainViewModel>()?.SaveSourcesCommand.Execute(null);
+           var viewModel = App.GetService<MainViewModel>();
+           if (viewModel != null)
+           {
+               viewModel.SaveUndoState();
+               viewModel.SaveSourcesCommand.Execute(null);
+           }
         }
     }
 
@@ -876,7 +1032,7 @@ public sealed partial class DraggableSourceItem : UserControl
             Math.Max(0, ActualHeight - top - bottom)
         );
 
-        UpdateCropVisuals(_cropStartRect);
+        UpdateCropVisuals(_cropStartRect, Source?.CropRotation ?? 0);
     }
 
     private void ExitCropMode()
@@ -905,6 +1061,13 @@ public sealed partial class DraggableSourceItem : UserControl
         Source.CropRightPct = (ActualWidth - cropRect.Right) / ActualWidth;
         Source.CropBottomPct = (ActualHeight - cropRect.Bottom) / ActualHeight;
 
+        // Apply current rotation to the crop
+        var transform = CropRect.RenderTransform as RotateTransform;
+        if (transform != null)
+        {
+            Source.CropRotation = (int)Math.Round(transform.Angle);
+        }
+
         App.GetService<MainViewModel>()?.SaveSourcesCommand.Execute(null);
 
         ExitCropMode();
@@ -921,6 +1084,10 @@ public sealed partial class DraggableSourceItem : UserControl
         var currentPoint = e.GetCurrentPoint(CropCanvas);
         _cropActionStartPointerPosition = currentPoint.Position;
         _cropActionStartBounds = new Rect(Canvas.GetLeft(CropRect), Canvas.GetTop(CropRect), CropRect.Width, CropRect.Height);
+        
+        var transform = CropRect.RenderTransform as RotateTransform;
+        _cropActionStartRotation = transform?.Angle ?? 0;
+        
         _cropResizeMode = GetCropResizeMode(currentPoint.Position);
 
         if (_cropResizeMode != ResizeMode.None)
@@ -943,52 +1110,82 @@ public sealed partial class DraggableSourceItem : UserControl
 
         var deltaX = currentPoint.X - _cropActionStartPointerPosition.X;
         var deltaY = currentPoint.Y - _cropActionStartPointerPosition.Y;
-        
+
+        // convert delta into the crop-rect's local (rotated) space
+        var localΔ = ToLocal(deltaX, deltaY, _cropActionStartRotation);
+
         const double minSize = 10;
 
         switch (_cropResizeMode)
         {
+            case ResizeMode.CropRotate:
+                var centerPoint = new Point(_cropActionStartBounds.X + _cropActionStartBounds.Width / 2, _cropActionStartBounds.Y + _cropActionStartBounds.Height / 2);
+                var startVector = new Point(_cropActionStartPointerPosition.X - centerPoint.X, _cropActionStartPointerPosition.Y - centerPoint.Y);
+                var currentVector = new Point(currentPoint.X - centerPoint.X, currentPoint.Y - centerPoint.Y);
+
+                var startAngle = Math.Atan2(startVector.Y, startVector.X) * (180.0 / Math.PI);
+                var currentAngle = Math.Atan2(currentVector.Y, currentVector.X) * (180.0 / Math.PI);
+
+                var angleDelta = currentAngle - startAngle;
+                var newAngle = _cropActionStartRotation + angleDelta;
+
+                var isShiftDown = e.KeyModifiers.HasFlag(Windows.System.VirtualKeyModifiers.Shift);
+                if (isShiftDown)
+                {
+                    newAngle = Math.Round(newAngle / 15.0) * 15.0; // Snap to 15-degree increments
+                }
+
+                UpdateCropVisuals(_cropActionStartBounds, newAngle);
+                return;
             case ResizeMode.Left:
-                newBounds.X = Math.Clamp(_cropActionStartBounds.Left + deltaX, 0, _cropActionStartBounds.Right - minSize);
+                newBounds.X = Math.Clamp(_cropActionStartBounds.Left + localΔ.X, 0, _cropActionStartBounds.Right - minSize);
                 newBounds.Width = _cropActionStartBounds.Right - newBounds.X;
                 break;
             case ResizeMode.Right:
-                newBounds.Width = Math.Clamp(_cropActionStartBounds.Width + deltaX, minSize, ActualWidth - _cropActionStartBounds.X);
+                newBounds.Width = Math.Clamp(_cropActionStartBounds.Width + localΔ.X, minSize, ActualWidth - newBounds.Left);
                 break;
             case ResizeMode.Top:
-                newBounds.Y = Math.Clamp(_cropActionStartBounds.Top + deltaY, 0, _cropActionStartBounds.Bottom - minSize);
+                newBounds.Y = Math.Clamp(_cropActionStartBounds.Top + localΔ.Y, 0, _cropActionStartBounds.Bottom - minSize);
                 newBounds.Height = _cropActionStartBounds.Bottom - newBounds.Y;
                 break;
             case ResizeMode.Bottom:
-                newBounds.Height = Math.Clamp(_cropActionStartBounds.Height + deltaY, minSize, ActualHeight - _cropActionStartBounds.Y);
+                newBounds.Height = Math.Clamp(_cropActionStartBounds.Height + localΔ.Y, minSize, ActualHeight - newBounds.Top);
                 break;
             case ResizeMode.TopLeft:
-                newBounds.X = Math.Clamp(_cropActionStartBounds.Left + deltaX, 0, _cropActionStartBounds.Right - minSize);
+                newBounds.X = Math.Clamp(_cropActionStartBounds.Left + localΔ.X, 0, _cropActionStartBounds.Right - minSize);
                 newBounds.Width = _cropActionStartBounds.Right - newBounds.X;
-                newBounds.Y = Math.Clamp(_cropActionStartBounds.Top + deltaY, 0, _cropActionStartBounds.Bottom - minSize);
+                newBounds.Y = Math.Clamp(_cropActionStartBounds.Top + localΔ.Y, 0, _cropActionStartBounds.Bottom - minSize);
                 newBounds.Height = _cropActionStartBounds.Bottom - newBounds.Y;
                 break;
             case ResizeMode.TopRight:
-                newBounds.Width = Math.Clamp(_cropActionStartBounds.Width + deltaX, minSize, ActualWidth - _cropActionStartBounds.X);
-                newBounds.Y = Math.Clamp(_cropActionStartBounds.Top + deltaY, 0, _cropActionStartBounds.Bottom - minSize);
+                newBounds.Width = Math.Clamp(_cropActionStartBounds.Width + localΔ.X, minSize, ActualWidth - newBounds.Left);
+                newBounds.Y = Math.Clamp(_cropActionStartBounds.Top + localΔ.Y, 0, _cropActionStartBounds.Bottom - minSize);
                 newBounds.Height = _cropActionStartBounds.Bottom - newBounds.Y;
                 break;
             case ResizeMode.BottomLeft:
-                newBounds.X = Math.Clamp(_cropActionStartBounds.Left + deltaX, 0, _cropActionStartBounds.Right - minSize);
+                newBounds.X = Math.Clamp(_cropActionStartBounds.Left + localΔ.X, 0, _cropActionStartBounds.Right - minSize);
                 newBounds.Width = _cropActionStartBounds.Right - newBounds.X;
-                newBounds.Height = Math.Clamp(_cropActionStartBounds.Height + deltaY, minSize, ActualHeight - _cropActionStartBounds.Y);
+                newBounds.Height = Math.Clamp(_cropActionStartBounds.Height + localΔ.Y, minSize, ActualHeight - newBounds.Top);
                 break;
             case ResizeMode.BottomRight:
-                newBounds.Width = Math.Clamp(_cropActionStartBounds.Width + deltaX, minSize, ActualWidth - _cropActionStartBounds.X);
-                newBounds.Height = Math.Clamp(_cropActionStartBounds.Height + deltaY, minSize, ActualHeight - _cropActionStartBounds.Y);
+                newBounds.Width = Math.Clamp(_cropActionStartBounds.Width + localΔ.X, minSize, ActualWidth - newBounds.Left);
+                newBounds.Height = Math.Clamp(_cropActionStartBounds.Height + localΔ.Y, minSize, ActualHeight - newBounds.Top);
                 break;
             case ResizeMode.Move:
-                newBounds.X = Math.Clamp(_cropActionStartBounds.X + deltaX, 0, ActualWidth - _cropActionStartBounds.Width);
-                newBounds.Y = Math.Clamp(_cropActionStartBounds.Y + deltaY, 0, ActualHeight - _cropActionStartBounds.Height);
+                newBounds.X = Math.Clamp(_cropActionStartBounds.X + localΔ.X, 0, ActualWidth - _cropActionStartBounds.Width);
+                newBounds.Y = Math.Clamp(_cropActionStartBounds.Y + localΔ.Y, 0, ActualHeight - _cropActionStartBounds.Height);
                 break;
         }
 
-        UpdateCropVisuals(newBounds);
+        UpdateCropVisuals(newBounds, _cropActionStartRotation);
+    }
+
+    private Point ToLocal(double x, double y, double angleDegrees)
+    {
+        double angleRadians = angleDegrees * Math.PI / 180.0;
+        double cos = Math.Cos(angleRadians);
+        double sin = Math.Sin(angleRadians);
+        return new Point(x * cos + y * sin, -x * sin + y * cos);
     }
 
     private void CropCanvas_PointerReleased(object sender, PointerRoutedEventArgs e)
@@ -999,7 +1196,7 @@ public sealed partial class DraggableSourceItem : UserControl
         this.ProtectedCursor = null;
     }
 
-    private void UpdateCropVisuals(Rect cropRect)
+    private void UpdateCropVisuals(Rect cropRect, double rotationAngle = 0)
     {
         // Update selection rectangle
         Canvas.SetLeft(CropRect, cropRect.X);
@@ -1007,52 +1204,150 @@ public sealed partial class DraggableSourceItem : UserControl
         CropRect.Width = cropRect.Width;
         CropRect.Height = cropRect.Height;
 
-        // Update overlay
-        CropOverlayT.Height = cropRect.Top;
-        CropOverlayT.Width = ActualWidth;
-
-        CropOverlayB.Height = Math.Max(0, ActualHeight - cropRect.Bottom);
-        CropOverlayB.Width = ActualWidth;
-        Canvas.SetTop(CropOverlayB, cropRect.Bottom);
-
-        CropOverlayL.Width = cropRect.Left;
-        Canvas.SetTop(CropOverlayL, cropRect.Top);
-        CropOverlayL.Height = cropRect.Height;
-
-        CropOverlayR.Width = Math.Max(0, ActualWidth - cropRect.Right);
-        Canvas.SetLeft(CropOverlayR, cropRect.Right);
-        Canvas.SetTop(CropOverlayR, cropRect.Top);
-        CropOverlayR.Height = cropRect.Height;
-
-        // Update handles
-        const double handleOffset = 5; // half of handle size
-        Canvas.SetLeft(CropHandleTL, cropRect.Left - handleOffset);
-        Canvas.SetTop(CropHandleTL, cropRect.Top - handleOffset);
-
-        Canvas.SetLeft(CropHandleT, cropRect.Left + cropRect.Width / 2 - handleOffset);
-        Canvas.SetTop(CropHandleT, cropRect.Top - handleOffset);
-
-        Canvas.SetLeft(CropHandleTR, cropRect.Right - handleOffset);
-        Canvas.SetTop(CropHandleTR, cropRect.Top - handleOffset);
+        // Apply rotation transform to the crop rectangle
+        if (CropRect.RenderTransform is not RotateTransform transform)
+        {
+            transform = new RotateTransform();
+            CropRect.RenderTransform = transform;
+        }
         
-        Canvas.SetLeft(CropHandleL, cropRect.Left - handleOffset);
-        Canvas.SetTop(CropHandleL, cropRect.Top + cropRect.Height / 2 - handleOffset);
+        transform.Angle = rotationAngle;
+        transform.CenterX = cropRect.Width / 2;
+        transform.CenterY = cropRect.Height / 2;
 
-        Canvas.SetLeft(CropHandleR, cropRect.Right - handleOffset);
-        Canvas.SetTop(CropHandleR, cropRect.Top + cropRect.Height / 2 - handleOffset);
+        // Helper function to rotate a point around the crop rectangle center
+        Point RotatePoint(double x, double y)
+        {
+            if (Math.Abs(rotationAngle) < 0.001) return new Point(x, y);
+            
+            var centerX = cropRect.X + cropRect.Width / 2;
+            var centerY = cropRect.Y + cropRect.Height / 2;
+            var angleRad = rotationAngle * Math.PI / 180.0;
+            var cos = Math.Cos(angleRad);
+            var sin = Math.Sin(angleRad);
+            
+            var translatedX = x - centerX;
+            var translatedY = y - centerY;
+            
+            var rotatedX = translatedX * cos - translatedY * sin;
+            var rotatedY = translatedX * sin + translatedY * cos;
+            
+            return new Point(rotatedX + centerX, rotatedY + centerY);
+        }
 
-        Canvas.SetLeft(CropHandleBL, cropRect.Left - handleOffset);
-        Canvas.SetTop(CropHandleBL, cropRect.Bottom - handleOffset);
+        // Update overlay - now handle both rotated and non-rotated cases
+        if (Math.Abs(rotationAngle) < 0.001)
+        {
+            // No rotation - use simple axis-aligned overlays
+            CropOverlayT.Height = cropRect.Top;
+            CropOverlayT.Width = ActualWidth;
+            Canvas.SetLeft(CropOverlayT, 0);
+            Canvas.SetTop(CropOverlayT, 0);
+            CropOverlayT.Visibility = Visibility.Visible;
+            CropOverlayT.RenderTransform = null;
+            CropOverlayT.Clip = null; // Clear any clipping
+            CropOverlayT.Opacity = 1.0; // Full opacity for non-rotated
 
-        Canvas.SetLeft(CropHandleB, cropRect.Left + cropRect.Width / 2 - handleOffset);
-        Canvas.SetTop(CropHandleB, cropRect.Bottom - handleOffset);
+            CropOverlayB.Height = Math.Max(0, ActualHeight - cropRect.Bottom);
+            CropOverlayB.Width = ActualWidth;
+            Canvas.SetLeft(CropOverlayB, 0);
+            Canvas.SetTop(CropOverlayB, cropRect.Bottom);
+            CropOverlayB.Visibility = Visibility.Visible;
+            CropOverlayB.RenderTransform = null;
+            CropOverlayB.Opacity = 1.0;
 
-        Canvas.SetLeft(CropHandleBR, cropRect.Right - handleOffset);
-        Canvas.SetTop(CropHandleBR, cropRect.Bottom - handleOffset);
+            CropOverlayL.Width = cropRect.Left;
+            Canvas.SetLeft(CropOverlayL, 0);
+            Canvas.SetTop(CropOverlayL, cropRect.Top);
+            CropOverlayL.Height = cropRect.Height;
+            CropOverlayL.Visibility = Visibility.Visible;
+            CropOverlayL.RenderTransform = null;
+            CropOverlayL.Opacity = 1.0;
 
-        // Update buttons
-        Canvas.SetLeft(CropActionsPanel, cropRect.Left + cropRect.Width / 2 - CropActionsPanel.ActualWidth / 2);
-        Canvas.SetTop(CropActionsPanel, cropRect.Top - CropActionsPanel.ActualHeight - 5);
+            CropOverlayR.Width = Math.Max(0, ActualWidth - cropRect.Right);
+            Canvas.SetLeft(CropOverlayR, cropRect.Right);
+            Canvas.SetTop(CropOverlayR, cropRect.Top);
+            CropOverlayR.Height = cropRect.Height;
+            CropOverlayR.Visibility = Visibility.Visible;
+            CropOverlayR.RenderTransform = null;
+            CropOverlayR.Opacity = 1.0;
+        }
+        else
+        {
+            // For rotated crops, use a full-screen overlay approach with a proper clip region
+            CropOverlayT.Width = ActualWidth;
+            CropOverlayT.Height = ActualHeight;
+            Canvas.SetLeft(CropOverlayT, 0);
+            Canvas.SetTop(CropOverlayT, 0);
+            CropOverlayT.Visibility = Visibility.Visible;
+            CropOverlayT.RenderTransform = null;
+            CropOverlayT.Opacity = 1.0;
+            
+            // Create a clipping rectangle that represents the crop area (rotated)
+            var centerX = cropRect.X + cropRect.Width / 2;
+            var centerY = cropRect.Y + cropRect.Height / 2;
+            
+            // Create a simple rectangular clip - we'll just reduce opacity for rotated crops
+            // since WinUI 3 has limitations with complex clipping
+            CropOverlayT.Opacity = 0.5; // Semi-transparent for rotated crops
+            
+            // Hide other overlays when rotated
+            CropOverlayB.Visibility = Visibility.Collapsed;
+            CropOverlayL.Visibility = Visibility.Collapsed;
+            CropOverlayR.Visibility = Visibility.Collapsed;
+        }
+
+        // Update handles with rotation
+        const double handleOffset = 5; // half of handle size
+        
+        var tlPoint = RotatePoint(cropRect.Left, cropRect.Top);
+        Canvas.SetLeft(CropHandleTL, tlPoint.X - handleOffset);
+        Canvas.SetTop(CropHandleTL, tlPoint.Y - handleOffset);
+
+        var tPoint = RotatePoint(cropRect.Left + cropRect.Width / 2, cropRect.Top);
+        Canvas.SetLeft(CropHandleT, tPoint.X - handleOffset);
+        Canvas.SetTop(CropHandleT, tPoint.Y - handleOffset);
+
+        var trPoint = RotatePoint(cropRect.Right, cropRect.Top);
+        Canvas.SetLeft(CropHandleTR, trPoint.X - handleOffset);
+        Canvas.SetTop(CropHandleTR, trPoint.Y - handleOffset);
+        
+        var lPoint = RotatePoint(cropRect.Left, cropRect.Top + cropRect.Height / 2);
+        Canvas.SetLeft(CropHandleL, lPoint.X - handleOffset);
+        Canvas.SetTop(CropHandleL, lPoint.Y - handleOffset);
+
+        var rPoint = RotatePoint(cropRect.Right, cropRect.Top + cropRect.Height / 2);
+        Canvas.SetLeft(CropHandleR, rPoint.X - handleOffset);
+        Canvas.SetTop(CropHandleR, rPoint.Y - handleOffset);
+
+        var blPoint = RotatePoint(cropRect.Left, cropRect.Bottom);
+        Canvas.SetLeft(CropHandleBL, blPoint.X - handleOffset);
+        Canvas.SetTop(CropHandleBL, blPoint.Y - handleOffset);
+
+        var bPoint = RotatePoint(cropRect.Left + cropRect.Width / 2, cropRect.Bottom);
+        Canvas.SetLeft(CropHandleB, bPoint.X - handleOffset);
+        Canvas.SetTop(CropHandleB, bPoint.Y - handleOffset);
+
+        var brPoint = RotatePoint(cropRect.Right, cropRect.Bottom);
+        Canvas.SetLeft(CropHandleBR, brPoint.X - handleOffset);
+        Canvas.SetTop(CropHandleBR, brPoint.Y - handleOffset);
+
+        // Update crop rotation handle
+        var rotationHandlePoint = RotatePoint(cropRect.X + cropRect.Width / 2, cropRect.Y - 30);
+        Canvas.SetLeft(CropRotationHandle, rotationHandlePoint.X - (CropRotationHandle.Width / 2));
+        Canvas.SetTop(CropRotationHandle, rotationHandlePoint.Y - (CropRotationHandle.Height / 2));
+
+        var lineTopPoint = RotatePoint(cropRect.X + cropRect.Width / 2, cropRect.Y);
+        CropRotationHandleLine.X1 = rotationHandlePoint.X;
+        CropRotationHandleLine.Y1 = rotationHandlePoint.Y + 8; // Start from handle edge
+        CropRotationHandleLine.X2 = lineTopPoint.X;
+        CropRotationHandleLine.Y2 = lineTopPoint.Y; // End at top of crop rect
+
+        // Update buttons (position them away from rotation handle)
+        var buttonX = cropRect.Left + cropRect.Width / 2 - CropActionsPanel.ActualWidth / 2;
+        var buttonY = Math.Min(cropRect.Top - CropActionsPanel.ActualHeight - 5, rotationHandlePoint.Y - 50); // Avoid overlap with rotation handle
+        Canvas.SetLeft(CropActionsPanel, buttonX);
+        Canvas.SetTop(CropActionsPanel, buttonY);
     }
     
     private ResizeMode GetCropResizeMode(Point point)
@@ -1065,15 +1360,57 @@ public sealed partial class DraggableSourceItem : UserControl
     {
         const int handleSize = 10;
         var cropRect = new Rect(Canvas.GetLeft(CropRect), Canvas.GetTop(CropRect), CropRect.Width, CropRect.Height);
+        
+        // Get current rotation angle
+        var transform = CropRect.RenderTransform as RotateTransform;
+        var rotationAngle = transform?.Angle ?? 0;
 
-        var tl = new Rect(cropRect.Left - handleSize / 2, cropRect.Top - handleSize / 2, handleSize, handleSize);
-        var t = new Rect(cropRect.Left + cropRect.Width / 2 - handleSize / 2, cropRect.Top - handleSize / 2, handleSize, handleSize);
-        var tr = new Rect(cropRect.Right - handleSize / 2, cropRect.Top - handleSize / 2, handleSize, handleSize);
-        var l = new Rect(cropRect.Left - handleSize / 2, cropRect.Top + cropRect.Height/2 - handleSize/2, handleSize, handleSize);
-        var r = new Rect(cropRect.Right - handleSize / 2, cropRect.Top + cropRect.Height / 2 - handleSize / 2, handleSize, handleSize);
-        var bl = new Rect(cropRect.Left - handleSize / 2, cropRect.Bottom - handleSize / 2, handleSize, handleSize);
-        var b = new Rect(cropRect.Left + cropRect.Width / 2 - handleSize / 2, cropRect.Bottom - handleSize / 2, handleSize, handleSize);
-        var br = new Rect(cropRect.Right - handleSize / 2, cropRect.Bottom - handleSize / 2, handleSize, handleSize);
+        // Helper function to rotate a point around the crop rectangle center
+        Point RotatePoint(double x, double y)
+        {
+            if (Math.Abs(rotationAngle) < 0.001) return new Point(x, y);
+            
+            var centerX = cropRect.X + cropRect.Width / 2;
+            var centerY = cropRect.Y + cropRect.Height / 2;
+            var angleRad = rotationAngle * Math.PI / 180.0;
+            var cos = Math.Cos(angleRad);
+            var sin = Math.Sin(angleRad);
+            
+            var translatedX = x - centerX;
+            var translatedY = y - centerY;
+            
+            var rotatedX = translatedX * cos - translatedY * sin;
+            var rotatedY = translatedX * sin + translatedY * cos;
+            
+            return new Point(rotatedX + centerX, rotatedY + centerY);
+        }
+
+        // Check rotation handle first
+        var rotationHandlePoint = RotatePoint(cropRect.X + cropRect.Width / 2, cropRect.Y - 30);
+        var rotationHandleRect = new Rect(rotationHandlePoint.X - 8, rotationHandlePoint.Y - 8, 16, 16);
+        if (rotationHandleRect.Contains(point))
+        {
+            return ResizeMode.CropRotate;
+        }
+
+        // Check resize handles with rotation
+        var tlPoint = RotatePoint(cropRect.Left, cropRect.Top);
+        var tPoint = RotatePoint(cropRect.Left + cropRect.Width / 2, cropRect.Top);
+        var trPoint = RotatePoint(cropRect.Right, cropRect.Top);
+        var lPoint = RotatePoint(cropRect.Left, cropRect.Top + cropRect.Height / 2);
+        var rPoint = RotatePoint(cropRect.Right, cropRect.Top + cropRect.Height / 2);
+        var blPoint = RotatePoint(cropRect.Left, cropRect.Bottom);
+        var bPoint = RotatePoint(cropRect.Left + cropRect.Width / 2, cropRect.Bottom);
+        var brPoint = RotatePoint(cropRect.Right, cropRect.Bottom);
+
+        var tl = new Rect(tlPoint.X - handleSize / 2, tlPoint.Y - handleSize / 2, handleSize, handleSize);
+        var t = new Rect(tPoint.X - handleSize / 2, tPoint.Y - handleSize / 2, handleSize, handleSize);
+        var tr = new Rect(trPoint.X - handleSize / 2, trPoint.Y - handleSize / 2, handleSize, handleSize);
+        var l = new Rect(lPoint.X - handleSize / 2, lPoint.Y - handleSize / 2, handleSize, handleSize);
+        var r = new Rect(rPoint.X - handleSize / 2, rPoint.Y - handleSize / 2, handleSize, handleSize);
+        var bl = new Rect(blPoint.X - handleSize / 2, blPoint.Y - handleSize / 2, handleSize, handleSize);
+        var b = new Rect(bPoint.X - handleSize / 2, bPoint.Y - handleSize / 2, handleSize, handleSize);
+        var br = new Rect(brPoint.X - handleSize / 2, brPoint.Y - handleSize / 2, handleSize, handleSize);
 
         if (tl.Contains(point)) return ResizeMode.TopLeft;
         if (tr.Contains(point)) return ResizeMode.TopRight;
@@ -1084,9 +1421,34 @@ public sealed partial class DraggableSourceItem : UserControl
         if (l.Contains(point)) return ResizeMode.Left;
         if (r.Contains(point)) return ResizeMode.Right;
         
-        if (cropRect.Contains(point))
+        // For checking if point is inside the crop rect, we need to inverse transform the point
+        // to check against the unrotated rectangle
+        if (Math.Abs(rotationAngle) < 0.001)
         {
-            return ResizeMode.Move;
+            if (cropRect.Contains(point))
+            {
+                return ResizeMode.Move;
+            }
+        }
+        else
+        {
+            // Transform point back to unrotated space for hit testing
+            var centerX = cropRect.X + cropRect.Width / 2;
+            var centerY = cropRect.Y + cropRect.Height / 2;
+            var angleRad = -rotationAngle * Math.PI / 180.0; // Inverse rotation
+            var cos = Math.Cos(angleRad);
+            var sin = Math.Sin(angleRad);
+            
+            var translatedX = point.X - centerX;
+            var translatedY = point.Y - centerY;
+            
+            var unrotatedX = translatedX * cos - translatedY * sin + centerX;
+            var unrotatedY = translatedX * sin + translatedY * cos + centerY;
+            
+            if (cropRect.Contains(new Point(unrotatedX, unrotatedY)))
+            {
+                return ResizeMode.Move;
+            }
         }
 
         return ResizeMode.None;
@@ -1161,6 +1523,7 @@ public sealed partial class DraggableSourceItem : UserControl
         switch (resizeMode)
         {
             case ResizeMode.Rotate:
+            case ResizeMode.CropRotate:
                 return InputSystemCursor.Create(InputSystemCursorShape.SizeAll); // No specific rotation cursor available, use SizeAll
             case ResizeMode.Move:
                 cursorShape = InputSystemCursorShape.SizeAll;
@@ -1216,6 +1579,12 @@ public sealed partial class DraggableSourceItem : UserControl
         if (Source != null)
         {
             RefreshPosition();
+        }
+        
+        // Update the clipping rectangle for the crop shading canvas
+        if (CropShadingCanvasClip != null)
+        {
+            CropShadingCanvasClip.Rect = new Rect(0, 0, e.NewSize.Width, e.NewSize.Height);
         }
     }
 

@@ -177,8 +177,18 @@
                 Spacing="16">
                 <TextBlock x:Name="CanvasModeTitle" Style="{ThemeResource TitleTextBlockStyle}" Text="Layout Preview" />
                 <Button Content="Reset Canvas" Command="{x:Bind ViewModel.ResetCanvasCommand}" />
-                <Button Content="Zoom to Fit" Click="ZoomToFit_Click" />
-                <Button Content="Zoom 100%" Click="Zoom100_Click" />
+                <Button Command="{x:Bind ViewModel.UndoCommand}" IsEnabled="{x:Bind ViewModel.CanUndo, Mode=OneWay}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE7A7;" FontSize="14" />
+                        <TextBlock Text="Undo" />
+                    </StackPanel>
+                </Button>
+                <Button Command="{x:Bind ViewModel.RedoCommand}" IsEnabled="{x:Bind ViewModel.CanRedo, Mode=OneWay}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE7A6;" FontSize="14" />
+                        <TextBlock Text="Redo" />
+                    </StackPanel>
+                </Button>
                 <StackPanel Orientation="Vertical" Spacing="4">
                     <TextBlock FontSize="12" FontWeight="SemiBold" Text="MJPEG Stream:" />
                     <TextBlock 
@@ -356,6 +366,17 @@
                             <NumberBox Header="Top (%)" Value="{x:Bind ViewModel.SelectedSourceCropTopPct, Mode=TwoWay}" Minimum="0" Maximum="100" />
                             <NumberBox Header="Right (%)" Value="{x:Bind ViewModel.SelectedSourceCropRightPct, Mode=TwoWay}" Minimum="0" Maximum="100" />
                             <NumberBox Header="Bottom (%)" Value="{x:Bind ViewModel.SelectedSourceCropBottomPct, Mode=TwoWay}" Minimum="0" Maximum="100" />
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Crop Rotation" Style="{ThemeResource CaptionTextBlockStyle}" Margin="0,8,0,0"/>
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Minimum="-180" Maximum="180" SmallChange="1" StepFrequency="1" Value="{x:Bind ViewModel.SelectedSourceCropRotation, Mode=TwoWay}" VerticalAlignment="Center"/>
+                                    <NumberBox Grid.Column="1" Value="{x:Bind ViewModel.SelectedSourceCropRotation, Mode=TwoWay}" Width="80" SmallChange="1" LargeChange="15"/>
+                                </Grid>
+                            </StackPanel>
                         </StackPanel>
 
                         <!--  Layer Properties  -->

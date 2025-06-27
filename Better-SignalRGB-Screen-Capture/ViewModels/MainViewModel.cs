@@ -20,6 +20,8 @@ public partial class MainViewModel : ObservableRecipient
     private const string PreviewFpsSettingsKey = "PreviewFps";
     private CancellationTokenSource? _testFrameCancellation;
     private List<SourceItem> _copiedSources = new();
+    private readonly UndoRedoManager _undoRedoManager = new();
+    private bool _isUndoRedoOperation = false; // To prevent saving undo state during undo/redo
     
     public ObservableCollection<SourceItem> Sources { get; } = new();
 
@@ -60,6 +62,15 @@ public partial class MainViewModel : ObservableRecipient
 
         // Listen to selection changes
         SelectedSources.CollectionChanged += (s, e) => OnSelectionChanged();
+        
+        // Listen to undo/redo state changes
+        _undoRedoManager.CanUndoRedoChanged += (s, e) => 
+        {
+            UndoCommand.NotifyCanExecuteChanged();
+            RedoCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(CanUndo));
+            OnPropertyChanged(nameof(CanRedo));
+        };
     }
     
     partial void OnPreviewFpsChanged(int value)
@@ -76,6 +87,8 @@ public partial class MainViewModel : ObservableRecipient
     {
         if (newSource != null)
         {
+            SaveUndoState();
+            
             // Find a good position for the new source on canvas
             var (x, y) = FindAvailableCanvasPosition();
             newSource.CanvasX = x;
@@ -116,6 +129,7 @@ public partial class MainViewModel : ObservableRecipient
     {
         if (Sources.Contains(source))
         {
+            SaveUndoState();
             await _captureService.StopCaptureAsync(source);
             _compositeFrameService.RemoveSource(source);
             Sources.Remove(source);
@@ -155,6 +169,7 @@ public partial class MainViewModel : ObservableRecipient
     {
         if (!_copiedSources.Any()) return;
 
+        SaveUndoState();
         var newSelection = new List<SourceItem>();
 
         foreach (var copiedSource in _copiedSources)
@@ -239,7 +254,7 @@ public partial class MainViewModel : ObservableRecipient
             }
         }
 
-        await SaveSourcesAsync();
+        await SaveSourcesWithUndoAsync();
     }
     
     [RelayCommand]
@@ -261,6 +276,12 @@ public partial class MainViewModel : ObservableRecipient
         {
             // Handle save error if needed
         }
+    }
+    
+    public async Task SaveSourcesWithUndoAsync()
+    {
+        SaveUndoState();
+        await SaveSourcesAsync();
     }
 
     public void UpdateSelectedSources(IEnumerable<SourceItem> newSelection)
@@ -300,6 +321,7 @@ public partial class MainViewModel : ObservableRecipient
         OnPropertyChanged(nameof(SelectedSourceCropRightPct));
         OnPropertyChanged(nameof(SelectedSourceCropTopPct));
         OnPropertyChanged(nameof(SelectedSourceCropBottomPct));
+        OnPropertyChanged(nameof(SelectedSourceCropRotation));
 
         AlignLeftCommand.NotifyCanExecuteChanged();
         AlignRightCommand.NotifyCanExecuteChanged();
@@ -336,6 +358,7 @@ public partial class MainViewModel : ObservableRecipient
         {
             if (value != null && SelectedSources.Count > 0 && value != "Multiple Values")
             {
+                SaveUndoState();
                 foreach (var source in SelectedSources)
                 {
                     source.Name = value;
@@ -357,6 +380,7 @@ public partial class MainViewModel : ObservableRecipient
         {
             if (SelectedSources.Count > 0)
             {
+                SaveUndoState();
                 foreach (var source in SelectedSources)
                 {
                     source.Opacity = value;
@@ -372,16 +396,25 @@ public partial class MainViewModel : ObservableRecipient
         get => IsSingleSelect ? SelectedSources[0].CanvasWidth : 0;
         set
         {
-            if (IsSingleSelect)
+            if (!IsSingleSelect || SelectedSources[0].CanvasWidth == value) return;
+            var s = SelectedSources[0];
+            var newW = (int)value;
+            var newH = s.CanvasHeight;
+            
+            if (IsAspectRatioLocked && s.CanvasHeight > 0)
             {
-                var s = SelectedSources[0];
-                int newW = (int)Math.Clamp(value, 10, 800);
-                if (FitsInCanvas(s.CanvasX, s.CanvasY, newW, s.CanvasHeight, s.Rotation))
-                    s.CanvasWidth = newW;
+                var ratio = (double)s.CanvasWidth / s.CanvasHeight;
+                newH = (int)Math.Round(newW / ratio);
+                if (!FitsInCanvas(s.CanvasX, s.CanvasY, newW, newH, s.Rotation, s))
+                    return;                       // refuse the change
             }
-            if (IsMultiSelect)
+
+            if (FitsInCanvas(s.CanvasX, s.CanvasY, newW, newH, s.Rotation, s))
             {
-                // Logic for multi-select if needed
+                s.CanvasWidth = newW;
+                s.CanvasHeight = newH; // Update height if aspect ratio is locked
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SelectedSourceHeight));
             }
         }
     }
@@ -391,16 +424,25 @@ public partial class MainViewModel : ObservableRecipient
         get => IsSingleSelect ? SelectedSources[0].CanvasHeight : 0;
         set
         {
-            if (IsSingleSelect)
+            if (!IsSingleSelect || SelectedSources[0].CanvasHeight == value) return;
+            var s = SelectedSources[0];
+            var newH = (int)value;
+            var newW = s.CanvasWidth;
+
+            if (IsAspectRatioLocked && s.CanvasWidth > 0)
             {
-                var s = SelectedSources[0];
-                int newH = (int)Math.Clamp(value, 10, 600);
-                if (FitsInCanvas(s.CanvasX, s.CanvasY, s.CanvasWidth, newH, s.Rotation))
-                    s.CanvasHeight = newH;
+                var ratio = (double)s.CanvasHeight / s.CanvasWidth;
+                newW = (int)Math.Round(newH / ratio);
+                if (!FitsInCanvas(s.CanvasX, s.CanvasY, newW, newH, s.Rotation, s))
+                    return;                       // refuse the change
             }
-            if (IsMultiSelect)
+
+            if (FitsInCanvas(s.CanvasX, s.CanvasY, newW, newH, s.Rotation, s))
             {
-                // Logic for multi-select if needed
+                s.CanvasHeight = newH;
+                s.CanvasWidth = newW; // Update width if aspect ratio is locked
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SelectedSourceWidth));
             }
         }
     }
@@ -410,16 +452,13 @@ public partial class MainViewModel : ObservableRecipient
         get => IsSingleSelect ? SelectedSources[0].CanvasX : 0;
         set
         {
-            if (IsSingleSelect)
+            if (!IsSingleSelect || SelectedSources[0].CanvasX == value) return;
+            var s = SelectedSources[0];
+            var newX = (int)value;
+            if (FitsInCanvas(newX, s.CanvasY, s.CanvasWidth, s.CanvasHeight, s.Rotation, s))
             {
-                var s = SelectedSources[0];
-                int newX = (int)Math.Clamp(value, 0, 800);
-                if (FitsInCanvas(newX, s.CanvasY, s.CanvasWidth, s.CanvasHeight, s.Rotation))
-                    s.CanvasX = newX;
-            }
-            if (IsMultiSelect)
-            {
-                // Logic for multi-select if needed
+                s.CanvasX = newX;
+                OnPropertyChanged();
             }
         }
     }
@@ -429,16 +468,13 @@ public partial class MainViewModel : ObservableRecipient
         get => IsSingleSelect ? SelectedSources[0].CanvasY : 0;
         set
         {
-            if (IsSingleSelect)
+            if (!IsSingleSelect || SelectedSources[0].CanvasY == value) return;
+            var s = SelectedSources[0];
+            var newY = (int)value;
+            if (FitsInCanvas(s.CanvasX, newY, s.CanvasWidth, s.CanvasHeight, s.Rotation, s))
             {
-                var s = SelectedSources[0];
-                int newY = (int)Math.Clamp(value, 0, 600);
-                if (FitsInCanvas(s.CanvasX, newY, s.CanvasWidth, s.CanvasHeight, s.Rotation))
-                    s.CanvasY = newY;
-            }
-            if (IsMultiSelect)
-            {
-                // Logic for multi-select if needed
+                s.CanvasY = newY;
+                OnPropertyChanged();
             }
         }
     }
@@ -447,15 +483,16 @@ public partial class MainViewModel : ObservableRecipient
     {
         get
         {
-            if (SelectedSources.Count == 0) return double.NaN;
+            if (SelectedSources.Count == 0) return 0;
             if (SelectedSources.Count == 1) return SelectedSources[0].CropLeftPct * 100; // Convert to 0-100 range
             var first = SelectedSources[0].CropLeftPct;
-            return SelectedSources.Skip(1).All(s => Math.Abs(s.CropLeftPct - first) < 0.001) ? first * 100 : double.NaN;
+            return SelectedSources.Skip(1).All(s => Math.Abs(s.CropLeftPct - first) < 0.001) ? first * 100 : 0;
         }
         set
         {
-            if (!double.IsNaN(value) && SelectedSources.Count > 0)
+            if (SelectedSources.Count > 0)
             {
+                SaveUndoState();
                 foreach (var source in SelectedSources)
                 {
                     source.CropLeftPct = Math.Clamp(value / 100.0, 0, 1); // Convert from 0-100 to 0-1 range
@@ -470,15 +507,16 @@ public partial class MainViewModel : ObservableRecipient
     {
         get
         {
-            if (SelectedSources.Count == 0) return double.NaN;
+            if (SelectedSources.Count == 0) return 0;
             if (SelectedSources.Count == 1) return SelectedSources[0].CropRightPct * 100;
             var first = SelectedSources[0].CropRightPct;
-            return SelectedSources.Skip(1).All(s => Math.Abs(s.CropRightPct - first) < 0.001) ? first * 100 : double.NaN;
+            return SelectedSources.Skip(1).All(s => Math.Abs(s.CropRightPct - first) < 0.001) ? first * 100 : 0;
         }
         set
         {
-            if (!double.IsNaN(value) && SelectedSources.Count > 0)
+            if (SelectedSources.Count > 0)
             {
+                SaveUndoState();
                 foreach (var source in SelectedSources)
                 {
                     source.CropRightPct = Math.Clamp(value / 100.0, 0, 1);
@@ -493,15 +531,16 @@ public partial class MainViewModel : ObservableRecipient
     {
         get
         {
-            if (SelectedSources.Count == 0) return double.NaN;
+            if (SelectedSources.Count == 0) return 0;
             if (SelectedSources.Count == 1) return SelectedSources[0].CropTopPct * 100;
             var first = SelectedSources[0].CropTopPct;
-            return SelectedSources.Skip(1).All(s => Math.Abs(s.CropTopPct - first) < 0.001) ? first * 100 : double.NaN;
+            return SelectedSources.Skip(1).All(s => Math.Abs(s.CropTopPct - first) < 0.001) ? first * 100 : 0;
         }
         set
         {
-            if (!double.IsNaN(value) && SelectedSources.Count > 0)
+            if (SelectedSources.Count > 0)
             {
+                SaveUndoState();
                 foreach (var source in SelectedSources)
                 {
                     source.CropTopPct = Math.Clamp(value / 100.0, 0, 1);
@@ -516,18 +555,43 @@ public partial class MainViewModel : ObservableRecipient
     {
         get
         {
-            if (SelectedSources.Count == 0) return double.NaN;
+            if (SelectedSources.Count == 0) return 0;
             if (SelectedSources.Count == 1) return SelectedSources[0].CropBottomPct * 100;
             var first = SelectedSources[0].CropBottomPct;
-            return SelectedSources.Skip(1).All(s => Math.Abs(s.CropBottomPct - first) < 0.001) ? first * 100 : double.NaN;
+            return SelectedSources.Skip(1).All(s => Math.Abs(s.CropBottomPct - first) < 0.001) ? first * 100 : 0;
         }
         set
         {
-            if (!double.IsNaN(value) && SelectedSources.Count > 0)
+            if (SelectedSources.Count > 0)
             {
+                SaveUndoState();
                 foreach (var source in SelectedSources)
                 {
                     source.CropBottomPct = Math.Clamp(value / 100.0, 0, 1);
+                }
+                _ = SaveSourcesAsync();
+                OnPropertyChanged();
+            }
+        }
+    }
+    
+    public double SelectedSourceCropRotation
+    {
+        get
+        {
+            if (SelectedSources.Count == 0) return 0;
+            if (SelectedSources.Count == 1) return SelectedSources[0].CropRotation;
+            var first = SelectedSources[0].CropRotation;
+            return SelectedSources.Skip(1).All(s => s.CropRotation == first) ? first : 0;
+        }
+        set
+        {
+            if (SelectedSources.Count > 0)
+            {
+                SaveUndoState();
+                foreach (var source in SelectedSources)
+                {
+                    source.CropRotation = (int)Math.Round(Math.Clamp(value, -180, 180));
                 }
                 _ = SaveSourcesAsync();
                 OnPropertyChanged();
@@ -548,6 +612,7 @@ public partial class MainViewModel : ObservableRecipient
         {
             if (SelectedSources.Count > 0)
             {
+                SaveUndoState();
                 foreach (var source in SelectedSources)
                 {
                     source.IsMirroredHorizontally = value;
@@ -607,13 +672,33 @@ public partial class MainViewModel : ObservableRecipient
         return new Rect(minX + center.X, minY + center.Y, maxX - minX, maxY - minY);
     }
 
-    private bool FitsInCanvas(int x, int y, int w, int h, int rotationDeg)
+    /// <summary>
+    /// True when the *visible* (cropped+rotated) part fits inside 800×600
+    /// </summary>
+    private bool FitsInCanvas(int x,int y,int w,int h,int rotationDeg, SourceItem src)
     {
-        const double canvasW = 800, canvasH = 600;
-        var centre = new Point(x + w / 2.0, y + h / 2.0);
-        var aabb = GetRotatedAabb(centre, new Size(w, h), rotationDeg);
-        return aabb.Left >= 0 && aabb.Top >= 0 &&
-               aabb.Right <= canvasW && aabb.Bottom <= canvasH;
+        // 1. size after cropping
+        var effW = w * (1 - src.CropLeftPct  - src.CropRightPct);
+        var effH = h * (1 - src.CropTopPct   - src.CropBottomPct);
+        if (effW <= 0 || effH <= 0) return true;          // nothing to show
+
+        // 2. where that visible rectangle sits inside the control
+        var offX = w * src.CropLeftPct;
+        var offY = h * src.CropTopPct;
+
+        // 3. centre of the visible part in canvas coords
+        var centre = new Point(x + offX + effW/2,
+                               y + offY + effH/2);
+
+        // 4. AABB of the visible part after both rotations
+        var aabb = GetRotatedAabb(centre,
+                                  new Size(effW, effH),
+                                  rotationDeg + src.CropRotation);
+
+        return aabb.Left   >= 0 &&
+               aabb.Top    >= 0 &&
+               aabb.Right  <= 800 &&
+               aabb.Bottom <= 600;
     }
 
     public int SelectedSourceRotation
@@ -621,33 +706,13 @@ public partial class MainViewModel : ObservableRecipient
         get => IsSingleSelect ? SelectedSources[0].Rotation : 0;
         set
         {
-            if (IsSingleSelect && SelectedSources[0].Rotation != value)
+            if (!IsSingleSelect || SelectedSources[0].Rotation == value) return;
+            var s = SelectedSources[0];
+            var newRotation = (int)value;
+            if (FitsInCanvas(s.CanvasX, s.CanvasY, s.CanvasWidth, s.CanvasHeight, newRotation, s))
             {
-                var source = SelectedSources[0];
-                
-                // Check if the new rotation would cause the rectangle to overflow the canvas
-                var center = new Point(source.CanvasX + source.CanvasWidth / 2.0, source.CanvasY + source.CanvasHeight / 2.0);
-                var size = new Size(source.CanvasWidth, source.CanvasHeight);
-                var rotatedAabb = GetRotatedAabb(center, size, value);
-
-                // Canvas size is 800x600 (hardcoded in this app)
-                const double canvasWidth = 800;
-                const double canvasHeight = 600;
-
-                // Only apply the rotation if it won't cause overflow
-                if (rotatedAabb.Left >= 0 && rotatedAabb.Top >= 0 && 
-                    rotatedAabb.Right <= canvasWidth && rotatedAabb.Bottom <= canvasHeight)
-                {
-                    source.Rotation = value;
-                    OnPropertyChanged(nameof(SelectedSourceRotation));
-                    SaveSourcesAsync();
-                }
-                // If the rotation would cause overflow, ignore the change (keeping the current rotation)
-                else
-                {
-                    // Notify that the property "changed" to refresh the UI with the current valid value
-                    OnPropertyChanged(nameof(SelectedSourceRotation));
-                }
+                s.Rotation = newRotation;
+                OnPropertyChanged();
             }
         }
     }
@@ -1054,6 +1119,9 @@ public partial class MainViewModel : ObservableRecipient
             case nameof(SourceItem.CropBottomPct):
                 OnPropertyChanged(nameof(SelectedSourceCropBottomPct));
                 break;
+            case nameof(SourceItem.CropRotation):
+                OnPropertyChanged(nameof(SelectedSourceCropRotation));
+                break;
             case nameof(SourceItem.IsMirroredHorizontally):
                 OnPropertyChanged(nameof(SelectedSourceIsMirroredHorizontally));
                 break;
@@ -1069,5 +1137,69 @@ public partial class MainViewModel : ObservableRecipient
         OnPropertyChanged(nameof(IsSourceSelected));
         OnPropertyChanged(nameof(IsMultiSelect));
         OnPropertyChanged(nameof(IsSingleSelect));
+    }
+
+    // Undo/Redo properties
+    public bool CanUndo => _undoRedoManager.CanUndo;
+    public bool CanRedo => _undoRedoManager.CanRedo;
+
+    [RelayCommand(CanExecute = nameof(CanUndo))]
+    private async Task UndoAsync()
+    {
+        var previousState = _undoRedoManager.Undo(Sources);
+        if (previousState != null)
+        {
+            await RestoreState(previousState);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRedo))]
+    private async Task RedoAsync()
+    {
+        var nextState = _undoRedoManager.Redo(Sources);
+        if (nextState != null)
+        {
+            await RestoreState(nextState);
+        }
+    }
+
+    private async Task RestoreState(SourceItem[] state)
+    {
+        _isUndoRedoOperation = true;
+        try
+        {
+            // Stop all current captures
+            await StopAllCapturesAsync();
+            
+            // Clear current sources
+            Sources.Clear();
+            SelectedSources.Clear();
+            
+            // Restore sources from state
+            foreach (var sourceState in state)
+            {
+                var newSource = sourceState.Clone();
+                newSource.Id = sourceState.Id; // Preserve original ID for undo/redo
+                Sources.Add(newSource);
+                
+                // Start capture for restored source
+                await _captureService.StartCaptureAsync(newSource);
+            }
+            
+            // Save the restored state
+            await SaveSourcesAsync();
+        }
+        finally
+        {
+            _isUndoRedoOperation = false;
+        }
+    }
+
+    public void SaveUndoState()
+    {
+        if (!_isUndoRedoOperation)
+        {
+            _undoRedoManager.SaveState(Sources);
+        }
     }
 }

@@ -3,6 +3,10 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Windows.Graphics;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Text.Json;
 
 namespace Better_SignalRGB_Screen_Capture.Models;
 
@@ -22,6 +26,7 @@ public class SourceItem : INotifyPropertyChanged
     private bool _isMirroredVertically;
     private bool _isSelected;
     private int _rotation;
+    private int _cropRotation;
 
     public Guid Id { get; set; } = Guid.NewGuid();
     
@@ -202,6 +207,12 @@ public class SourceItem : INotifyPropertyChanged
         set => SetProperty(ref _cropBottomPct, value);
     }
 
+    public int CropRotation
+    {
+        get => _cropRotation;
+        set => SetProperty(ref _cropRotation, value);
+    }
+
     public bool IsMirroredHorizontally
     {
         get => _isMirroredHorizontally;
@@ -353,6 +364,7 @@ public class SourceItem : INotifyPropertyChanged
             CropTopPct = this.CropTopPct,
             CropRightPct = this.CropRightPct,
             CropBottomPct = this.CropBottomPct,
+            CropRotation = this.CropRotation,
             IsMirroredHorizontally = this.IsMirroredHorizontally,
             IsMirroredVertically = this.IsMirroredVertically,
             Rotation = this.Rotation,
@@ -371,4 +383,109 @@ public enum SourceType
     Region,
     Webcam,
     Website
+}
+
+public class UndoRedoManager
+{
+    private readonly List<string> _undoStack = new();
+    private readonly List<string> _redoStack = new();
+    private const int MaxHistorySize = 50;
+
+    public bool CanUndo => _undoStack.Count > 0;
+    public bool CanRedo => _redoStack.Count > 0;
+
+    public event EventHandler? CanUndoRedoChanged;
+
+    public void SaveState(ObservableCollection<SourceItem> sources)
+    {
+        var state = SerializeSources(sources);
+        
+        // Add to undo stack
+        _undoStack.Add(state);
+        
+        // Limit stack size
+        if (_undoStack.Count > MaxHistorySize)
+        {
+            _undoStack.RemoveAt(0);
+        }
+        
+        // Clear redo stack when new action is performed
+        _redoStack.Clear();
+        
+        CanUndoRedoChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public SourceItem[]? Undo(ObservableCollection<SourceItem> currentSources)
+    {
+        if (!CanUndo) return null;
+
+        // Save current state to redo stack
+        var currentState = SerializeSources(currentSources);
+        _redoStack.Add(currentState);
+        
+        // Limit redo stack size
+        if (_redoStack.Count > MaxHistorySize)
+        {
+            _redoStack.RemoveAt(0);
+        }
+
+        // Get previous state
+        var previousState = _undoStack.Last();
+        _undoStack.RemoveAt(_undoStack.Count - 1);
+        
+        CanUndoRedoChanged?.Invoke(this, EventArgs.Empty);
+        
+        return DeserializeSources(previousState);
+    }
+
+    public SourceItem[]? Redo(ObservableCollection<SourceItem> currentSources)
+    {
+        if (!CanRedo) return null;
+
+        // Save current state to undo stack
+        var currentState = SerializeSources(currentSources);
+        _undoStack.Add(currentState);
+        
+        // Limit undo stack size
+        if (_undoStack.Count > MaxHistorySize)
+        {
+            _undoStack.RemoveAt(0);
+        }
+
+        // Get next state
+        var nextState = _redoStack.Last();
+        _redoStack.RemoveAt(_redoStack.Count - 1);
+        
+        CanUndoRedoChanged?.Invoke(this, EventArgs.Empty);
+        
+        return DeserializeSources(nextState);
+    }
+
+    public void Clear()
+    {
+        _undoStack.Clear();
+        _redoStack.Clear();
+        CanUndoRedoChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private string SerializeSources(ObservableCollection<SourceItem> sources)
+    {
+        return JsonSerializer.Serialize(sources.ToArray(), new JsonSerializerOptions 
+        { 
+            WriteIndented = false,
+            IncludeFields = false
+        });
+    }
+
+    private SourceItem[]? DeserializeSources(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<SourceItem[]>(json);
+        }
+        catch
+        {
+            return null;
+        }
+    }
 } 

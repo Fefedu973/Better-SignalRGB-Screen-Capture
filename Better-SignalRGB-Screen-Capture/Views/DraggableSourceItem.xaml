@@ -26,12 +26,10 @@
             CornerRadius="{StaticResource ControlCornerRadius}"
             RenderTransformOrigin="0.5,0.5">
             <Border.RenderTransform>
-                <ScaleTransform
-                    ScaleX="{x:Bind Source.IsMirroredHorizontally, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}"
-                    ScaleY="{x:Bind Source.IsMirroredVertically, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" />
+                <ScaleTransform ScaleX="{x:Bind Source.IsMirroredHorizontally, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" ScaleY="{x:Bind Source.IsMirroredVertically, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" />
             </Border.RenderTransform>
             <Grid>
-                <!-- Content Grid -->
+                <!--  Content Grid  -->
                 <Grid Padding="8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -53,13 +51,28 @@
                         Style="{ThemeResource BodyTextBlockStyle}"
                         Text="Source Type" />
                 </Grid>
-                
-                <!-- Crop Shading Overlays -->
-                <Canvas>
-                    <Rectangle x:Name="CropShadeT" Fill="Black" Opacity="0.35"/>
-                    <Rectangle x:Name="CropShadeB" Fill="Black" Opacity="0.35"/>
-                    <Rectangle x:Name="CropShadeL" Fill="Black" Opacity="0.35"/>
-                    <Rectangle x:Name="CropShadeR" Fill="Black" Opacity="0.35"/>
+
+                <!--  Crop Shading Overlays  -->
+                <Canvas x:Name="CropShadingCanvas">
+                    <Canvas.Clip>
+                        <RectangleGeometry x:Name="CropShadingCanvasClip" />
+                    </Canvas.Clip>
+                    <Rectangle
+                        x:Name="CropShadeT"
+                        Fill="Black"
+                        Opacity="0.35" />
+                    <Rectangle
+                        x:Name="CropShadeB"
+                        Fill="Black"
+                        Opacity="0.35" />
+                    <Rectangle
+                        x:Name="CropShadeL"
+                        Fill="Black"
+                        Opacity="0.35" />
+                    <Rectangle
+                        x:Name="CropShadeR"
+                        Fill="Black"
+                        Opacity="0.35" />
                 </Canvas>
             </Grid>
         </Border>
@@ -201,6 +214,17 @@
             <Rectangle x:Name="CropHandleBL" Style="{StaticResource CropHandleStyle}" />
             <Rectangle x:Name="CropHandleB" Style="{StaticResource CropHandleStyle}" />
             <Rectangle x:Name="CropHandleBR" Style="{StaticResource CropHandleStyle}" />
+
+            <!--  Crop Rotation Handle  -->
+            <Line
+                x:Name="CropRotationHandleLine"
+                Stroke="{ThemeResource SystemAccentColor}"
+                StrokeThickness="2" />
+            <Ellipse
+                x:Name="CropRotationHandle"
+                Width="16"
+                Height="16"
+                Fill="{ThemeResource SystemAccentColor}" />
 
             <!--  Accept/Cancel Buttons  -->
             <StackPanel

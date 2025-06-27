@@ -25,6 +25,7 @@ public sealed partial class MainPage : Page
     private Point _panStartPoint;
     private double _panStartScrollX;
     private double _panStartScrollY;
+    private GroupSelectionControl? _groupSelectionControl;
 
     public MainPage()
     {
@@ -304,118 +305,32 @@ public sealed partial class MainPage : Page
 
     private void OnDraggableItemDragDelta(object? sender, Point e)
     {
-        if (sender is DraggableSourceItem draggedItem && SourceCanvas != null)
+        if (sender is DraggableSourceItem item && _dragStartPositions.TryGetValue(item.Source.Id, out var startPos))
         {
-            var parentWidth = SourceCanvas.ActualWidth;
-            var parentHeight = SourceCanvas.ActualHeight;
+            var newX = startPos.X + e.X;
+            var newY = startPos.Y + e.Y;
 
-            // Calculate the maximum allowed movement for all selected items to stay within bounds
-            double maxDeltaX = double.MaxValue;
-            double maxDeltaY = double.MaxValue;
-            double minDeltaX = double.MinValue;
-            double minDeltaY = double.MinValue;
+            // The clamping logic is now correctly handled inside DraggableSourceItem.
+            // The safety check below was incorrect as it didn't account for cropping or rotation,
+            // causing the visible part of the rectangle to be pushed back inside the canvas
+            // even when only the invisible part was outside.
+            
+            // We just need to update the source's position. DraggableSourceItem handles the rest.
+            item.Source.CanvasX = (int)newX;
+            item.Source.CanvasY = (int)newY;
+        }
+        else if (sender is GroupSelectionControl gsc && _dragStartPositions.TryGetValue(Guid.Empty, out var groupStartPos))
+        {
+            var newGroupX = groupStartPos.X + e.X;
+            var newGroupY = groupStartPos.Y + e.Y;
 
-            foreach (var item in SourceCanvas.Children.OfType<DraggableSourceItem>())
+            // Move all items in the group by the delta
+            foreach (var source in gsc.SelectedSources)
             {
-                if (ViewModel.SelectedSources.Contains(item.Source))
+                if (_dragStartPositions.TryGetValue(source.Id, out var itemStartPos))
                 {
-                    var startPos = _dragStartPositions[item.Source.Id];
-                    
-                    // For rotated items, use the oriented bounding box
-                    if (item.Source.Rotation != 0)
-                    {
-                        var center = new Point(startPos.X + item.Source.CanvasWidth / 2.0, startPos.Y + item.Source.CanvasHeight / 2.0);
-                        var size = new Size(item.Source.CanvasWidth, item.Source.CanvasHeight);
-                        
-                        // Calculate AABB bounds for different delta values
-                        var testDeltaX = e.X;
-                        var testDeltaY = e.Y;
-                        
-                        var newCenter = new Point(center.X + testDeltaX, center.Y + testDeltaY);
-                        var rotatedAabb = GetRotatedAabb(newCenter, size, item.Source.Rotation);
-                        
-                        // Calculate the maximum deltas that keep this item within bounds
-                        var itemMaxDeltaX = parentWidth - rotatedAabb.Right + testDeltaX;
-                        var itemMaxDeltaY = parentHeight - rotatedAabb.Bottom + testDeltaY;
-                        var itemMinDeltaX = -rotatedAabb.Left + testDeltaX;
-                        var itemMinDeltaY = -rotatedAabb.Top + testDeltaY;
-                        
-                        maxDeltaX = Math.Min(maxDeltaX, itemMaxDeltaX);
-                        maxDeltaY = Math.Min(maxDeltaY, itemMaxDeltaY);
-                        minDeltaX = Math.Max(minDeltaX, itemMinDeltaX);
-                        minDeltaY = Math.Max(minDeltaY, itemMinDeltaY);
-                    }
-                    else
-                    {
-                        // For non-rotated items, use simple axis-aligned bounds
-                        var itemWidth = item.Source.CanvasWidth;
-                        var itemHeight = item.Source.CanvasHeight;
-                        
-                        var maxX = parentWidth - itemWidth;
-                        var maxY = parentHeight - itemHeight;
-                        
-                        var itemMaxDeltaX = maxX - startPos.X;
-                        var itemMaxDeltaY = maxY - startPos.Y;
-                        var itemMinDeltaX = 0 - startPos.X;
-                        var itemMinDeltaY = 0 - startPos.Y;
-                        
-                        // Find the most restrictive limits across all selected items
-                        maxDeltaX = Math.Min(maxDeltaX, itemMaxDeltaX);
-                        maxDeltaY = Math.Min(maxDeltaY, itemMaxDeltaY);
-                        minDeltaX = Math.Max(minDeltaX, itemMinDeltaX);
-                        minDeltaY = Math.Max(minDeltaY, itemMinDeltaY);
-                    }
-                }
-            }
-
-            // Clamp the delta to the most restrictive bounds
-            var constrainedDeltaX = Math.Max(minDeltaX, Math.Min(maxDeltaX, e.X));
-            var constrainedDeltaY = Math.Max(minDeltaY, Math.Min(maxDeltaY, e.Y));
-
-            // Apply the constrained movement to all selected items
-            foreach (var item in SourceCanvas.Children.OfType<DraggableSourceItem>())
-            {
-                if (ViewModel.SelectedSources.Contains(item.Source))
-                {
-                    var startPos = _dragStartPositions[item.Source.Id];
-                    var newX = startPos.X + constrainedDeltaX;
-                    var newY = startPos.Y + constrainedDeltaY;
-
-                    // Final safety check using OBB for rotated items
-                    if (item.Source.Rotation != 0)
-                    {
-                        var newCenter = new Point(newX + item.Source.CanvasWidth / 2.0, newY + item.Source.CanvasHeight / 2.0);
-                        var size = new Size(item.Source.CanvasWidth, item.Source.CanvasHeight);
-                        var rotatedAabb = GetRotatedAabb(newCenter, size, item.Source.Rotation);
-                        
-                        // Clamp the AABB to canvas bounds
-                        if (rotatedAabb.Left < 0 || rotatedAabb.Top < 0 || 
-                            rotatedAabb.Right > parentWidth || rotatedAabb.Bottom > parentHeight)
-                        {
-                            // If the rotated AABB would overflow, adjust the position
-                            var clampedLeft = Math.Max(0, rotatedAabb.Left);
-                            var clampedTop = Math.Max(0, rotatedAabb.Top);
-                            var clampedRight = Math.Min(parentWidth, rotatedAabb.Right);
-                            var clampedBottom = Math.Min(parentHeight, rotatedAabb.Bottom);
-                            
-                            var clampedCenter = new Point(
-                                (clampedLeft + clampedRight) / 2,
-                                (clampedTop + clampedBottom) / 2
-                            );
-                            
-                            newX = clampedCenter.X - item.Source.CanvasWidth / 2.0;
-                            newY = clampedCenter.Y - item.Source.CanvasHeight / 2.0;
-                        }
-                    }
-                    else
-                    {
-                        // Final safety check for non-rotated items
-                        newX = Math.Max(0, Math.Min(newX, parentWidth - item.Source.CanvasWidth));
-                        newY = Math.Max(0, Math.Min(newY, parentHeight - item.Source.CanvasHeight));
-                    }
-
-                    item.Source.CanvasX = (int)newX;
-                    item.Source.CanvasY = (int)newY;
+                    source.CanvasX = (int)Math.Round(itemStartPos.X + e.X);
+                    source.CanvasY = (int)Math.Round(itemStartPos.Y + e.Y);
                 }
             }
         }
@@ -663,6 +578,16 @@ public sealed partial class MainPage : Page
         {
             await ViewModel.PasteSourceCommand.ExecuteAsync(null);
         }
+        else if (isCtrlDown && e.Key == VirtualKey.Z)
+        {
+            await ViewModel.UndoCommand.ExecuteAsync(null);
+            e.Handled = true;
+        }
+        else if (isCtrlDown && e.Key == VirtualKey.Y)
+        {
+            await ViewModel.RedoCommand.ExecuteAsync(null);
+            e.Handled = true;
+        }
         else if (isCtrlDown && e.Key == VirtualKey.A)
         {
             // Select all sources
@@ -727,6 +652,9 @@ public sealed partial class MainPage : Page
         {
             item.SetSelected(item.Source.IsSelected);
         }
+        
+        // Update group selection control
+        UpdateGroupSelection();
     }
 
     private void ZoomToFit_Click(object sender, RoutedEventArgs e)
@@ -930,6 +858,40 @@ public sealed partial class MainPage : Page
             item.RefreshPosition();
         }
 
+        // Initialize group selection control if not already created
+        if (_groupSelectionControl == null)
+        {
+            _groupSelectionControl = new GroupSelectionControl();
+            _groupSelectionControl.DragStarted += OnGroupSelectionDragStarted;
+            _groupSelectionControl.DragDelta += OnGroupSelectionDragDelta;
+            SourceCanvas.Children.Add(_groupSelectionControl);
+            Canvas.SetZIndex(_groupSelectionControl, 1000); // Ensure it's on top
+        }
+
         UpdateSelectionOnCanvas();
+    }
+
+    private void UpdateGroupSelection()
+    {
+        if (_groupSelectionControl == null) return;
+
+        var selectedSources = ViewModel.Sources.Where(s => s.IsSelected).ToList();
+        _groupSelectionControl.UpdateSelection(selectedSources);
+    }
+
+    private void OnGroupSelectionDragStarted(object? sender, EventArgs e)
+    {
+        // Store initial positions for all selected items
+        _dragStartPositions.Clear();
+        foreach (var source in ViewModel.SelectedSources)
+        {
+            _dragStartPositions[source.Id] = new Point(source.CanvasX, source.CanvasY);
+        }
+    }
+
+    private void OnGroupSelectionDragDelta(object? sender, Point e)
+    {
+        // This is handled by the GroupSelectionControl itself
+        // The individual items are updated directly by the control
     }
 }
