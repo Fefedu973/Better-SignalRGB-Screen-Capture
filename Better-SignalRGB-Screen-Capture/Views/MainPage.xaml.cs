@@ -423,6 +423,7 @@ public sealed partial class MainPage : Page
 
     private void SourceCanvas_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
+        Focus(FocusState.Programmatic);
         var properties = e.GetCurrentPoint(SourceCanvas).Properties;
         
         // Handle middle mouse button for panning
@@ -515,6 +516,7 @@ public sealed partial class MainPage : Page
 
     private void MainPage_PointerReleased_ForSelection(object sender, PointerRoutedEventArgs e)
     {
+        Focus(FocusState.Programmatic);
         // Handle panning release
         if (_isPanning)
         {

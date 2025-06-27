@@ -153,18 +153,27 @@ public partial class MainViewModel : ObservableRecipient
     [RelayCommand(CanExecute = nameof(CanPasteSource))]
     private async Task PasteSourceAsync()
     {
+        if (!_copiedSources.Any()) return;
+
+        var newSelection = new List<SourceItem>();
+
         foreach (var copiedSource in _copiedSources)
         {
             var newSource = copiedSource.Clone();
-            newSource.Id = Guid.NewGuid(); // Give it a new ID
-            
-            // Find a new position
-            var (x, y) = FindAvailableCanvasPosition();
-            newSource.CanvasX = x;
-            newSource.CanvasY = y;
+            newSource.Id = Guid.NewGuid();
 
-            await AddSourceAsync(newSource);
+            // Paste in the same location, do not find a new position
+            newSource.CanvasX = copiedSource.CanvasX;
+            newSource.CanvasY = copiedSource.CanvasY;
+            
+            Sources.Add(newSource);
+            newSelection.Add(newSource);
+
+            await _captureService.StartCaptureAsync(newSource);
         }
+
+        UpdateSelectedSources(newSelection);
+        await SaveSourcesAsync();
     }
 
     public bool CanPasteSource() => _copiedSources.Any();
@@ -363,30 +372,16 @@ public partial class MainViewModel : ObservableRecipient
         get => IsSingleSelect ? SelectedSources[0].CanvasWidth : 0;
         set
         {
-            if (_isUpdatingDimensions) return;
-            if (IsSingleSelect && SelectedSources[0].CanvasWidth != value)
+            if (IsSingleSelect)
             {
-                var source = SelectedSources[0];
-                var oldWidth = source.CanvasWidth;
-                var oldHeight = source.CanvasHeight;
-                
-                // Apply bounds checking
-                var maxWidth = 800 - source.CanvasX;
-                var newWidth = Math.Max(10, Math.Min(value, maxWidth));
-                source.CanvasWidth = (int)newWidth;
-                OnPropertyChanged(nameof(SelectedSourceWidth));
-
-                if (IsAspectRatioLocked && oldWidth > 0)
-                {
-                    _isUpdatingDimensions = true;
-                    var aspectRatio = (double)oldHeight / oldWidth;
-                    var newHeight = newWidth * aspectRatio;
-                    var maxHeight = 600 - source.CanvasY;
-                    source.CanvasHeight = (int)Math.Max(10, Math.Min(newHeight, maxHeight));
-                    OnPropertyChanged(nameof(SelectedSourceHeight));
-                    _isUpdatingDimensions = false;
-                }
-                SaveSourcesAsync();
+                var s = SelectedSources[0];
+                int newW = (int)Math.Clamp(value, 10, 800);
+                if (FitsInCanvas(s.CanvasX, s.CanvasY, newW, s.CanvasHeight, s.Rotation))
+                    s.CanvasWidth = newW;
+            }
+            if (IsMultiSelect)
+            {
+                // Logic for multi-select if needed
             }
         }
     }
@@ -396,80 +391,54 @@ public partial class MainViewModel : ObservableRecipient
         get => IsSingleSelect ? SelectedSources[0].CanvasHeight : 0;
         set
         {
-            if (_isUpdatingDimensions) return;
-            if (IsSingleSelect && SelectedSources[0].CanvasHeight != value)
+            if (IsSingleSelect)
             {
-                var source = SelectedSources[0];
-                var oldHeight = source.CanvasHeight;
-                var oldWidth = source.CanvasWidth;
-                
-                // Apply bounds checking
-                var maxHeight = 600 - source.CanvasY;
-                var newHeight = Math.Max(10, Math.Min(value, maxHeight));
-                source.CanvasHeight = (int)newHeight;
-                OnPropertyChanged(nameof(SelectedSourceHeight));
-
-                if (IsAspectRatioLocked && oldHeight > 0)
-                {
-                    _isUpdatingDimensions = true;
-                    var aspectRatio = (double)oldWidth / oldHeight;
-                    var newWidth = newHeight * aspectRatio;
-                    var maxWidth = 800 - source.CanvasX;
-                    source.CanvasWidth = (int)Math.Max(10, Math.Min(newWidth, maxWidth));
-                    OnPropertyChanged(nameof(SelectedSourceWidth));
-                    _isUpdatingDimensions = false;
-                }
-                SaveSourcesAsync();
+                var s = SelectedSources[0];
+                int newH = (int)Math.Clamp(value, 10, 600);
+                if (FitsInCanvas(s.CanvasX, s.CanvasY, s.CanvasWidth, newH, s.Rotation))
+                    s.CanvasHeight = newH;
+            }
+            if (IsMultiSelect)
+            {
+                // Logic for multi-select if needed
             }
         }
     }
 
     public double SelectedSourceX
     {
-        get
-        {
-            if (SelectedSources.Count == 0) return double.NaN;
-            if (SelectedSources.Count == 1) return SelectedSources[0].CanvasX;
-            var first = SelectedSources[0].CanvasX;
-            return SelectedSources.Skip(1).All(s => s.CanvasX == first) ? first : double.NaN;
-        }
+        get => IsSingleSelect ? SelectedSources[0].CanvasX : 0;
         set
         {
-            if (!double.IsNaN(value) && SelectedSources.Count > 0)
+            if (IsSingleSelect)
             {
-                foreach (var source in SelectedSources)
-                {
-                    // Apply bounds checking
-                    var maxX = 800 - source.CanvasWidth;
-                    source.CanvasX = (int)Math.Max(0, Math.Min(value, maxX));
-                }
-                _ = SaveSourcesAsync();
-                OnPropertyChanged();
+                var s = SelectedSources[0];
+                int newX = (int)Math.Clamp(value, 0, 800);
+                if (FitsInCanvas(newX, s.CanvasY, s.CanvasWidth, s.CanvasHeight, s.Rotation))
+                    s.CanvasX = newX;
+            }
+            if (IsMultiSelect)
+            {
+                // Logic for multi-select if needed
             }
         }
     }
 
     public double SelectedSourceY
     {
-        get
-        {
-            if (SelectedSources.Count == 0) return double.NaN;
-            if (SelectedSources.Count == 1) return SelectedSources[0].CanvasY;
-            var first = SelectedSources[0].CanvasY;
-            return SelectedSources.Skip(1).All(s => s.CanvasY == first) ? first : double.NaN;
-        }
+        get => IsSingleSelect ? SelectedSources[0].CanvasY : 0;
         set
         {
-            if (!double.IsNaN(value) && SelectedSources.Count > 0)
+            if (IsSingleSelect)
             {
-                foreach (var source in SelectedSources)
-                {
-                    // Apply bounds checking
-                    var maxY = 600 - source.CanvasHeight;
-                    source.CanvasY = (int)Math.Max(0, Math.Min(value, maxY));
-                }
-                _ = SaveSourcesAsync();
-                OnPropertyChanged();
+                var s = SelectedSources[0];
+                int newY = (int)Math.Clamp(value, 0, 600);
+                if (FitsInCanvas(s.CanvasX, newY, s.CanvasWidth, s.CanvasHeight, s.Rotation))
+                    s.CanvasY = newY;
+            }
+            if (IsMultiSelect)
+            {
+                // Logic for multi-select if needed
             }
         }
     }
@@ -612,17 +581,39 @@ public partial class MainViewModel : ObservableRecipient
     /// <returns>The AABB that fully contains the rotated rectangle</returns>
     private static Rect GetRotatedAabb(Point center, Size size, double angleDeg)
     {
-        var angle = angleDeg * Math.PI / 180;
-        var cos = Math.Abs(Math.Cos(angle));
-        var sin = Math.Abs(Math.Sin(angle));
+        if (angleDeg == 0) return new Rect(center.X - size.Width / 2, center.Y - size.Height / 2, size.Width, size.Height);
 
-        var w = size.Width * cos + size.Height * sin;
-        var h = size.Width * sin + size.Height * cos;
+        var angleRad = angleDeg * Math.PI / 180.0;
+        var cos = Math.Cos(angleRad);
+        var sin = Math.Sin(angleRad);
+        var w = size.Width;
+        var h = size.Height;
 
-        return new Rect(
-            center.X - w / 2,
-            center.Y - h / 2,
-            w, h);
+        var p1 = new Point(-w / 2, -h / 2);
+        var p2 = new Point(w / 2, -h / 2);
+        var p3 = new Point(w / 2, h / 2);
+        var p4 = new Point(-w / 2, h / 2);
+
+        var rp1 = new Point(p1.X * cos - p1.Y * sin, p1.X * sin + p1.Y * cos);
+        var rp2 = new Point(p2.X * cos - p2.Y * sin, p2.X * sin + p2.Y * cos);
+        var rp3 = new Point(p3.X * cos - p3.Y * sin, p3.X * sin + p3.Y * cos);
+        var rp4 = new Point(p4.X * cos - p4.Y * sin, p4.X * sin + p4.Y * cos);
+
+        var minX = Math.Min(Math.Min(rp1.X, rp2.X), Math.Min(rp3.X, rp4.X));
+        var minY = Math.Min(Math.Min(rp1.Y, rp2.Y), Math.Min(rp3.Y, rp4.Y));
+        var maxX = Math.Max(Math.Max(rp1.X, rp2.X), Math.Max(rp3.X, rp4.X));
+        var maxY = Math.Max(Math.Max(rp1.Y, rp2.Y), Math.Max(rp3.Y, rp4.Y));
+
+        return new Rect(minX + center.X, minY + center.Y, maxX - minX, maxY - minY);
+    }
+
+    private bool FitsInCanvas(int x, int y, int w, int h, int rotationDeg)
+    {
+        const double canvasW = 800, canvasH = 600;
+        var centre = new Point(x + w / 2.0, y + h / 2.0);
+        var aabb = GetRotatedAabb(centre, new Size(w, h), rotationDeg);
+        return aabb.Left >= 0 && aabb.Top >= 0 &&
+               aabb.Right <= canvasW && aabb.Bottom <= canvasH;
     }
 
     public int SelectedSourceRotation

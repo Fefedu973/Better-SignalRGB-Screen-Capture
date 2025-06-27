@@ -113,6 +113,7 @@ public sealed partial class DraggableSourceItem : UserControl
         PointerExited += OnPointerExited;
         RightTapped += OnRightTapped;
         Loaded += OnLoaded;
+        SizeChanged += OnSizeChanged;
     }
 
     private static void OnSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -134,33 +135,45 @@ public sealed partial class DraggableSourceItem : UserControl
 
     private void OnSourcePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        // Update position when canvas properties change
-        if (e.PropertyName == nameof(SourceItem.CanvasX) || 
-            e.PropertyName == nameof(SourceItem.CanvasY) ||
-            e.PropertyName == nameof(SourceItem.CanvasWidth) || 
-            e.PropertyName == nameof(SourceItem.CanvasHeight))
+        if (Source == null) return;
+        
+        DispatcherQueue.TryEnqueue(() =>
         {
-            // Use Dispatcher to ensure UI updates happen on UI thread
-            DispatcherQueue.TryEnqueue(RefreshPosition);
-        }
-        else if (e.PropertyName == nameof(SourceItem.IsSelected))
-        {
-            DispatcherQueue.TryEnqueue(() => SetSelected(Source.IsSelected));
-        }
-        else if (e.PropertyName == nameof(SourceItem.Rotation))
-        {
-            DispatcherQueue.TryEnqueue(() =>
+            switch (e.PropertyName)
             {
-                RotateTransform.Angle = Source.Rotation;
-            });
-        }
-        else if (e.PropertyName == nameof(SourceItem.CropLeftPct) ||
-                 e.PropertyName == nameof(SourceItem.CropTopPct) ||
-                 e.PropertyName == nameof(SourceItem.CropRightPct) ||
-                 e.PropertyName == nameof(SourceItem.CropBottomPct))
-        {
-            DispatcherQueue.TryEnqueue(UpdateCropShading);
-        }
+                case nameof(SourceItem.CanvasX):
+                case nameof(SourceItem.CanvasY):
+                case nameof(SourceItem.CanvasWidth):
+                case nameof(SourceItem.CanvasHeight):
+                    RefreshPosition();
+                    break;
+                
+                case nameof(SourceItem.IsSelected):
+                    _isSelected = Source.IsSelected;
+                    if (_isCropping && !_isSelected)
+                    {
+                        ExitCropMode();
+                    }
+                    SetSelected(_isSelected);
+                    break;
+
+                case nameof(SourceItem.Rotation):
+                    RotateTransform.Angle = Source.Rotation;
+                    break;
+                
+                case nameof(SourceItem.CropLeftPct):
+                case nameof(SourceItem.CropTopPct):
+                case nameof(SourceItem.CropRightPct):
+                case nameof(SourceItem.CropBottomPct):
+                    UpdateCropShading();
+                    break;
+
+                case nameof(SourceItem.DisplayName):
+                case nameof(SourceItem.Type):
+                    UpdateDisplay(Source);
+                    break;
+            }
+        });
     }
 
     private void UpdatePosition()
@@ -253,14 +266,13 @@ public sealed partial class DraggableSourceItem : UserControl
         _actionStartRotation = Source.Rotation;
         _resizeMode = GetResizeMode(e.GetCurrentPoint(this).Position);
 
-        // ── Selection *after* knowing what we clicked ───────────────────────────
-        // Only change selection if we did **not** hit a resize/rotate handle
-        var isCtrlDown = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
-        var isShiftDown = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(CoreVirtualKeyStates.Down);
-
-        if (_resizeMode == ResizeMode.None)              // plain click, allow normal
-            HandleSelection(isCtrlDown || isShiftDown);  // Ctrl / Shift selection
-        // else: keep whatever was already selected
+        // Always select the item when starting a resize operation
+        if (_resizeMode != ResizeMode.None)
+        {
+            var isCtrlDown = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
+            var isShiftDown = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(CoreVirtualKeyStates.Down);
+            HandleSelection(isCtrlDown || isShiftDown);
+        }
 
         if (_resizeMode != ResizeMode.None)
         {
@@ -268,8 +280,8 @@ public sealed partial class DraggableSourceItem : UserControl
             ProtectedCursor = GetCursor(_resizeMode);
             if (_resizeMode == ResizeMode.Rotate)
             {
-                _isResizing = false; // Ensure resizing logic isn't triggered
-                _isDragging = false; // Ensure dragging logic isn't triggered
+                _isResizing = false;
+                _isDragging = false;
             }
             else
             {
@@ -283,6 +295,10 @@ public sealed partial class DraggableSourceItem : UserControl
             ProtectedCursor = InputSystemCursor.Create(InputSystemCursorShape.SizeAll);
             DragStarted?.Invoke(this, EventArgs.Empty);
         }
+        
+        // Ensure the main page has focus to receive keyboard shortcuts
+        var mainPage = FindParent<MainPage>(this);
+        mainPage?.Focus(FocusState.Programmatic);
         
         e.Handled = true;
     }
@@ -458,150 +474,85 @@ public sealed partial class DraggableSourceItem : UserControl
         }
     }
 
-    private void ApplyResize(double dx, double dy, bool keepRatio)
+    private void ApplyResize(double dxScreen, double dyScreen, bool keepRatio)
     {
         if (Source is null || Parent is not FrameworkElement canvas) return;
 
-        // Which edges move?
-        bool moveL = _resizeMode is ResizeMode.Left   or ResizeMode.TopLeft    or ResizeMode.BottomLeft;
-        bool moveR = _resizeMode is ResizeMode.Right  or ResizeMode.TopRight   or ResizeMode.BottomRight;
-        bool moveT = _resizeMode is ResizeMode.Top    or ResizeMode.TopLeft    or ResizeMode.TopRight;
-        bool moveB = _resizeMode is ResizeMode.Bottom or ResizeMode.BottomLeft or ResizeMode.BottomRight;
+        // ---------- 0.  Work in the item's LOCAL (un-rotated) space -------------
+        double theta = Source.Rotation * Math.PI / 180.0;
+        double cos = Math.Cos(theta);
+        double sin = Math.Sin(theta);
+
+        // helper: screen->local  and  local->screen
+        Point ToLocal(double x, double y)  => new(x *  cos + y * sin, -x * sin + y * cos);
+        Point ToScreen(double x, double y) => new(x *  cos - y * sin,  x * sin + y * cos);
+
+        Point deltaLocal = ToLocal(dxScreen, dyScreen);
+
+        // ---------- 1.  Which edges actually move? ------------------------------
+        bool mL = _resizeMode is ResizeMode.Left or   ResizeMode.TopLeft or ResizeMode.BottomLeft;
+        bool mR = _resizeMode is ResizeMode.Right or  ResizeMode.TopRight or ResizeMode.BottomRight;
+        bool mT = _resizeMode is ResizeMode.Top or    ResizeMode.TopLeft or ResizeMode.TopRight;
+        bool mB = _resizeMode is ResizeMode.Bottom or ResizeMode.BottomLeft or ResizeMode.BottomRight;
 
         double startW = _actionStartBounds.Width;
         double startH = _actionStartBounds.Height;
-        
-        // Prevent division by zero if height is zero
-        if (startH == 0) return;
-        double ratio  = startW / startH;
 
-        // ---------- 1. raw size before clamping ---------------------------------
-        double newW = startW + (moveR ?  dx : 0) - (moveL ? dx : 0);
-        double newH = startH + (moveB ?  dy : 0) - (moveT ? dy : 0);
+        // ---------- 2.  Build the new size in LOCAL space -----------------------
+        double newW = startW + (mR ?  deltaLocal.X : 0) - (mL ? deltaLocal.X : 0);
+        double newH = startH + (mB ?  deltaLocal.Y : 0) - (mT ? deltaLocal.Y : 0);
 
-        newW = Math.Max(this.MinWidth,  newW);
-        newH = Math.Max(this.MinHeight, newH);
+        // enforce minimums
+        newW = Math.Max(MinWidth,  newW);
+        newH = Math.Max(MinHeight, newH);
 
-        // ---------- 2. keep aspect ratio ----------------------------------------
+        // ---------- 3.  Keep aspect ratio if Shift not held ---------------------
         if (keepRatio)
         {
-            bool widthDriven =
-                (moveL ^ moveR) && !(moveT || moveB)           // pure L / R edge
-                || (moveL || moveR) && (moveT || moveB) &&     // corner: take stronger delta
-                   Math.Abs(dx) >= Math.Abs(dy);
-
-            if (widthDriven)
+            double ratio = startW / startH;
+            if (Math.Abs(deltaLocal.X) >= Math.Abs(deltaLocal.Y))
                 newH = newW / ratio;
             else
                 newW = newH * ratio;
         }
 
-        // ---------- 3. anchor opposite edges ------------------------------------
-        double newX = _actionStartBounds.X + (moveL ? startW - newW : 0);
-        double newY = _actionStartBounds.Y + (moveT ? startH - newH : 0);
+        // ---------- 4.  Keep the ANCHOR (opposite edge / corner) fixed ----------
+        // In local coordinates the anchor is the part that is *not* moving.
+        int ax = mL ? +1 : mR ? -1 : 0;   // +1 = anchor is right side, -1 = left
+        int ay = mT ? +1 : mB ? -1 : 0;   // +1 = bottom, -1 = top,  0 = centre
 
-        // ---------- 4. clamp to canvas (shrink, never shift anchored edge) ------
-        void shrinkToFit()
+        // local vector from centre to anchor *before* resize
+        Point anchorLocal0 = new(ax * startW / 2.0, ay * startH / 2.0);
+        // local vector from centre to anchor *after* resize
+        Point anchorLocal1 = new(ax * newW  / 2.0, ay * newH  / 2.0);
+
+        // world coordinates
+        Point centre0 = new(_actionStartBounds.X + startW / 2.0,
+                            _actionStartBounds.Y + startH / 2.0);
+        Point anchorWorld = new(
+            centre0.X + ToScreen(anchorLocal0.X, anchorLocal0.Y).X,
+            centre0.Y + ToScreen(anchorLocal0.X, anchorLocal0.Y).Y);
+
+        // new centre so that anchorWorld stays put
+        Point centre1 = new(
+            anchorWorld.X - ToScreen(anchorLocal1.X, anchorLocal1.Y).X,
+            anchorWorld.Y - ToScreen(anchorLocal1.X, anchorLocal1.Y).Y);
+
+        double newX = centre1.X - newW / 2.0;
+        double newY = centre1.Y - newH / 2.0;
+
+        // ---------- 5.  Check if the oriented box would overflow the canvas -------
+        Rect aabb = GetRotatedAabb(centre1, new Size(newW, newH), Source.Rotation);
+        
+        // If it would overflow, don't apply the change
+        if (aabb.Left < 0 || aabb.Top < 0 || 
+            aabb.Right > canvas.ActualWidth || 
+            aabb.Bottom > canvas.ActualHeight)
         {
-            // For rotated rectangles, check the oriented bounding box
-            if (Source.Rotation != 0)
-            {
-                var center = new Point(newX + newW / 2, newY + newH / 2);
-                var size = new Size(newW, newH);
-                var rotatedAabb = GetRotatedAabb(center, size, Source.Rotation);
-
-                // Check if the rotated AABB overflows the canvas
-                var overflow = new Point(0, 0);
-                
-                if (rotatedAabb.Left < 0)
-                    overflow.X = Math.Max(overflow.X, -rotatedAabb.Left);
-                if (rotatedAabb.Top < 0)
-                    overflow.Y = Math.Max(overflow.Y, -rotatedAabb.Top);
-                if (rotatedAabb.Right > canvas.ActualWidth)
-                    overflow.X = Math.Max(overflow.X, rotatedAabb.Right - canvas.ActualWidth);
-                if (rotatedAabb.Bottom > canvas.ActualHeight)
-                    overflow.Y = Math.Max(overflow.Y, rotatedAabb.Bottom - canvas.ActualHeight);
-
-                // If there's overflow, shrink the rectangle proportionally
-                if (overflow.X > 0 || overflow.Y > 0)
-                {
-                    // Calculate shrink factors based on the maximum overflow
-                    var shrinkFactorX = overflow.X > 0 ? 1 - (overflow.X / rotatedAabb.Width) : 1;
-                    var shrinkFactorY = overflow.Y > 0 ? 1 - (overflow.Y / rotatedAabb.Height) : 1;
-                    var shrinkFactor = Math.Min(shrinkFactorX, shrinkFactorY);
-
-                    // Apply the shrink factor while maintaining the center point
-                    var oldCenter = new Point(newX + newW / 2, newY + newH / 2);
-                    newW *= shrinkFactor;
-                    newH *= shrinkFactor;
-                    newX = oldCenter.X - newW / 2;
-                    newY = oldCenter.Y - newH / 2;
-                }
-            }
-            else
-            {
-                // For non-rotated rectangles, use simple axis-aligned bounds
-                // left
-                if (newX < 0)
-                {
-                    double overshoot = -newX;
-                    newW -= overshoot;
-                    newX  = 0;
-                }
-                // top
-                if (newY < 0)
-                {
-                    double overshoot = -newY;
-                    newH -= overshoot;
-                    newY  = 0;
-                }
-                // right
-                if (newX + newW > canvas.ActualWidth)
-                {
-                    double overshoot = newX + newW - canvas.ActualWidth;
-                    newW -= overshoot;
-                }
-                // bottom
-                if (newY + newH > canvas.ActualHeight)
-                {
-                    double overshoot = newY + newH - canvas.ActualHeight;
-                    newH -= overshoot;
-                }
-            }
+            return;
         }
 
-        shrinkToFit();
-
-        // while ratio-locked we must shrink the *other* axis too
-        if (keepRatio)
-        {
-            // after first pass one axis may have shrunk; fix the other accordingly
-            double fixW = newH * ratio;
-            double fixH = newW / ratio;
-
-            if (fixW <= newW) newW = fixW;     // width was trimmed
-            else              newH = fixH;     // height was trimmed
-
-            shrinkToFit();                     // one more safety pass
-        }
-
-        // ── enforce MinWidth/MinHeight again (may have fallen below after ratio) ──
-        double minW = Math.Max(this.MinWidth, 10);
-        double minH = Math.Max(this.MinHeight, 10);
-
-        if (newW < minW)
-        {
-            newW = minW;
-            if (keepRatio) newH = newW / ratio;
-        }
-        if (newH < minH)
-        {
-            newH = minH;
-            if (keepRatio) newW = newH * ratio;
-        }
-        shrinkToFit();   // one last pass in case clamping pushed us out again
-
-        // ---------- 5. commit ----------------------------------------------------
+        // ---------- 6.  Commit ---------------------------------------------------
         Source.CanvasX      = (int)Math.Round(newX);
         Source.CanvasY      = (int)Math.Round(newY);
         Source.CanvasWidth  = (int)Math.Round(newW);
@@ -932,10 +883,16 @@ public sealed partial class DraggableSourceItem : UserControl
     {
         _isCropping = false;
         CropCanvas.Visibility = Visibility.Collapsed;
-        // Restore visibility based on the actual selection state
-        SelectionBorder.Visibility = _isSelected ? Visibility.Visible : Visibility.Collapsed;
-        RotationHandleCanvas.Visibility = _isSelected ? Visibility.Visible : Visibility.Collapsed;
+
+        // Restore visibility so the VSM can handle opacity
+        SelectionBorder.Visibility = Visibility.Visible;
+        RotationHandleCanvas.Visibility = Visibility.Visible;
+
         _cropResizeMode = ResizeMode.None;
+        
+        // Give focus back to the page so global shortcuts fire again
+        var mainPage = FindParent<MainPage>(this);
+        mainPage?.Focus(FocusState.Programmatic);
     }
 
     private void AcceptCropButton_Click(object sender, RoutedEventArgs e)
@@ -1100,9 +1057,8 @@ public sealed partial class DraggableSourceItem : UserControl
     
     private ResizeMode GetCropResizeMode(Point point)
     {
-        // Apply rotation compensation
-        var unrotatedPoint = ToUnrotated(point);
-        return GetCropResizeModeCore(unrotatedPoint);
+        // For cropping we want the actual rotated coordinates
+        return GetCropResizeModeCore(point);
     }
 
     private ResizeMode GetCropResizeModeCore(Point point)
@@ -1245,6 +1201,21 @@ public sealed partial class DraggableSourceItem : UserControl
         if (Source != null)
         {
             UpdateDisplay(Source);
+
+            // Defer the position refresh to ensure the control has been measured and arranged
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                if (Source != null) RefreshPosition();
+            });
+        }
+    }
+
+    private void OnSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // This is the most reliable place to update visuals that depend on the final rendered size.
+        if (Source != null)
+        {
+            RefreshPosition();
         }
     }
 
