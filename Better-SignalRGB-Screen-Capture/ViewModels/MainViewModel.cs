@@ -23,6 +23,9 @@ public partial class MainViewModel : ObservableRecipient
     private readonly UndoRedoManager _undoRedoManager = new();
     private bool _isUndoRedoOperation = false; // To prevent saving undo state during undo/redo
     
+    [ObservableProperty]
+    private bool _isPasting;
+
     public ObservableCollection<SourceItem> Sources { get; } = new();
 
     public ObservableCollection<SourceItem> SelectedSources { get; } = new();
@@ -169,26 +172,34 @@ public partial class MainViewModel : ObservableRecipient
     {
         if (!_copiedSources.Any()) return;
 
-        SaveUndoState();
-        var newSelection = new List<SourceItem>();
-
-        foreach (var copiedSource in _copiedSources)
+        IsPasting = true;
+        try
         {
-            var newSource = copiedSource.Clone();
-            newSource.Id = Guid.NewGuid();
+            SaveUndoState();
+            var newSelection = new List<SourceItem>();
 
-            // Paste in the same location, do not find a new position
-            newSource.CanvasX = copiedSource.CanvasX;
-            newSource.CanvasY = copiedSource.CanvasY;
-            
-            Sources.Add(newSource);
-            newSelection.Add(newSource);
+            foreach (var copiedSource in _copiedSources)
+            {
+                var newSource = copiedSource.Clone();
+                newSource.Id = Guid.NewGuid();
 
-            await _captureService.StartCaptureAsync(newSource);
+                // Paste in the same location, do not find a new position
+                newSource.CanvasX = copiedSource.CanvasX;
+                newSource.CanvasY = copiedSource.CanvasY;
+
+                Sources.Add(newSource);
+                newSelection.Add(newSource);
+
+                await _captureService.StartCaptureAsync(newSource);
+            }
+
+            UpdateSelectedSources(newSelection);
+            await SaveSourcesAsync();
         }
-
-        UpdateSelectedSources(newSelection);
-        await SaveSourcesAsync();
+        finally
+        {
+            IsPasting = false;
+        }
     }
 
     public bool CanPasteSource() => _copiedSources.Any();
@@ -287,8 +298,26 @@ public partial class MainViewModel : ObservableRecipient
     public void UpdateSelectedSources(IEnumerable<SourceItem> newSelection)
     {
         var newSelectionList = newSelection.ToList();
-        var currentSelectionList = SelectedSources.ToList();
 
+        // Use IsSelected as the source of truth.
+        // First, deselect anything that shouldn't be selected anymore.
+        var toDeselect = Sources.Where(s => s.IsSelected && !newSelectionList.Contains(s)).ToList();
+        foreach (var item in toDeselect)
+        {
+            item.IsSelected = false;
+        }
+
+        // Then, select the new items.
+        foreach (var item in newSelectionList)
+        {
+            if (!item.IsSelected)
+            {
+                item.IsSelected = true;
+            }
+        }
+
+        // Now, update the SelectedSources collection to reflect the state of IsSelected.
+        var currentSelectionList = SelectedSources.ToList();
         if (newSelectionList.Count == currentSelectionList.Count && newSelectionList.All(currentSelectionList.Contains))
         {
             return; // No change
@@ -836,20 +865,21 @@ public partial class MainViewModel : ObservableRecipient
 
     private (int x, int y) FindAvailableCanvasPosition()
     {
-        const int gridSize = 10;
+        const int gridSize = 20; // A slightly larger step
         const int canvasWidth = 800;
         const int canvasHeight = 600;
+        const int assumedItemWidth = 100; // Assume a default width to prevent overflow
         
         for (int row = 0; row < canvasHeight / gridSize; row++)
         {
-            for (int col = 0; col < canvasWidth / gridSize; col++)
+            for (int col = 0; col < (canvasWidth - assumedItemWidth) / gridSize; col++)
             {
                 int x = col * gridSize + 10; // Small margin
                 int y = row * gridSize + 10;
                 
-                // Check if this position is already occupied
+                // Check if this position is already occupied, assuming a minimum size of 80x80 for spacing
                 bool occupied = Sources.Any(s => 
-                    Math.Abs(s.CanvasX - x) < 50 && Math.Abs(s.CanvasY - y) < 50);
+                    Math.Abs(s.CanvasX - x) < 120 && Math.Abs(s.CanvasY - y) < 120);
                 
                 if (!occupied)
                     return (x, y);
@@ -1038,7 +1068,8 @@ public partial class MainViewModel : ObservableRecipient
             var currentIndex = Sources.IndexOf(source);
             if (currentIndex > 0)
             {
-                Sources.Move(currentIndex, currentIndex - 1);
+                Sources.Remove(source);
+                Sources.Insert(currentIndex - 1, source);
             }
         }
     }
@@ -1055,7 +1086,8 @@ public partial class MainViewModel : ObservableRecipient
             var currentIndex = Sources.IndexOf(source);
             if (currentIndex < Sources.Count - 1)
             {
-                Sources.Move(currentIndex, currentIndex + 1);
+                Sources.Remove(source);
+                Sources.Insert(currentIndex + 1, source);
             }
         }
     }

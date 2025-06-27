@@ -12,6 +12,7 @@ using Microsoft.UI.Xaml.Input;
 using Windows.Foundation;
 using Windows.System;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Dispatching;
 
 namespace Better_SignalRGB_Screen_Capture.Views;
 
@@ -51,6 +52,11 @@ public sealed partial class MainPage : Page
                     ZoomPercentageText.Text = $"{CanvasScrollViewer.ZoomFactor * 100:F0}%";
                 }
             }
+
+            // Sync initial selection from loaded data
+            UpdateSelectionInViewModel();
+            UpdateListViewSelection();
+            UpdateSelectionOnCanvas();
         };
     }
 
@@ -59,6 +65,15 @@ public sealed partial class MainPage : Page
         if (e.PropertyName == nameof(ViewModel.IsPreviewing))
         {
             UpdatePreviewCanvas();
+        }
+        else if (e.PropertyName == nameof(ViewModel.IsPasting) && !ViewModel.IsPasting)
+        {
+            // When paste is done, sync UI with the final selection from the ViewModel
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                UpdateListViewSelection();
+                UpdateSelectionOnCanvas();
+            });
         }
     }
 
@@ -132,19 +147,23 @@ public sealed partial class MainPage : Page
     {
         UpdateCanvas();
 
+        // If a paste operation is in progress, do nothing. The ViewModel will manage the final state.
+        if (ViewModel.IsPasting)
+        {
+            return;
+        }
+
         // If an item was added, select it
         if (e.Action == NotifyCollectionChangedAction.Add && e.NewItems != null && e.NewItems.Count > 0)
         {
             if (e.NewItems[0] is SourceItem newItem)
             {
-                var newSelection = new List<SourceItem> { newItem };
-                ViewModel.UpdateSelectedSources(newSelection);
-                UpdateListViewSelection();
+                // This call correctly sets IsSelected, updates the view model's
+                // SelectedSources collection, and updates all UI parts (canvas and list view)
+                SelectSourceItem(newItem, isMultiSelect: false);
             }
         }
     }
-
-
 
     private async void OnSourceEditRequested(DraggableSourceItem sender, RoutedEventArgs e)
     {
@@ -802,10 +821,6 @@ public sealed partial class MainPage : Page
 
     public void ClearSelection()
     {
-        foreach (var source in ViewModel.Sources)
-        {
-            source.IsSelected = false;
-        }
         ViewModel.UpdateSelectedSources(new List<SourceItem>());
         UpdateListViewSelection();
         UpdateSelectionOnCanvas();
@@ -813,21 +828,9 @@ public sealed partial class MainPage : Page
 
     public void SelectMultipleItems(IEnumerable<SourceItem> items, bool addToSelection = false)
     {
-        if (!addToSelection)
-        {
-            // Clear existing selection first
-            foreach (var source in ViewModel.Sources)
-            {
-                source.IsSelected = false;
-            }
-        }
+        var selection = addToSelection ? ViewModel.SelectedSources.Union(items).ToList() : items.ToList();
+        ViewModel.UpdateSelectedSources(selection);
 
-        foreach (var item in items)
-        {
-            item.IsSelected = true;
-        }
-
-        UpdateSelectionInViewModel();
         UpdateListViewSelection();
         UpdateSelectionOnCanvas();
     }

@@ -527,7 +527,22 @@ public sealed partial class GroupSelectionControl : UserControl
         menuFlyout.Items.Add(new MenuFlyoutSeparator());
 
         var deleteItem = new MenuFlyoutItem { Text = $"Delete {SelectedSources.Count} items", Icon = new FontIcon { Glyph = "\uE74D" } };
-        deleteItem.Click += async (s, a) => await viewModel.DeleteSourceCommand.ExecuteAsync(SelectedSources.ToList());
+        deleteItem.Click += async (s, a) =>
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "Delete Multiple Sources",
+                Content = $"Are you sure you want to delete these {SelectedSources.Count} selected items?",
+                PrimaryButtonText = "Delete",
+                CloseButtonText = "Cancel",
+                XamlRoot = this.XamlRoot
+            };
+
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            {
+                await viewModel.DeleteSourceCommand.ExecuteAsync(SelectedSources.ToList());
+            }
+        };
         menuFlyout.Items.Add(deleteItem);
     }
 

@@ -229,20 +229,28 @@
             <!--  Accept/Cancel Buttons  -->
             <StackPanel
                 x:Name="CropActionsPanel"
+                Background="{ThemeResource LayerFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="{StaticResource ControlCornerRadius}"
                 Orientation="Horizontal"
-                Spacing="5">
-                <AppBarButton
+                Padding="4"
+                SizeChanged="CropActionsPanel_SizeChanged"
+                Spacing="4">
+                <Button
                     x:Name="AcceptCropButton"
                     Click="AcceptCropButton_Click"
-                    Icon="Accept"
-                    Label="Accept"
-                    Style="{StaticResource CropButtonStyle}" />
-                <AppBarButton
+                    Style="{StaticResource AccentButtonStyle}"
+                    ToolTipService.ToolTip="Accept Crop">
+                    <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE8FB;" />
+                </Button>
+                <Button
                     x:Name="CancelCropButton"
                     Click="CancelCropButton_Click"
-                    Icon="Cancel"
-                    Label="Cancel"
-                    Style="{StaticResource CropButtonStyle}" />
+                    Style="{StaticResource DefaultButtonStyle}"
+                    ToolTipService.ToolTip="Cancel Crop">
+                    <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE711;" />
+                </Button>
             </StackPanel>
         </Canvas>
         <VisualStateManager.VisualStateGroups>

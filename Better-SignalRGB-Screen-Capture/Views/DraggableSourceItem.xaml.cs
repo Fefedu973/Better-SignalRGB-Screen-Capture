@@ -165,6 +165,7 @@ public sealed partial class DraggableSourceItem : UserControl
             source.PropertyChanged += control.OnSourcePropertyChanged;
             control.UpdatePosition();
             control.UpdateDisplay(source);
+            control.SetSelected(source.IsSelected);
         }
     }
 
@@ -935,7 +936,10 @@ public sealed partial class DraggableSourceItem : UserControl
             {
                 var index = viewModel.Sources.IndexOf(source);
                 if (index > 0)
-                    viewModel.Sources.Move(index, index - 1);
+                {
+                    viewModel.Sources.Remove(source);
+                    viewModel.Sources.Insert(index - 1, source);
+                }
             }
             await viewModel.SaveSourcesAsync();
         };
@@ -953,7 +957,10 @@ public sealed partial class DraggableSourceItem : UserControl
             {
                 var index = viewModel.Sources.IndexOf(source);
                 if (index < viewModel.Sources.Count - 1)
-                    viewModel.Sources.Move(index, index + 1);
+                {
+                    viewModel.Sources.Remove(source);
+                    viewModel.Sources.Insert(index + 1, source);
+                }
             }
             await viewModel.SaveSourcesAsync();
         };
@@ -1592,5 +1599,16 @@ public sealed partial class DraggableSourceItem : UserControl
     {
         _isSelected = selected;
         VisualStateManager.GoToState(this, selected ? "Selected" : "Normal", true);
+    }
+
+    private void CropActionsPanel_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // When the panel's size is finally determined, re-run the visual update
+        // to position it correctly. This solves the initial centering problem.
+        if (_isCropping)
+        {
+            var transform = CropRect.RenderTransform as RotateTransform;
+            UpdateCropVisuals(_cropStartRect, transform?.Angle ?? 0);
+        }
     }
 } 

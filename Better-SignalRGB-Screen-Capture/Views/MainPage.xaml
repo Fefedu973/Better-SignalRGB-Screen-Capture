@@ -1,21 +1,21 @@
 ﻿<Page
     x:Class="Better_SignalRGB_Screen_Capture.Views.MainPage"
-    x:Name="MainPageRoot"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="using:Better_SignalRGB_Screen_Capture.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:Better_SignalRGB_Screen_Capture.Views"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:Better_SignalRGB_Screen_Capture.Models"
-    xmlns:converters="using:Better_SignalRGB_Screen_Capture.Converters"
-    mc:Ignorable="d"
-    KeyDown="MainPage_KeyDown">
+    x:Name="MainPageRoot"
+    KeyDown="MainPage_KeyDown"
+    mc:Ignorable="d">
 
     <Page.Resources>
         <converters:ObjectToVisibilityConverter x:Key="ObjectToVisibilityConverter" />
         <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     </Page.Resources>
-    
+
     <Grid x:Name="ContentArea" ColumnSpacing="16">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="320" />
@@ -40,30 +40,33 @@
                     Text="Sources" />
 
                 <!--  Control Buttons  -->
-                <StackPanel Grid.Row="1" Margin="0,0,0,16" Spacing="8">
-                <Button
-                    HorizontalAlignment="Stretch"
-                    Click="Add_Sources"
-                    Style="{StaticResource AccentButtonStyle}">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon Glyph="&#xE710;" />
-                        <TextBlock>Add Source</TextBlock>
-                    </StackPanel>
-                </Button>
-                    
+                <StackPanel
+                    Grid.Row="1"
+                    Margin="0,0,0,16"
+                    Spacing="8">
+                    <Button
+                        HorizontalAlignment="Stretch"
+                        Click="Add_Sources"
+                        Style="{StaticResource AccentButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE710;" />
+                            <TextBlock>Add Source</TextBlock>
+                        </StackPanel>
+                    </Button>
+
                     <Grid ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        
-                        <Button 
+
+                        <Button
                             Grid.Column="0"
                             HorizontalAlignment="Stretch"
                             Command="{x:Bind ViewModel.StartAllCapturesCommand}"
                             Content="Start All" />
-                            
-                        <Button 
+
+                        <Button
                             Grid.Column="1"
                             HorizontalAlignment="Stretch"
                             Command="{x:Bind ViewModel.StopAllCapturesCommand}"
@@ -75,11 +78,11 @@
                 <ScrollViewer Grid.Row="2">
                     <ListView
                         x:Name="SourcesListView"
-                        ItemsSource="{x:Bind ViewModel.Sources}"
-                        CanReorderItems="True"
                         AllowDrop="True"
-                        SelectionMode="Extended"
-                        SelectionChanged="SourceSelectionChanged">
+                        CanReorderItems="True"
+                        ItemsSource="{x:Bind ViewModel.Sources}"
+                        SelectionChanged="SourceSelectionChanged"
+                        SelectionMode="Extended">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="models:SourceItem">
                                 <Border
@@ -175,25 +178,31 @@
                 Margin="0,0,0,16"
                 Orientation="Horizontal"
                 Spacing="16">
-                <TextBlock x:Name="CanvasModeTitle" Style="{ThemeResource TitleTextBlockStyle}" Text="Layout Preview" />
-                <Button Content="Reset Canvas" Command="{x:Bind ViewModel.ResetCanvasCommand}" />
+                <TextBlock
+                    x:Name="CanvasModeTitle"
+                    Style="{ThemeResource TitleTextBlockStyle}"
+                    Text="Layout Preview" />
+                <Button Command="{x:Bind ViewModel.ResetCanvasCommand}" Content="Reset Canvas" />
                 <Button Command="{x:Bind ViewModel.UndoCommand}" IsEnabled="{x:Bind ViewModel.CanUndo, Mode=OneWay}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE7A7;" FontSize="14" />
+                        <FontIcon FontSize="14" Glyph="&#xE7A7;" />
                         <TextBlock Text="Undo" />
                     </StackPanel>
                 </Button>
                 <Button Command="{x:Bind ViewModel.RedoCommand}" IsEnabled="{x:Bind ViewModel.CanRedo, Mode=OneWay}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE7A6;" FontSize="14" />
+                        <FontIcon FontSize="14" Glyph="&#xE7A6;" />
                         <TextBlock Text="Redo" />
                     </StackPanel>
                 </Button>
                 <StackPanel Orientation="Vertical" Spacing="4">
-                    <TextBlock FontSize="12" FontWeight="SemiBold" Text="MJPEG Stream:" />
-                    <TextBlock 
-                        FontSize="11" 
+                    <TextBlock
+                        FontSize="12"
+                        FontWeight="SemiBold"
+                        Text="MJPEG Stream:" />
+                    <TextBlock
                         FontFamily="Consolas"
+                        FontSize="11"
                         Foreground="{ThemeResource SystemAccentColor}"
                         Text="{x:Bind ViewModel.StreamingUrl, Mode=OneWay, FallbackValue='Starting...'}" />
                 </StackPanel>
@@ -205,42 +214,49 @@
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                
+
                 <Border
                     Grid.Row="0"
                     Background="{ThemeResource LayerFillColorAltBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                     BorderThickness="2"
                     CornerRadius="4">
-                    <ScrollViewer x:Name="CanvasScrollViewer"
-                                  ZoomMode="Enabled" MinZoomFactor="0.1" MaxZoomFactor="4"
-                                  HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollMode="Enabled" VerticalScrollMode="Enabled"
-                                  IsZoomInertiaEnabled="True" IsScrollInertiaEnabled="True">
+                    <ScrollViewer
+                        x:Name="CanvasScrollViewer"
+                        HorizontalScrollBarVisibility="Auto"
+                        HorizontalScrollMode="Enabled"
+                        IsScrollInertiaEnabled="True"
+                        IsZoomInertiaEnabled="True"
+                        MaxZoomFactor="4"
+                        MinZoomFactor="0.1"
+                        VerticalScrollBarVisibility="Auto"
+                        VerticalScrollMode="Enabled"
+                        ZoomMode="Enabled">
                         <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <!-- Layout Canvas -->
-                        <Canvas
-                            x:Name="SourceCanvas"
-                            Width="800"
-                            Height="600"
-                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                            PointerPressed="SourceCanvas_PointerPressed"
-                            PointerMoved="SourceCanvas_PointerMoved"
-                            RightTapped="SourceCanvas_RightTapped">
-                            <!--  Sources will be added here programmatically  -->
-                            
-                            <!--  Zone selection rectangle - moved to the end so it appears on top  -->
-                            <Rectangle x:Name="SelectionRectangle" 
-                                       Visibility="Collapsed" 
-                                       Stroke="{ThemeResource SystemAccentColor}" 
-                                       StrokeThickness="2" 
-                                       Fill="{ThemeResource SystemAccentColor}" 
-                                       Opacity="0.2"
-                                       StrokeDashArray="4,2"
-                                       Canvas.ZIndex="1000" />
-                        </Canvas>
-                            
-                            <!-- Live Preview Canvas -->
+                            <!--  Layout Canvas  -->
+                            <Canvas
+                                x:Name="SourceCanvas"
+                                Width="800"
+                                Height="600"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                PointerMoved="SourceCanvas_PointerMoved"
+                                PointerPressed="SourceCanvas_PointerPressed"
+                                RightTapped="SourceCanvas_RightTapped">
+                                <!--  Sources will be added here programmatically  -->
+
+                                <!--  Zone selection rectangle - moved to the end so it appears on top  -->
+                                <Rectangle
+                                    x:Name="SelectionRectangle"
+                                    Canvas.ZIndex="1000"
+                                    Fill="{ThemeResource SystemAccentColor}"
+                                    Opacity="0.2"
+                                    Stroke="{ThemeResource SystemAccentColor}"
+                                    StrokeDashArray="4,2"
+                                    StrokeThickness="2"
+                                    Visibility="Collapsed" />
+                            </Canvas>
+
+                            <!--  Live Preview Canvas  -->
                             <Canvas
                                 x:Name="PreviewCanvas"
                                 Width="800"
@@ -252,11 +268,11 @@
                         </Grid>
                     </ScrollViewer>
                 </Border>
-                
-                <!--  FPS Slider moved to Properties Panel -->
+
+                <!--  FPS Slider moved to Properties Panel  -->
             </Grid>
         </Grid>
-        
+
         <!--  Right Panel - Properties  -->
         <Border
             Grid.Column="2"
@@ -264,32 +280,32 @@
             Background="{ThemeResource LayerFillColorDefaultBrush}"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
             BorderThickness="1,0,0,0">
-            <ScrollViewer>
-                <StackPanel Spacing="16">
-                    <!-- General Settings -->
+            <ScrollViewer >
+                <StackPanel Spacing="16" Padding="2">
+                    <!--  General Settings  -->
                     <StackPanel Spacing="8">
                         <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="General Settings" />
-                        <ToggleSwitch 
+                        <ToggleSwitch
                             x:Name="PreviewModeToggle"
-                            IsOn="{x:Bind ViewModel.IsPreviewing, Mode=TwoWay}"
-                            Header="Live Preview" />
-                        <Slider 
+                            Header="Live Preview"
+                            IsOn="{x:Bind ViewModel.IsPreviewing, Mode=TwoWay}" />
+                        <Slider
                             x:Name="FpsSlider"
                             Header="Preview FPS"
-                            Minimum="1" 
-                            Maximum="60" 
-                            Value="{x:Bind ViewModel.PreviewFps, Mode=TwoWay}"
-                            StepFrequency="1"
+                            IsThumbToolTipEnabled="True"
+                            Maximum="60"
+                            Minimum="1"
                             SnapsTo="StepValues"
+                            StepFrequency="1"
                             TickFrequency="10"
                             TickPlacement="BottomRight"
-                            IsThumbToolTipEnabled="True" />
+                            Value="{x:Bind ViewModel.PreviewFps, Mode=TwoWay}" />
                     </StackPanel>
-                    
-                    <!-- Selected Source Properties (Single) -->
+
+                    <!--  Selected Source Properties (Single)  -->
                     <StackPanel Spacing="16" Visibility="{x:Bind ViewModel.IsSingleSelect, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="Properties" />
-                        
+
                         <TextBox Header="Name" Text="{x:Bind ViewModel.SelectedSourceName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                         <!--  Transform Properties  -->
@@ -300,8 +316,14 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <NumberBox Grid.Column="0" Header="X" Value="{x:Bind ViewModel.SelectedSourceX, Mode=TwoWay}" />
-                                <NumberBox Grid.Column="1" Header="Y" Value="{x:Bind ViewModel.SelectedSourceY, Mode=TwoWay}" />
+                                <NumberBox
+                                    Grid.Column="0"
+                                    Header="X"
+                                    Value="{x:Bind ViewModel.SelectedSourceX, Mode=TwoWay}" />
+                                <NumberBox
+                                    Grid.Column="1"
+                                    Header="Y"
+                                    Value="{x:Bind ViewModel.SelectedSourceY, Mode=TwoWay}" />
                             </Grid>
                             <Grid ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
@@ -309,30 +331,66 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <NumberBox Grid.Column="0" Header="Width" Value="{x:Bind ViewModel.SelectedSourceWidth, Mode=TwoWay}" Minimum="100" SmallChange="10" />
-                                <ToggleButton Grid.Column="1" IsChecked="{x:Bind ViewModel.IsAspectRatioLocked, Mode=TwoWay}" VerticalAlignment="Bottom" Margin="0,0,0,4">
+                                <NumberBox
+                                    Grid.Column="0"
+                                    Header="Width"
+                                    Minimum="100"
+                                    SmallChange="10"
+                                    Value="{x:Bind ViewModel.SelectedSourceWidth, Mode=TwoWay}" />
+                                <ToggleButton
+                                    Grid.Column="1"
+                                    Margin="0,0,0,4"
+                                    VerticalAlignment="Bottom"
+                                    IsChecked="{x:Bind ViewModel.IsAspectRatioLocked, Mode=TwoWay}">
                                     <FontIcon Glyph="&#xE72E;" />
                                 </ToggleButton>
-                                <NumberBox Grid.Column="2" Header="Height" Value="{x:Bind ViewModel.SelectedSourceHeight, Mode=TwoWay}" Minimum="80" SmallChange="10" />
+                                <NumberBox
+                                    Grid.Column="2"
+                                    Header="Height"
+                                    Minimum="80"
+                                    SmallChange="10"
+                                    Value="{x:Bind ViewModel.SelectedSourceHeight, Mode=TwoWay}" />
                             </Grid>
                             <StackPanel Spacing="4">
-                                <TextBlock Text="Rotation" Style="{ThemeResource CaptionTextBlockStyle}" Margin="0,8,0,0"/>
+                                <TextBlock
+                                    Margin="0,8,0,0"
+                                    Style="{ThemeResource CaptionTextBlockStyle}"
+                                    Text="Rotation" />
                                 <Grid ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <Slider Minimum="-180" Maximum="180" SmallChange="1" StepFrequency="1" Value="{x:Bind ViewModel.SelectedSourceRotation, Mode=TwoWay}" VerticalAlignment="Center"/>
-                                    <NumberBox Grid.Column="1" Value="{x:Bind ViewModel.SelectedSourceRotation, Mode=TwoWay}" Width="80" SmallChange="1" LargeChange="15"/>
+                                    <Slider
+                                        VerticalAlignment="Center"
+                                        Maximum="180"
+                                        Minimum="-180"
+                                        SmallChange="1"
+                                        StepFrequency="1"
+                                        Value="{x:Bind ViewModel.SelectedSourceRotation, Mode=TwoWay}" />
+                                    <NumberBox
+                                        Grid.Column="1"
+                                        Width="80"
+                                        LargeChange="15"
+                                        SmallChange="1"
+                                        Value="{x:Bind ViewModel.SelectedSourceRotation, Mode=TwoWay}" />
                                 </Grid>
                             </StackPanel>
-                            <Button HorizontalAlignment="Stretch" Content="Center" Command="{x:Bind ViewModel.CenterSourceCommand}" />
+                            <Button
+                                HorizontalAlignment="Stretch"
+                                Command="{x:Bind ViewModel.CenterSourceCommand}"
+                                Content="Center" />
                         </StackPanel>
 
                         <!--  Appearance Properties  -->
                         <StackPanel Spacing="8">
                             <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Appearance" />
-                            <Slider Header="Opacity" Minimum="0" Maximum="1" StepFrequency="0.1" Value="{x:Bind ViewModel.SelectedSourceOpacity, Mode=TwoWay}" />
+                            <Slider
+                                Header="Opacity"
+                                Maximum="1"
+                                Minimum="0"
+                                StepFrequency="0.1"
+                                Value="{x:Bind ViewModel.SelectedSourceOpacity, Mode=TwoWay}" />
                             <Grid ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -362,19 +420,49 @@
                         <!--  Cropping Properties  -->
                         <StackPanel Spacing="8">
                             <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Crop" />
-                            <NumberBox Header="Left (%)" Value="{x:Bind ViewModel.SelectedSourceCropLeftPct, Mode=TwoWay}" Minimum="0" Maximum="100" />
-                            <NumberBox Header="Top (%)" Value="{x:Bind ViewModel.SelectedSourceCropTopPct, Mode=TwoWay}" Minimum="0" Maximum="100" />
-                            <NumberBox Header="Right (%)" Value="{x:Bind ViewModel.SelectedSourceCropRightPct, Mode=TwoWay}" Minimum="0" Maximum="100" />
-                            <NumberBox Header="Bottom (%)" Value="{x:Bind ViewModel.SelectedSourceCropBottomPct, Mode=TwoWay}" Minimum="0" Maximum="100" />
+                            <NumberBox
+                                Header="Left (%)"
+                                Maximum="100"
+                                Minimum="0"
+                                Value="{x:Bind ViewModel.SelectedSourceCropLeftPct, Mode=TwoWay}" />
+                            <NumberBox
+                                Header="Top (%)"
+                                Maximum="100"
+                                Minimum="0"
+                                Value="{x:Bind ViewModel.SelectedSourceCropTopPct, Mode=TwoWay}" />
+                            <NumberBox
+                                Header="Right (%)"
+                                Maximum="100"
+                                Minimum="0"
+                                Value="{x:Bind ViewModel.SelectedSourceCropRightPct, Mode=TwoWay}" />
+                            <NumberBox
+                                Header="Bottom (%)"
+                                Maximum="100"
+                                Minimum="0"
+                                Value="{x:Bind ViewModel.SelectedSourceCropBottomPct, Mode=TwoWay}" />
                             <StackPanel Spacing="4">
-                                <TextBlock Text="Crop Rotation" Style="{ThemeResource CaptionTextBlockStyle}" Margin="0,8,0,0"/>
+                                <TextBlock
+                                    Margin="0,8,0,0"
+                                    Style="{ThemeResource CaptionTextBlockStyle}"
+                                    Text="Crop Rotation" />
                                 <Grid ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <Slider Minimum="-180" Maximum="180" SmallChange="1" StepFrequency="1" Value="{x:Bind ViewModel.SelectedSourceCropRotation, Mode=TwoWay}" VerticalAlignment="Center"/>
-                                    <NumberBox Grid.Column="1" Value="{x:Bind ViewModel.SelectedSourceCropRotation, Mode=TwoWay}" Width="80" SmallChange="1" LargeChange="15"/>
+                                    <Slider
+                                        VerticalAlignment="Center"
+                                        Maximum="180"
+                                        Minimum="-180"
+                                        SmallChange="1"
+                                        StepFrequency="1"
+                                        Value="{x:Bind ViewModel.SelectedSourceCropRotation, Mode=TwoWay}" />
+                                    <NumberBox
+                                        Grid.Column="1"
+                                        Width="80"
+                                        LargeChange="15"
+                                        SmallChange="1"
+                                        Value="{x:Bind ViewModel.SelectedSourceCropRotation, Mode=TwoWay}" />
                                 </Grid>
                             </StackPanel>
                         </StackPanel>
@@ -391,65 +479,111 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                
-                                <!-- Top row - Extreme layer movements -->
-                                <Button Grid.Column="0" Grid.Row="0" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.BringToFrontCommand}">
+
+                                <!--  Top row - Extreme layer movements  -->
+                                <Button
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{x:Bind ViewModel.BringToFrontCommand}">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE746;" FontSize="14" />
+                                        <FontIcon FontSize="14" Glyph="&#xE746;" />
                                         <TextBlock Text="Bring to Front" />
                                     </StackPanel>
                                 </Button>
-                                <Button Grid.Column="1" Grid.Row="0" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.SendToBackCommand}">
+                                <Button
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{x:Bind ViewModel.SendToBackCommand}">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE747;" FontSize="14" />
+                                        <FontIcon FontSize="14" Glyph="&#xE747;" />
                                         <TextBlock Text="Send to Back" />
                                     </StackPanel>
                                 </Button>
-                                
-                                <!-- Bottom row - Single step movements -->
-                                <Button Grid.Column="0" Grid.Row="1" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.BringForwardCommand}">
+
+                                <!--  Bottom row - Single step movements  -->
+                                <Button
+                                    Grid.Row="1"
+                                    Grid.Column="0"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{x:Bind ViewModel.BringForwardCommand}">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE760;" FontSize="14" />
+                                        <FontIcon FontSize="14" Glyph="&#xE760;" />
                                         <TextBlock Text="Bring Forward" />
                                     </StackPanel>
                                 </Button>
-                                <Button Grid.Column="1" Grid.Row="1" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.SendBackwardCommand}">
+                                <Button
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{x:Bind ViewModel.SendBackwardCommand}">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE761;" FontSize="14" />
+                                        <FontIcon FontSize="14" Glyph="&#xE761;" />
                                         <TextBlock Text="Send Backward" />
                                     </StackPanel>
                                 </Button>
                             </Grid>
                         </StackPanel>
                     </StackPanel>
-                    
-                    <!-- Selected Source Properties (Multiple) -->
+
+                    <!--  Selected Source Properties (Multiple)  -->
                     <StackPanel Spacing="16" Visibility="{x:Bind ViewModel.IsMultiSelect, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="Multiple Selection" />
-                        
+
                         <StackPanel Spacing="8">
-                             <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Alignment" />
-                             <Grid ColumnSpacing="8" RowSpacing="8">
-                                 <Grid.ColumnDefinitions>
-                                     <ColumnDefinition Width="*" />
-                                     <ColumnDefinition Width="*" />
-                                     <ColumnDefinition Width="*" />
-                                 </Grid.ColumnDefinitions>
-                                 <Grid.RowDefinitions>
-                                     <RowDefinition Height="Auto" />
-                                     <RowDefinition Height="Auto" />
-                                 </Grid.RowDefinitions>
-                                 
-                                 <Button Grid.Column="0" Grid.Row="0" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.AlignLeftCommand}" Content="Left" />
-                                 <Button Grid.Column="1" Grid.Row="0" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.AlignCenterCommand}" Content="Center" />
-                                 <Button Grid.Column="2" Grid.Row="0" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.AlignRightCommand}" Content="Right" />
-                                 
-                                 <Button Grid.Column="0" Grid.Row="1" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.AlignTopCommand}" Content="Top" />
-                                 <Button Grid.Column="1" Grid.Row="1" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.AlignMiddleCommand}" Content="Middle" />
-                                 <Button Grid.Column="2" Grid.Row="1" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.AlignBottomCommand}" Content="Bottom" />
-                             </Grid>
+                            <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Alignment" />
+                            <Grid ColumnSpacing="8" RowSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Button
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{x:Bind ViewModel.AlignLeftCommand}"
+                                    Content="Left" />
+                                <Button
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{x:Bind ViewModel.AlignCenterCommand}"
+                                    Content="Center" />
+                                <Button
+                                    Grid.Row="0"
+                                    Grid.Column="2"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{x:Bind ViewModel.AlignRightCommand}"
+                                    Content="Right" />
+
+                                <Button
+                                    Grid.Row="1"
+                                    Grid.Column="0"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{x:Bind ViewModel.AlignTopCommand}"
+                                    Content="Top" />
+                                <Button
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{x:Bind ViewModel.AlignMiddleCommand}"
+                                    Content="Middle" />
+                                <Button
+                                    Grid.Row="1"
+                                    Grid.Column="2"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{x:Bind ViewModel.AlignBottomCommand}"
+                                    Content="Bottom" />
+                            </Grid>
                         </StackPanel>
-                        
+
                         <!--  Layer Properties  -->
                         <StackPanel Spacing="8">
                             <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Layer" />
@@ -462,39 +596,55 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                
-                                <!-- Top row - Extreme layer movements -->
-                                <Button Grid.Column="0" Grid.Row="0" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.BringToFrontCommand}">
+
+                                <!--  Top row - Extreme layer movements  -->
+                                <Button
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{x:Bind ViewModel.BringToFrontCommand}">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE746;" FontSize="14" />
+                                        <FontIcon FontSize="14" Glyph="&#xE746;" />
                                         <TextBlock Text="Bring to Front" />
                                     </StackPanel>
                                 </Button>
-                                <Button Grid.Column="1" Grid.Row="0" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.SendToBackCommand}">
+                                <Button
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{x:Bind ViewModel.SendToBackCommand}">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE747;" FontSize="14" />
+                                        <FontIcon FontSize="14" Glyph="&#xE747;" />
                                         <TextBlock Text="Send to Back" />
                                     </StackPanel>
                                 </Button>
-                                
-                                <!-- Bottom row - Single step movements -->
-                                <Button Grid.Column="0" Grid.Row="1" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.BringForwardCommand}">
+
+                                <!--  Bottom row - Single step movements  -->
+                                <Button
+                                    Grid.Row="1"
+                                    Grid.Column="0"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{x:Bind ViewModel.BringForwardCommand}">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE760;" FontSize="14" />
+                                        <FontIcon FontSize="14" Glyph="&#xE760;" />
                                         <TextBlock Text="Bring Forward" />
                                     </StackPanel>
                                 </Button>
-                                <Button Grid.Column="1" Grid.Row="1" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.SendBackwardCommand}">
+                                <Button
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{x:Bind ViewModel.SendBackwardCommand}">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <FontIcon Glyph="&#xE761;" FontSize="14" />
+                                        <FontIcon FontSize="14" Glyph="&#xE761;" />
                                         <TextBlock Text="Send Backward" />
                                     </StackPanel>
                                 </Button>
                             </Grid>
                         </StackPanel>
                     </StackPanel>
-                    
-                    <!-- Zoom Control -->
+
+                    <!--  Zoom Control  -->
                     <StackPanel Spacing="8">
                         <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Canvas Zoom" />
                         <Grid ColumnSpacing="8">
@@ -502,29 +652,29 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <Slider 
+                            <Slider
                                 x:Name="ZoomSlider"
                                 Grid.Column="0"
-                                Minimum="0.1" 
-                                Maximum="4.0" 
-                                Value="1.0"
-                                StepFrequency="0.1"
+                                IsThumbToolTipEnabled="True"
+                                Maximum="4.0"
+                                Minimum="0.1"
                                 SnapsTo="StepValues"
+                                StepFrequency="0.1"
                                 TickFrequency="0.5"
                                 TickPlacement="BottomRight"
-                                IsThumbToolTipEnabled="True"
-                                ValueChanged="ZoomSlider_ValueChanged" />
-                            <TextBlock 
+                                ValueChanged="ZoomSlider_ValueChanged"
+                                Value="1.0" />
+                            <TextBlock
                                 x:Name="ZoomPercentageText"
-                                Grid.Column="1" 
-                                Text="100%"
+                                Grid.Column="1"
                                 VerticalAlignment="Center"
                                 FontSize="12"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="100%" />
                         </Grid>
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Fit" Click="ZoomToFit_Click" />
-                            <Button Content="100%" Click="Zoom100_Click" />
+                            <Button Click="ZoomToFit_Click" Content="Fit" />
+                            <Button Click="Zoom100_Click" Content="100%" />
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>
