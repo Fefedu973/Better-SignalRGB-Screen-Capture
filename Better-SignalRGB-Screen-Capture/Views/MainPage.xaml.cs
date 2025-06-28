@@ -72,6 +72,8 @@ public sealed partial class MainPage : Page
         
         FlipVerticalIcon.Source = new SvgImageSource(iconUri);
         FlipHorizontalIcon.Source = new SvgImageSource(iconUri);
+        MultiSelectFlipVerticalIcon.Source = new SvgImageSource(iconUri);
+        MultiSelectFlipHorizontalIcon.Source = new SvgImageSource(iconUri);
     }
 
     private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -921,5 +923,29 @@ public sealed partial class MainPage : Page
         {
             UpdateGroupSelection();
         });
+    }
+
+    private void CollapseButton_Click(object sender, RoutedEventArgs e)
+    {
+        var isCollapsed = RightPanelColumn.Width.Value == 48;
+
+        if (isCollapsed)
+        {
+            // Expand
+            RightPanelColumn.Width = new GridLength(280);
+            RightPanelTitle.Visibility = Visibility.Visible;
+            PropertiesScrollViewer.Visibility = Visibility.Visible;
+            CollapseIcon.Glyph = "\uE89F"; // Close Pane
+            ToolTipService.SetToolTip(CollapseButton, "Hide Properties");
+        }
+        else
+        {
+            // Collapse
+            RightPanelColumn.Width = new GridLength(48);
+            RightPanelTitle.Visibility = Visibility.Collapsed;
+            PropertiesScrollViewer.Visibility = Visibility.Collapsed;
+            CollapseIcon.Glyph = "\uE8A0"; // Open Pane
+            ToolTipService.SetToolTip(CollapseButton, "Show Properties");
+        }
     }
 }
