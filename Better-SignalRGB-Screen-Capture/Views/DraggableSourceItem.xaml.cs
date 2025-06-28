@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Foundation;
 using Windows.System;
 using Windows.UI.Core;
@@ -336,8 +337,10 @@ public sealed partial class DraggableSourceItem : UserControl
         _actionStartRotation = Source.Rotation;
         _resizeMode = GetResizeMode(e.GetCurrentPoint(this).Position);
 
-        // Always select the item when starting a resize operation
-        if (_resizeMode != ResizeMode.None)
+        // If the item isn't selected, handle the selection now.
+        // If it's already selected, we don't want to change the selection state
+        // (e.g., deselecting it on a shift+click) when starting a resize.
+        if (_resizeMode != ResizeMode.None && !Source.IsSelected)
         {
             var isCtrlDown = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control).HasFlag(CoreVirtualKeyStates.Down);
             var isShiftDown = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(CoreVirtualKeyStates.Down);
@@ -674,13 +677,27 @@ public sealed partial class DraggableSourceItem : UserControl
         menuFlyout.Items.Add(new MenuFlyoutSeparator());
 
         // Layer submenu
-        var layerSubMenu = new MenuFlyoutSubItem { Text = "Layer", Icon = new FontIcon { Glyph = "\uE8FD" } };
+        var layerSubMenu = new MenuFlyoutSubItem { Text = "Layer", Icon = new FontIcon { Glyph = "\uE81E" } };
         BuildLayerMenuItems(layerSubMenu, viewModel);
         menuFlyout.Items.Add(layerSubMenu);
 
         menuFlyout.Items.Add(new MenuFlyoutSeparator());
 
-        var flipHorizontalItem = new MenuFlyoutItem { Text = "Flip Horizontally", Icon = new FontIcon { Glyph = "\uE7F7" } };
+        var flipHorizontalItem = new MenuFlyoutItem { Text = "Flip Horizontally" };
+        var flipVerticalItem = new MenuFlyoutItem { Text = "Flip Vertically" };
+
+        // Set icons based on theme
+        var theme = (this.XamlRoot.Content as FrameworkElement)?.ActualTheme ?? ElementTheme.Light;
+        var iconName = theme == ElementTheme.Dark ? "Flip-dark.svg" : "Flip-white.svg";
+        var iconUri = new Uri($"ms-appx:///Assets/{iconName}");
+
+        var verticalIcon = new ImageIcon { Source = new SvgImageSource(iconUri), Width = 16, Height = 16 };
+        flipVerticalItem.Icon = verticalIcon;
+
+        var horizontalIcon = new ImageIcon { Source = new SvgImageSource(iconUri), Width = 16, Height = 16 };
+        horizontalIcon.RenderTransform = new RotateTransform { Angle = 90, CenterX = 8, CenterY = 8 };
+        flipHorizontalItem.Icon = horizontalIcon;
+
         flipHorizontalItem.Click += async (s, a) => 
         {
             if (viewModel?.SelectedSources.Any() != true) return;
@@ -688,7 +705,6 @@ public sealed partial class DraggableSourceItem : UserControl
             foreach(var source in viewModel.SelectedSources) source.IsMirroredHorizontally = targetState;
             await viewModel.SaveSourcesAsync();
         };
-        var flipVerticalItem = new MenuFlyoutItem { Text = "Flip Vertically", Icon = new FontIcon { Glyph = "\uE7F8" } };
         flipVerticalItem.Click += async (s, a) => 
         {
             if (viewModel?.SelectedSources.Any() != true) return;
@@ -701,13 +717,13 @@ public sealed partial class DraggableSourceItem : UserControl
 
         menuFlyout.Items.Add(new MenuFlyoutSeparator());
 
-        var centerItem = new MenuFlyoutItem { Text = "Center", Icon = new FontIcon { Glyph = "\uE843" } };
+        var centerItem = new MenuFlyoutItem { Text = "Center", Icon = new FontIcon { Glyph = "\uF58A" } };
         centerItem.Click += CenterMenuItem_Click;
         menuFlyout.Items.Add(centerItem);
 
         menuFlyout.Items.Add(new MenuFlyoutSeparator());
         
-        var cropItem = new MenuFlyoutItem { Text = "Crop", Icon = new FontIcon { Glyph = "\uE7A4" } };
+        var cropItem = new MenuFlyoutItem { Text = "Crop", Icon = new FontIcon { Glyph = "\uE7A8" } };
         cropItem.Click += (s, a) => EnterCropMode();
         menuFlyout.Items.Add(cropItem);
 
@@ -730,23 +746,37 @@ public sealed partial class DraggableSourceItem : UserControl
 
         menuFlyout.Items.Add(new MenuFlyoutSeparator());
 
-        var alignSubMenu = new MenuFlyoutSubItem { Text = "Align", Icon = new FontIcon { Glyph = "\uE834" } };
+        var alignSubMenu = new MenuFlyoutSubItem { Text = "Align", Icon = new FontIcon { Glyph = "\uE139" } };
         BuildAlignMenuItems(alignSubMenu, viewModel);
         menuFlyout.Items.Add(alignSubMenu);
 
-        var centerItem = new MenuFlyoutItem { Text = "Center", Icon = new FontIcon { Glyph = "\uE843" } };
+        var centerItem = new MenuFlyoutItem { Text = "Center", Icon = new FontIcon { Glyph = "\uF58A" } };
         centerItem.Click += CenterMenuItem_Click;
         menuFlyout.Items.Add(centerItem);
 
         menuFlyout.Items.Add(new MenuFlyoutSeparator());
         
-        var layerSubMenu = new MenuFlyoutSubItem { Text = "Layer", Icon = new FontIcon { Glyph = "\uE8FD" } };
+        var layerSubMenu = new MenuFlyoutSubItem { Text = "Layer", Icon = new FontIcon { Glyph = "\uE81E" } };
         BuildLayerMenuItems(layerSubMenu, viewModel);
         menuFlyout.Items.Add(layerSubMenu);
 
         menuFlyout.Items.Add(new MenuFlyoutSeparator());
 
-        var flipHorizontalItem = new MenuFlyoutItem { Text = "Flip Horizontally", Icon = new FontIcon { Glyph = "\uE7F7" } };
+        var flipHorizontalItem = new MenuFlyoutItem { Text = "Flip Horizontally" };
+        var flipVerticalItem = new MenuFlyoutItem { Text = "Flip Vertically" };
+        
+        // Set icons based on theme
+        var theme = (this.XamlRoot.Content as FrameworkElement)?.ActualTheme ?? ElementTheme.Light;
+        var iconName = theme == ElementTheme.Dark ? "Flip-dark.svg" : "Flip-white.svg";
+        var iconUri = new Uri($"ms-appx:///Assets/{iconName}");
+
+        var verticalIcon = new ImageIcon { Source = new SvgImageSource(iconUri), Width = 16, Height = 16 };
+        flipVerticalItem.Icon = verticalIcon;
+
+        var horizontalIcon = new ImageIcon { Source = new SvgImageSource(iconUri), Width = 16, Height = 16 };
+        horizontalIcon.RenderTransform = new RotateTransform { Angle = 90, CenterX = 8, CenterY = 8 };
+        flipHorizontalItem.Icon = horizontalIcon;
+
         flipHorizontalItem.Click += async (s, a) => 
         {
             if (viewModel?.SelectedSources.Any() != true) return;
@@ -754,7 +784,6 @@ public sealed partial class DraggableSourceItem : UserControl
             foreach (var source in viewModel.SelectedSources) source.IsMirroredHorizontally = targetState;
             await viewModel.SaveSourcesAsync();
         };
-        var flipVerticalItem = new MenuFlyoutItem { Text = "Flip Vertically", Icon = new FontIcon { Glyph = "\uE7F8" } };
         flipVerticalItem.Click += async (s, a) =>
         {
             if (viewModel?.SelectedSources.Any() != true) return;
@@ -847,18 +876,27 @@ public sealed partial class DraggableSourceItem : UserControl
 
     private void BuildAlignMenuItems(MenuFlyoutSubItem alignSubMenu, MainViewModel viewModel)
     {
-        var alignLeft = new MenuFlyoutItem { Text = "Align Left", Command = viewModel.AlignLeftCommand };
-        var alignCenter = new MenuFlyoutItem { Text = "Align Center", Command = viewModel.AlignCenterCommand };
-        var alignRight = new MenuFlyoutItem { Text = "Align Right", Command = viewModel.AlignRightCommand };
+        var alignLeft = new MenuFlyoutItem { Text = "Align Left", Command = viewModel.AlignLeftCommand, Icon = new FontIcon { Glyph = "\uE8E4" } };
+        var alignCenter = new MenuFlyoutItem { Text = "Align Center", Command = viewModel.AlignCenterCommand, Icon = new FontIcon { Glyph = "\uE8E3" } };
+        var alignRight = new MenuFlyoutItem { Text = "Align Right", Command = viewModel.AlignRightCommand, Icon = new FontIcon { Glyph = "\uE8E2" } };
         alignSubMenu.Items.Add(alignLeft);
         alignSubMenu.Items.Add(alignCenter);
         alignSubMenu.Items.Add(alignRight);
 
         alignSubMenu.Items.Add(new MenuFlyoutSeparator());
 
-        var alignTop = new MenuFlyoutItem { Text = "Align Top", Command = viewModel.AlignTopCommand };
-        var alignMiddle = new MenuFlyoutItem { Text = "Align Middle", Command = viewModel.AlignMiddleCommand };
-        var alignBottom = new MenuFlyoutItem { Text = "Align Bottom", Command = viewModel.AlignBottomCommand };
+        var alignTopIcon = new FontIcon { Glyph = "\uE8E2", RenderTransformOrigin = new Point(0.5, 0.5) };
+        alignTopIcon.RenderTransform = new RotateTransform { Angle = -90 };
+        var alignTop = new MenuFlyoutItem { Text = "Align Top", Command = viewModel.AlignTopCommand, Icon = alignTopIcon };
+
+        var alignMiddleIcon = new FontIcon { Glyph = "\uE8E3", RenderTransformOrigin = new Point(0.5, 0.5) };
+        alignMiddleIcon.RenderTransform = new RotateTransform { Angle = -90 };
+        var alignMiddle = new MenuFlyoutItem { Text = "Align Middle", Command = viewModel.AlignMiddleCommand, Icon = alignMiddleIcon };
+
+        var alignBottomIcon = new FontIcon { Glyph = "\uE8E4", RenderTransformOrigin = new Point(0.5, 0.5) };
+        alignBottomIcon.RenderTransform = new RotateTransform { Angle = -90 };
+        var alignBottom = new MenuFlyoutItem { Text = "Align Bottom", Command = viewModel.AlignBottomCommand, Icon = alignBottomIcon };
+        
         alignSubMenu.Items.Add(alignTop);
         alignSubMenu.Items.Add(alignMiddle);
         alignSubMenu.Items.Add(alignBottom);

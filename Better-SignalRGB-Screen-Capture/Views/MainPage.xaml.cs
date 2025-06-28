@@ -12,6 +12,7 @@ using Microsoft.UI.Xaml.Input;
 using Windows.Foundation;
 using Windows.System;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Dispatching;
 
 namespace Better_SignalRGB_Screen_Capture.Views;
@@ -58,7 +59,19 @@ public sealed partial class MainPage : Page
             UpdateSelectionInViewModel();
             UpdateListViewSelection();
             UpdateSelectionOnCanvas();
+            UpdateFlipIconsTheme();
         };
+
+        this.ActualThemeChanged += (s,e) => UpdateFlipIconsTheme();
+    }
+
+    private void UpdateFlipIconsTheme()
+    {
+        var iconName = this.ActualTheme == ElementTheme.Dark ? "Flip-dark.svg" : "Flip-white.svg";
+        var iconUri = new Uri($"ms-appx:///Assets/{iconName}");
+        
+        FlipVerticalIcon.Source = new SvgImageSource(iconUri);
+        FlipHorizontalIcon.Source = new SvgImageSource(iconUri);
     }
 
     private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -161,7 +174,10 @@ public sealed partial class MainPage : Page
             {
                 // This call correctly sets IsSelected, updates the view model's
                 // SelectedSources collection, and updates all UI parts (canvas and list view)
-                SelectSourceItem(newItem, isMultiSelect: false);
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    SelectSourceItem(newItem, isMultiSelect: false);
+                });
             }
         }
     }

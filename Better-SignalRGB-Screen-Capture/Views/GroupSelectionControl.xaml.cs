@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Foundation;
 using Windows.System;
 using Better_SignalRGB_Screen_Capture.Models;
@@ -678,19 +679,32 @@ public sealed partial class GroupSelectionControl : UserControl
 
         menuFlyout.Items.Add(new MenuFlyoutSeparator());
 
-        var alignSubMenu = new MenuFlyoutSubItem { Text = "Align", Icon = new FontIcon { Glyph = "\uE834" } };
+        var alignSubMenu = new MenuFlyoutSubItem { Text = "Align", Icon = new FontIcon { Glyph = "\uE139" } };
         BuildAlignMenuItems(alignSubMenu, viewModel);
         menuFlyout.Items.Add(alignSubMenu);
 
-        var centerItem = new MenuFlyoutItem { Text = "Center", Icon = new FontIcon { Glyph = "\uE843" } };
+        var centerItem = new MenuFlyoutItem { Text = "Center", Icon = new FontIcon { Glyph = "\uF58A" } };
         centerItem.Click += async (s, a) => await viewModel.CenterSourceCommand.ExecuteAsync(null);
         menuFlyout.Items.Add(centerItem);
 
         menuFlyout.Items.Add(new MenuFlyoutSeparator());
 
-        var flipHorizontalItem = new MenuFlyoutItem { Text = "Flip Horizontally", Icon = new FontIcon { Glyph = "\uE7F7" } };
+        var flipHorizontalItem = new MenuFlyoutItem { Text = "Flip Horizontally" };
+        var flipVerticalItem = new MenuFlyoutItem { Text = "Flip Vertically" };
+
+        // Set icons based on theme
+        var theme = (this.XamlRoot.Content as FrameworkElement)?.ActualTheme ?? ElementTheme.Light;
+        var iconName = theme == ElementTheme.Dark ? "Flip-dark.svg" : "Flip-white.svg";
+        var iconUri = new Uri($"ms-appx:///Assets/{iconName}");
+
+        var verticalIcon = new ImageIcon { Source = new SvgImageSource(iconUri), Width = 16, Height = 16 };
+        flipVerticalItem.Icon = verticalIcon;
+
+        var horizontalIcon = new ImageIcon { Source = new SvgImageSource(iconUri), Width = 16, Height = 16 };
+        horizontalIcon.RenderTransform = new RotateTransform { Angle = 90, CenterX = 8, CenterY = 8 };
+        flipHorizontalItem.Icon = horizontalIcon;
+
         flipHorizontalItem.Click += async (s, a) => await FlipGroup(true, false, viewModel);
-        var flipVerticalItem = new MenuFlyoutItem { Text = "Flip Vertically", Icon = new FontIcon { Glyph = "\uE7F8" } };
         flipVerticalItem.Click += async (s, a) => await FlipGroup(false, true, viewModel);
         menuFlyout.Items.Add(flipHorizontalItem);
         menuFlyout.Items.Add(flipVerticalItem);
@@ -719,18 +733,27 @@ public sealed partial class GroupSelectionControl : UserControl
 
     private void BuildAlignMenuItems(MenuFlyoutSubItem alignSubMenu, MainViewModel viewModel)
     {
-        var alignLeft = new MenuFlyoutItem { Text = "Align Left", Command = viewModel.AlignLeftCommand };
-        var alignCenter = new MenuFlyoutItem { Text = "Align Center", Command = viewModel.AlignCenterCommand };
-        var alignRight = new MenuFlyoutItem { Text = "Align Right", Command = viewModel.AlignRightCommand };
+        var alignLeft = new MenuFlyoutItem { Text = "Align Left", Command = viewModel.AlignLeftCommand, Icon = new FontIcon { Glyph = "\uE8E4" } };
+        var alignCenter = new MenuFlyoutItem { Text = "Align Center", Command = viewModel.AlignCenterCommand, Icon = new FontIcon { Glyph = "\uE8E3" } };
+        var alignRight = new MenuFlyoutItem { Text = "Align Right", Command = viewModel.AlignRightCommand, Icon = new FontIcon { Glyph = "\uE8E2" } };
         alignSubMenu.Items.Add(alignLeft);
         alignSubMenu.Items.Add(alignCenter);
         alignSubMenu.Items.Add(alignRight);
 
         alignSubMenu.Items.Add(new MenuFlyoutSeparator());
 
-        var alignTop = new MenuFlyoutItem { Text = "Align Top", Command = viewModel.AlignTopCommand };
-        var alignMiddle = new MenuFlyoutItem { Text = "Align Middle", Command = viewModel.AlignMiddleCommand };
-        var alignBottom = new MenuFlyoutItem { Text = "Align Bottom", Command = viewModel.AlignBottomCommand };
+        var alignTopIcon = new FontIcon { Glyph = "\uE8E2", RenderTransformOrigin = new Point(0.5, 0.5) };
+        alignTopIcon.RenderTransform = new RotateTransform { Angle = -90 };
+        var alignTop = new MenuFlyoutItem { Text = "Align Top", Command = viewModel.AlignTopCommand, Icon = alignTopIcon };
+
+        var alignMiddleIcon = new FontIcon { Glyph = "\uE8E3", RenderTransformOrigin = new Point(0.5, 0.5) };
+        alignMiddleIcon.RenderTransform = new RotateTransform { Angle = -90 };
+        var alignMiddle = new MenuFlyoutItem { Text = "Align Middle", Command = viewModel.AlignMiddleCommand, Icon = alignMiddleIcon };
+
+        var alignBottomIcon = new FontIcon { Glyph = "\uE8E4", RenderTransformOrigin = new Point(0.5, 0.5) };
+        alignBottomIcon.RenderTransform = new RotateTransform { Angle = -90 };
+        var alignBottom = new MenuFlyoutItem { Text = "Align Bottom", Command = viewModel.AlignBottomCommand, Icon = alignBottomIcon };
+
         alignSubMenu.Items.Add(alignTop);
         alignSubMenu.Items.Add(alignMiddle);
         alignSubMenu.Items.Add(alignBottom);

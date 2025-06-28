@@ -40,6 +40,9 @@ public partial class MainViewModel : ObservableRecipient
     [ObservableProperty]
     private string? streamingUrl;
 
+    [ObservableProperty]
+    private bool isRecording;
+
     public MainViewModel(ILocalSettingsService localSettingsService, ICaptureService captureService, IMjpegStreamingService mjpegStreamingService, ICompositeFrameService compositeFrameService)
     {
         _localSettingsService = localSettingsService;
@@ -993,6 +996,18 @@ public partial class MainViewModel : ObservableRecipient
     }
     
     [RelayCommand]
+    private async Task ToggleRecordingAsync()
+    {
+        if (IsRecording)
+        {
+            await StopAllCapturesAsync();
+        }
+        else
+        {
+            await StartAllCapturesAsync();
+        }
+    }
+
     private async Task StartAllCapturesAsync()
     {
         foreach (var source in Sources)
@@ -1026,6 +1041,8 @@ public partial class MainViewModel : ObservableRecipient
                 // Expected when cancellation is requested
             }
         }, _testFrameCancellation.Token);
+
+        IsRecording = true;
     }
     
     private byte[] GenerateTestFrame()
@@ -1047,13 +1064,14 @@ public partial class MainViewModel : ObservableRecipient
         };
     }
     
-    [RelayCommand]
     private async Task StopAllCapturesAsync()
     {
         // Stop test frame generator
         _testFrameCancellation?.Cancel();
         
         await _captureService.StopAllCapturesAsync();
+
+        IsRecording = false;
     }
 
     [RelayCommand(CanExecute = nameof(IsSourceSelected))]

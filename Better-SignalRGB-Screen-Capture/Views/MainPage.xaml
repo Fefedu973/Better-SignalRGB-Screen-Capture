@@ -14,6 +14,102 @@
     <Page.Resources>
         <converters:ObjectToVisibilityConverter x:Key="ObjectToVisibilityConverter" />
         <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <converters:BooleanToStringConverter x:Key="BooleanToStringConverter" />
+        <Style x:Key="RecordingToggleButtonStyle" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid x:Name="RootGrid" Background="Transparent">
+                            <Border
+                                x:Name="ContentPresenter"
+                                Padding="{TemplateBinding Padding}"
+                                Background="#CC3333"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{TemplateBinding CornerRadius}">
+                                <ContentPresenter
+                                    HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                    VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                    Content="{TemplateBinding Content}"
+                                    ContentTemplate="{TemplateBinding ContentTemplate}"
+                                    ContentTransitions="{TemplateBinding ContentTransitions}"
+                                    Foreground="{TemplateBinding Foreground}" />
+                            </Border>
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal" />
+                                    <VisualState x:Name="PointerOver">
+                                        <Storyboard>
+                                            <ColorAnimation
+                                                Storyboard.TargetName="ContentPresenter"
+                                                Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                To="#E54C4C"
+                                                Duration="0:0:0.1" />
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Pressed">
+                                        <Storyboard>
+                                            <ColorAnimation
+                                                Storyboard.TargetName="ContentPresenter"
+                                                Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                To="#B22222"
+                                                Duration="0:0:0.1" />
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Disabled">
+                                        <Storyboard>
+                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ContentPresenter" Storyboard.TargetProperty="Background">
+                                                <DiscreteObjectKeyFrame KeyTime="0" Value="{ThemeResource ButtonBackgroundDisabled}" />
+                                            </ObjectAnimationUsingKeyFrames>
+                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ContentPresenter" Storyboard.TargetProperty="Foreground">
+                                                <DiscreteObjectKeyFrame KeyTime="0" Value="{ThemeResource ButtonForegroundDisabled}" />
+                                            </ObjectAnimationUsingKeyFrames>
+                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ContentPresenter" Storyboard.TargetProperty="BorderBrush">
+                                                <DiscreteObjectKeyFrame KeyTime="0" Value="{ThemeResource ButtonBorderBrushDisabled}" />
+                                            </ObjectAnimationUsingKeyFrames>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Checked">
+                                        <Storyboard>
+                                            <ColorAnimationUsingKeyFrames
+                                                AutoReverse="True"
+                                                RepeatBehavior="Forever"
+                                                Storyboard.TargetName="ContentPresenter"
+                                                Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)">
+                                                <LinearColorKeyFrame KeyTime="0:0:0" Value="#E05656" />
+                                                <LinearColorKeyFrame KeyTime="0:0:1" Value="#8B0000" />
+                                            </ColorAnimationUsingKeyFrames>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="CheckedPointerOver">
+                                        <Storyboard>
+                                            <ColorAnimation
+                                                Storyboard.TargetName="ContentPresenter"
+                                                Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                To="#C04040"
+                                                Duration="0:0:0.1" />
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="CheckedPressed">
+                                        <Storyboard>
+                                            <ColorAnimation
+                                                Storyboard.TargetName="ContentPresenter"
+                                                Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                To="#6B0000"
+                                                Duration="0:0:0.1" />
+                                        </Storyboard>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Page.Resources>
 
     <Grid x:Name="ContentArea" ColumnSpacing="16">
@@ -53,31 +149,22 @@
                             <TextBlock>Add Source</TextBlock>
                         </StackPanel>
                     </Button>
-
-                    <Grid ColumnSpacing="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <Button
-                            Grid.Column="0"
-                            HorizontalAlignment="Stretch"
-                            Command="{x:Bind ViewModel.StartAllCapturesCommand}"
-                            Content="Start All" />
-
-                        <Button
-                            Grid.Column="1"
-                            HorizontalAlignment="Stretch"
-                            Command="{x:Bind ViewModel.StopAllCapturesCommand}"
-                            Content="Stop All" />
-                    </Grid>
+                    <ToggleButton
+                        Command="{x:Bind ViewModel.ToggleRecordingCommand}"
+                        IsChecked="{x:Bind ViewModel.IsRecording, Mode=OneWay}"
+                        Style="{StaticResource RecordingToggleButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="{x:Bind ViewModel.IsRecording, Mode=OneWay, Converter={StaticResource BooleanToStringConverter}, ConverterParameter='&#xE71A;|&#xE7C8;'}" />
+                            <TextBlock Text="{x:Bind ViewModel.IsRecording, Mode=OneWay, Converter={StaticResource BooleanToStringConverter}, ConverterParameter='Stop Recording|Start Recording'}" />
+                        </StackPanel>
+                    </ToggleButton>
                 </StackPanel>
 
                 <!--  Sources List  -->
                 <ScrollViewer Grid.Row="2">
                     <ListView
                         x:Name="SourcesListView"
+                        Padding="0,0,0,10"
                         AllowDrop="True"
                         CanReorderItems="True"
                         ItemsSource="{x:Bind ViewModel.Sources}"
@@ -86,7 +173,7 @@
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="models:SourceItem">
                                 <Border
-                                    Margin="0,0,0,8"
+                                    Margin="0,8,0,8"
                                     Padding="12"
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -197,14 +284,15 @@
                 </Button>
                 <StackPanel Orientation="Vertical" Spacing="4">
                     <TextBlock
+                        Margin="12,0,0,0"
                         FontSize="12"
                         FontWeight="SemiBold"
                         Text="MJPEG Stream:" />
-                    <TextBlock
+                    <HyperlinkButton
+                        Content="{x:Bind ViewModel.StreamingUrl, Mode=OneWay, FallbackValue='Starting...'}"
                         FontFamily="Consolas"
                         FontSize="11"
-                        Foreground="{ThemeResource SystemAccentColor}"
-                        Text="{x:Bind ViewModel.StreamingUrl, Mode=OneWay, FallbackValue='Starting...'}" />
+                        NavigateUri="{x:Bind ViewModel.StreamingUrl}" />
                 </StackPanel>
             </StackPanel>
 
@@ -280,8 +368,8 @@
             Background="{ThemeResource LayerFillColorDefaultBrush}"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
             BorderThickness="1,0,0,0">
-            <ScrollViewer >
-                <StackPanel Spacing="16" Padding="2">
+            <ScrollViewer>
+                <StackPanel Padding="2" Spacing="16">
                     <!--  General Settings  -->
                     <StackPanel Spacing="8">
                         <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="General Settings" />
@@ -400,7 +488,11 @@
                                 <ToggleSwitch Grid.Column="0" IsOn="{x:Bind ViewModel.SelectedSourceIsMirroredHorizontally, Mode=TwoWay, FallbackValue=false}">
                                     <ToggleSwitch.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <FontIcon Glyph="&#xE7A7;" />
+                                            <ImageIcon x:Name="FlipHorizontalIcon" Width="16" Height="16">
+                                                <ImageIcon.RenderTransform>
+                                                    <RotateTransform Angle="90" CenterX="8" CenterY="8" />
+                                                </ImageIcon.RenderTransform>
+                                            </ImageIcon>
                                             <TextBlock Text="Flip Horizontal" />
                                         </StackPanel>
                                     </ToggleSwitch.Header>
@@ -409,7 +501,7 @@
                                 <ToggleSwitch Grid.Column="1" IsOn="{x:Bind ViewModel.SelectedSourceIsMirroredVertically, Mode=TwoWay, FallbackValue=false}">
                                     <ToggleSwitch.Header>
                                         <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <FontIcon Glyph="&#xE7A8;" />
+                                            <ImageIcon x:Name="FlipVerticalIcon" Width="16" Height="16" />
                                             <TextBlock Text="Flip Vertical" />
                                         </StackPanel>
                                     </ToggleSwitch.Header>
@@ -549,38 +641,62 @@
                                     Grid.Column="0"
                                     HorizontalAlignment="Stretch"
                                     Command="{x:Bind ViewModel.AlignLeftCommand}"
-                                    Content="Left" />
+                                    ToolTipService.ToolTip="Align Left">
+                                    <FontIcon Glyph="&#xE8E4;" />
+                                </Button>
                                 <Button
                                     Grid.Row="0"
                                     Grid.Column="1"
                                     HorizontalAlignment="Stretch"
                                     Command="{x:Bind ViewModel.AlignCenterCommand}"
-                                    Content="Center" />
+                                    ToolTipService.ToolTip="Align Center">
+                                    <FontIcon Glyph="&#xE8E3;" />
+                                </Button>
                                 <Button
                                     Grid.Row="0"
                                     Grid.Column="2"
                                     HorizontalAlignment="Stretch"
                                     Command="{x:Bind ViewModel.AlignRightCommand}"
-                                    Content="Right" />
+                                    ToolTipService.ToolTip="Align Right">
+                                    <FontIcon Glyph="&#xE8E2;" />
+                                </Button>
 
                                 <Button
                                     Grid.Row="1"
                                     Grid.Column="0"
                                     HorizontalAlignment="Stretch"
                                     Command="{x:Bind ViewModel.AlignTopCommand}"
-                                    Content="Top" />
+                                    ToolTipService.ToolTip="Align Top">
+                                    <FontIcon Glyph="&#xE8E2;" RenderTransformOrigin="0.5,0.5">
+                                        <FontIcon.RenderTransform>
+                                            <RotateTransform Angle="-90" />
+                                        </FontIcon.RenderTransform>
+                                    </FontIcon>
+                                </Button>
                                 <Button
                                     Grid.Row="1"
                                     Grid.Column="1"
                                     HorizontalAlignment="Stretch"
                                     Command="{x:Bind ViewModel.AlignMiddleCommand}"
-                                    Content="Middle" />
+                                    ToolTipService.ToolTip="Align Middle">
+                                    <FontIcon Glyph="&#xE8E3;" RenderTransformOrigin="0.5,0.5">
+                                        <FontIcon.RenderTransform>
+                                            <RotateTransform Angle="-90" />
+                                        </FontIcon.RenderTransform>
+                                    </FontIcon>
+                                </Button>
                                 <Button
                                     Grid.Row="1"
                                     Grid.Column="2"
                                     HorizontalAlignment="Stretch"
                                     Command="{x:Bind ViewModel.AlignBottomCommand}"
-                                    Content="Bottom" />
+                                    ToolTipService.ToolTip="Align Bottom">
+                                    <FontIcon Glyph="&#xE8E4;" RenderTransformOrigin="0.5,0.5">
+                                        <FontIcon.RenderTransform>
+                                            <RotateTransform Angle="-90" />
+                                        </FontIcon.RenderTransform>
+                                    </FontIcon>
+                                </Button>
                             </Grid>
                         </StackPanel>
 
