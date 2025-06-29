@@ -670,6 +670,7 @@ public partial class MainViewModel : ObservableRecipient
     /// <summary>
     /// Calculates the Axis-Aligned Bounding Box (AABB) of a source's visible (cropped) area.
     /// This is the definitive check for whether a source is "inside" the canvas.
+    /// The visible area is the intersection of the crop rectangle and the source's bounds.
     /// </summary>
     /// <param name="src">The source item to check.</param>
     /// <returns>The AABB of the visible, rotated, cropped area in canvas coordinates.</returns>
@@ -677,41 +678,137 @@ public partial class MainViewModel : ObservableRecipient
     {
         if (src == null) return Rect.Empty;
 
-        // 1. Get the size of the full control
-        var w = src.CanvasWidth;
-        var h = src.CanvasHeight;
+        double w = src.CanvasWidth;
+        double h = src.CanvasHeight;
 
-        // 2. Calculate the size of the visible (non-cropped) part
-        var effW = w * (1 - src.CropLeftPct - src.CropRightPct);
-        var effH = h * (1 - src.CropTopPct - src.CropBottomPct);
-        if (effW <= 0 || effH <= 0) return Rect.Empty; // Fully cropped, no visible area
+        // Calculate the effective size and offset of the cropped area
+        double effW = w * (1 - src.CropLeftPct - src.CropRightPct);
+        double effH = h * (1 - src.CropTopPct - src.CropBottomPct);
+        if (effW <= 0 || effH <= 0) return Rect.Empty; // fully cropped
 
-        // 3. Calculate the offset of the visible part inside the control
-        var offX = w * src.CropLeftPct;
-        var offY = h * src.CropTopPct;
+        double offX = w * src.CropLeftPct;
+        double offY = h * src.CropTopPct;
 
-        // 4. First apply the item's rotation to the control center
-        var controlCenter = new Point(src.CanvasX + w / 2.0, src.CanvasY + h / 2.0);
-        
-        // 5. Calculate the center of the visible part relative to the control center, 
-        //    then apply item rotation, then translate to world coordinates
-        var relativeCenterX = offX + effW / 2.0 - w / 2.0;
-        var relativeCenterY = offY + effH / 2.0 - h / 2.0;
-        
-        // Rotate the relative center by the item's rotation
-        var itemRotRad = src.Rotation * Math.PI / 180.0;
-        var itemCos = Math.Cos(itemRotRad);
-        var itemSin = Math.Sin(itemRotRad);
-        
-        var rotatedRelX = relativeCenterX * itemCos - relativeCenterY * itemSin;
-        var rotatedRelY = relativeCenterX * itemSin + relativeCenterY * itemCos;
-        
-        var visibleCenter = new Point(
-            controlCenter.X + rotatedRelX,
-            controlCenter.Y + rotatedRelY);
+        // Build crop rectangle corners in local item space
+        var cropPolygon = new List<Point>
+        {
+            new(offX,          offY),
+            new(offX + effW,   offY),
+            new(offX + effW,   offY + effH),
+            new(offX,          offY + effH)
+        };
 
-        // 7. Get the AABB of the rotated visible part (item rotation + crop rotation)
-        return GetRotatedAabb(visibleCenter, new Size(effW, effH), src.Rotation + src.CropRotation);
+        // Rotate crop rectangle around its own center if it has rotation
+        if (src.CropRotation % 360 != 0)
+        {
+            double cropCenterX = offX + effW / 2.0;
+            double cropCenterY = offY + effH / 2.0;
+            double rad = src.CropRotation * Math.PI / 180.0;
+            double cos = Math.Cos(rad);
+            double sin = Math.Sin(rad);
+            for (int i = 0; i < cropPolygon.Count; i++)
+            {
+                double dx = cropPolygon[i].X - cropCenterX;
+                double dy = cropPolygon[i].Y - cropCenterY;
+                double rx = dx * cos - dy * sin;
+                double ry = dx * sin + dy * cos;
+                cropPolygon[i] = new Point(rx + cropCenterX, ry + cropCenterY);
+            }
+        }
+
+        // The crop rectangle can overflow the source item's bounds.
+        // We need to find the intersection of the crop polygon and the source's bounding rect.
+        var sourceBounds = new Rect(0, 0, w, h);
+        var clippedPolygon = ClipPolygonWithRect(cropPolygon, sourceBounds);
+        if (clippedPolygon.Count == 0) return Rect.Empty;
+
+        // Now, transform the clipped polygon to canvas coordinates.
+        // This involves rotating by the item's rotation and translating.
+        double itemRad = src.Rotation * Math.PI / 180.0;
+        double itemCos = Math.Cos(itemRad);
+        double itemSin = Math.Sin(itemRad);
+        double itemCenterX = w / 2.0;
+        double itemCenterY = h / 2.0;
+        for (int i = 0; i < clippedPolygon.Count; i++)
+        {
+            double dx = clippedPolygon[i].X - itemCenterX;
+            double dy = clippedPolygon[i].Y - itemCenterY;
+            double rx = dx * itemCos - dy * itemSin + itemCenterX + src.CanvasX;
+            double ry = dx * itemSin + dy * itemCos + itemCenterY + src.CanvasY;
+            clippedPolygon[i] = new Point(rx, ry);
+        }
+
+        // Finally, calculate the AABB of the transformed, clipped polygon.
+        double minX = clippedPolygon.Min(p => p.X);
+        double minY = clippedPolygon.Min(p => p.Y);
+        double maxX = clippedPolygon.Max(p => p.X);
+        double maxY = clippedPolygon.Max(p => p.Y);
+
+        return new Rect(minX, minY, maxX - minX, maxY - minY);
+    }
+
+    /// <summary>
+    /// Clips a polygon using the Sutherland-Hodgman algorithm against a rectangular clip window.
+    /// </summary>
+    private static List<Point> ClipPolygonWithRect(List<Point> polygon, Rect clipRect)
+    {
+        // Helper to find the intersection of a line segment with a clip edge.
+        static Point Intersect(Point p1, Point p2, double edge, bool isVertical)
+        {
+            // Avoid division by zero
+            if (isVertical)
+            {
+                if (p2.X - p1.X == 0) return new Point(edge, p1.Y); // Vertical line on the edge
+                double t = (edge - p1.X) / (p2.X - p1.X);
+                return new Point(edge, p1.Y + t * (p2.Y - p1.Y));
+            }
+            else // Horizontal edge
+            {
+                if (p2.Y - p1.Y == 0) return new Point(p1.X, edge); // Horizontal line on the edge
+                double t = (edge - p1.Y) / (p2.Y - p1.Y);
+                return new Point(p1.X + t * (p2.X - p1.X), edge);
+            }
+        }
+
+        // Helper to perform clipping against a single edge of the rectangle.
+        List<Point> ClipEdge(List<Point> inputPolygon, Func<Point, bool> isInside, Func<Point, Point, Point> intersectionCalc)
+        {
+            var outputList = new List<Point>();
+            if (inputPolygon.Count == 0) return outputList;
+
+            var s = inputPolygon[^1]; // Start with the last vertex
+            foreach (var p in inputPolygon)
+            {
+                bool s_inside = isInside(s);
+                bool p_inside = isInside(p);
+
+                if (p_inside)
+                {
+                    if (!s_inside)
+                    {
+                        // S is outside, P is inside: intersection, then P
+                        outputList.Add(intersectionCalc(s, p));
+                    }
+                    outputList.Add(p);
+                }
+                else if (s_inside)
+                {
+                    // S is inside, P is outside: intersection
+                    outputList.Add(intersectionCalc(s, p));
+                }
+                // If both are outside, do nothing.
+                s = p; // Move to the next edge
+            }
+            return outputList;
+        }
+
+        var clipped = polygon;
+        clipped = ClipEdge(clipped, p => p.X >= clipRect.Left, (p1, p2) => Intersect(p1, p2, clipRect.Left, true));
+        clipped = ClipEdge(clipped, p => p.X <= clipRect.Right, (p1, p2) => Intersect(p1, p2, clipRect.Right, true));
+        clipped = ClipEdge(clipped, p => p.Y >= clipRect.Top, (p1, p2) => Intersect(p1, p2, clipRect.Top, false));
+        clipped = ClipEdge(clipped, p => p.Y <= clipRect.Bottom, (p1, p2) => Intersect(p1, p2, clipRect.Bottom, false));
+
+        return clipped;
     }
 
     private static Rect GetRotatedAabb(Point center, Size size, double angleDeg)
@@ -903,6 +1000,31 @@ public partial class MainViewModel : ObservableRecipient
                 src.IsMirroredVertically = vertTarget;
                 src.Rotation = -src.Rotation;
                 if (src.Rotation < 0) src.Rotation += 360;
+            }
+
+            // After flipping, ensure the source's visible area is within the canvas
+            var visibleAabb = GetVisibleAreaAabb(src);
+            if (!visibleAabb.IsEmpty)
+            {
+                const int canvasWidth = 800;
+                const int canvasHeight = 600;
+                double dx = 0, dy = 0;
+
+                if (visibleAabb.Left < 0)
+                    dx = -visibleAabb.Left;
+                else if (visibleAabb.Right > canvasWidth)
+                    dx = canvasWidth - visibleAabb.Right;
+
+                if (visibleAabb.Top < 0)
+                    dy = -visibleAabb.Top;
+                else if (visibleAabb.Bottom > canvasHeight)
+                    dy = canvasHeight - visibleAabb.Bottom;
+
+                if (dx != 0 || dy != 0)
+                {
+                    src.CanvasX += (int)Math.Round(dx);
+                    src.CanvasY += (int)Math.Round(dy);
+                }
             }
         }
 

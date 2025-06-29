@@ -95,12 +95,21 @@ public sealed partial class DraggableSourceItem : UserControl
         var sin = Math.Abs(Math.Sin(angle));
 
         var w = size.Width * cos + size.Height * sin;
-        var h = size.Width * sin + size.Height * cos;
+        var h = size.Height * cos + size.Width * sin;
 
-        return new Rect(
-            center.X - w / 2,
-            center.Y - h / 2,
-            w, h);
+        return new Rect(center.X - w / 2, center.Y - h / 2, w, h);
+    }
+
+    private static Rect IntersectRects(Rect r1, Rect r2)
+    {
+        double x1 = Math.Max(r1.X, r2.X);
+        double y1 = Math.Max(r1.Y, r2.Y);
+        double x2 = Math.Min(r1.X + r1.Width, r2.X + r2.Width);
+        double y2 = Math.Min(r1.Y + r1.Height, r2.Y + r2.Height);
+
+        if (x2 >= x1 && y2 >= y1)
+            return new Rect(x1, y1, x2 - x1, y2 - y1);
+        return Rect.Empty;
     }
 
     /// <summary>
@@ -960,6 +969,13 @@ public sealed partial class DraggableSourceItem : UserControl
             return;
         }
 
+        // Clamp crop values in case the rectangle extended beyond the control's bounds during editing.
+        // This ensures the percentages are always valid [0, 1].
+        Source.CropLeftPct = Math.Clamp(Source.CropLeftPct, 0, 1);
+        Source.CropTopPct = Math.Clamp(Source.CropTopPct, 0, 1);
+        Source.CropRightPct = Math.Clamp(Source.CropRightPct, 0, 1);
+        Source.CropBottomPct = Math.Clamp(Source.CropBottomPct, 0, 1);
+        
         var parentCanvas = FindParent<Canvas>(this);
         if (parentCanvas != null)
         {
@@ -1109,17 +1125,19 @@ public sealed partial class DraggableSourceItem : UserControl
                         10,               // minSize
                         isShiftDown);     // preserveAspectRatio
 
-                    // keep the whole rotated rect inside the source card
+                    // To allow overflow, we check if the intersection is empty.
+                    // If it is, the crop is fully outside the source, which we prevent.
                     var aabb = GetRotatedAabb(
                         new Point(newBounds.X + newBounds.Width / 2,
                                   newBounds.Y + newBounds.Height / 2),
                         new Size(newBounds.Width, newBounds.Height),
                         _cropActionStartRotation);
+                    
+                    var sourceBounds = new Rect(0, 0, ActualWidth, ActualHeight);
+                    var intersection = IntersectRects(aabb, sourceBounds);
 
-                    if (aabb.Left < 0 || aabb.Top < 0 ||
-                        aabb.Right > ActualWidth ||
-                        aabb.Bottom > ActualHeight)
-                        return;          // refuse this drag – would overflow
+                    if (intersection.IsEmpty)
+                        return; // Refuse this drag - would be fully outside
                     break;
                 }
             case ResizeMode.Move:
@@ -1137,15 +1155,17 @@ public sealed partial class DraggableSourceItem : UserControl
                         centre,
                         new Size(_cropActionStartBounds.Width, _cropActionStartBounds.Height),
                         _cropActionStartRotation);
+                    
+                    var sourceBounds = new Rect(0, 0, ActualWidth, ActualHeight);
+                    var intersection = IntersectRects(aabb, sourceBounds);
+                    
+                    if (intersection.IsEmpty)
+                    {
+                         return; // Refuse this drag – would be fully outside
+                    }
 
-                    double adjustX = 0, adjustY = 0;
-                    if (aabb.Left < 0) adjustX = -aabb.Left;
-                    if (aabb.Top < 0) adjustY = -aabb.Top;
-                    if (aabb.Right > ActualWidth) adjustX = ActualWidth - aabb.Right;
-                    if (aabb.Bottom > ActualHeight) adjustY = ActualHeight - aabb.Bottom;
-
-                    newBounds.X = newX + adjustX;
-                    newBounds.Y = newY + adjustY;
+                    newBounds.X = newX;
+                    newBounds.Y = newY;
                 }
                 break;
         }
