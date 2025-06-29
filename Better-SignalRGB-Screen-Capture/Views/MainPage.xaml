@@ -15,6 +15,7 @@
         <converters:ObjectToVisibilityConverter x:Key="ObjectToVisibilityConverter" />
         <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converters:BooleanToStringConverter x:Key="BooleanToStringConverter" />
+        <converters:StringToUriConverter x:Key="StringToUriConverter" />
         <Style x:Key="CollapseToggleButtonStyle" TargetType="ToggleButton">
             <Setter Property="Background" Value="{ThemeResource SystemAccentColor}" />
             <Setter Property="Foreground" Value="White" />
@@ -355,7 +356,7 @@
                         Content="{x:Bind ViewModel.StreamingUrl, Mode=OneWay, FallbackValue='Starting...'}"
                         FontFamily="Consolas"
                         FontSize="11"
-                        NavigateUri="{x:Bind ViewModel.StreamingUrl}" />
+                        NavigateUri="{x:Bind ViewModel.StreamingUrl, Converter={StaticResource StringToUriConverter}}" />
                 </StackPanel>
             </StackPanel>
 

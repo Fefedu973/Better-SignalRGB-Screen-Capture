@@ -48,8 +48,12 @@ public sealed partial class MainPage : Page, INavigationAware
                 ZoomPercentageText.Text = $"{CanvasScrollViewer.ZoomFactor * 100:F0}%";
             }
 
-            // Call OnNavigatedTo to set up everything properly
+            // Set the initial icon theme
             OnNavigatedTo(null);
+            UpdateFlipIconsTheme();
+
+            // Note: OnNavigatedTo is now handled correctly by the navigation service
+            // and the page's Unloaded event.
         };
 
         this.ActualThemeChanged += (s,e) => UpdateFlipIconsTheme();

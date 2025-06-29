@@ -16,6 +16,7 @@
             <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
             <converters:BooleanToScaleConverter x:Key="BooleanToScaleConverter" />
             <converters:ZoomPercentageConverter x:Key="ZoomPercentageConverter" />
+            <converters:StringToUriConverter x:Key="StringToUriConverter" />
             <Style BasedOn="{StaticResource DefaultContentDialogStyle}" TargetType="local:AddSourceDialog" />
 
             <Style x:Key="CropHandleStyle" TargetType="Rectangle">
