@@ -415,6 +415,7 @@ public sealed partial class GroupSelectionControl : UserControl
         double c = Math.Cos(θ);
         double s = Math.Sin(θ);
 
+        // Use more precise transformations to avoid drift
         Point ToLocal(double x, double y) => new(x * c + y * s, -x * s + y * c);
         Point ToWorld(double x, double y) => new(x * c - y * s, x * s + y * c);
 
@@ -484,38 +485,90 @@ public sealed partial class GroupSelectionControl : UserControl
         int ax = mL ? +1 : mR ? -1 : 0;             // anchor (+1 = right, -1 = left)
         int ay = mT ? +1 : mB ? -1 : 0;             // anchor (+1 = bottom,-1 = top)
 
-        Point a0 = new(ax * w0 / 2, ay * h0 / 2);
-        Point a1 = new(ax * w1 / 2, ay * h1 / 2);
+        // Use double precision throughout to maintain stability
+        double anchorXLocal0 = ax * w0 / 2.0;
+        double anchorYLocal0 = ay * h0 / 2.0;
+        double anchorXLocal1 = ax * w1 / 2.0;
+        double anchorYLocal1 = ay * h1 / 2.0;
 
-        Point c0 = new(_actionStartBounds.X + w0 / 2, _actionStartBounds.Y + h0 / 2);
-        Point c1 = new(c0.X + ToWorld(a0.X - a1.X, a0.Y - a1.Y).X,
-                       c0.Y + ToWorld(a0.X - a1.X, a0.Y - a1.Y).Y);
+        double centerX0 = _actionStartBounds.X + w0 / 2.0;
+        double centerY0 = _actionStartBounds.Y + h0 / 2.0;
+        
+        // Calculate anchor offset in world coordinates with full precision
+        var anchorWorldOffset0 = ToWorld(anchorXLocal0, anchorYLocal0);
+        var anchorWorldOffset1 = ToWorld(anchorXLocal1, anchorYLocal1);
+        
+        double anchorWorldX = centerX0 + anchorWorldOffset0.X;
+        double anchorWorldY = centerY0 + anchorWorldOffset0.Y;
+        
+        double centerX1 = anchorWorldX - anchorWorldOffset1.X;
+        double centerY1 = anchorWorldY - anchorWorldOffset1.Y;
+        
+        Point c1 = new(centerX1, centerY1);
 
         /* ---------- 1. bounds-check entire group ---------------------- */
         var parent = Parent as FrameworkElement;
+        if (parent == null) return;
+        
         var aabb = GetRotatedAabb(c1, new Size(w1, h1), _actionStartRotation);
         if (aabb.Left < 0 || aabb.Top < 0 ||
-            aabb.Right > parent!.ActualWidth || aabb.Bottom > parent.ActualHeight)
+            aabb.Right > parent.ActualWidth || aabb.Bottom > parent.ActualHeight)
             return;                                // refuse resize that overflows
+
+        /* ---------- 1a. Check individual item bounds ---------------------- */
+        double sx = w1 / w0, sy = h1 / h0;
+        bool wouldAnyItemOverflow = false;
+        
+        foreach (var st in _itemStates)
+        {
+            // Calculate new item properties without committing
+            var rp = new Point(st.RelativePosition.X * sx, st.RelativePosition.Y * sy);
+            var wc = new Point(c1.X + rp.X, c1.Y + rp.Y);
+            var (newW, newH) = ScaleSizeRespectingRotation(
+                st.Size, sx, sy, st.Rotation - _actionStartRotation);
+            
+            // Check if this item would overflow
+            var itemX = wc.X - newW / 2;
+            var itemY = wc.Y - newH / 2;
+            
+            // For rotated items, check their rotated AABB
+            var itemCenter = new Point(itemX + newW / 2, itemY + newH / 2);
+            var itemAabb = GetRotatedAabb(itemCenter, new Size(newW, newH), st.Rotation);
+            
+            if (itemAabb.Left < 0 || itemAabb.Top < 0 ||
+                itemAabb.Right > parent.ActualWidth || itemAabb.Bottom > parent.ActualHeight)
+            {
+                wouldAnyItemOverflow = true;
+                break;
+            }
+        }
+        
+        if (wouldAnyItemOverflow)
+            return;  // refuse resize that would cause item overflow
 
         /* ---------- 2. commit ---------------------------------------- */
         Canvas.SetLeft(this, c1.X - w1 / 2);
         Canvas.SetTop(this, c1.Y - h1 / 2);
         Width = w1; Height = h1;
 
-        double sx = w1 / w0, sy = h1 / h0;
         foreach (var st in _itemStates)
         {
-            // 2-D scale of the rectangle's centre
-            var rp = new Point(st.RelativePosition.X * sx, st.RelativePosition.Y * sy);
-            var wc = new Point(c1.X + rp.X, c1.Y + rp.Y);
+            // Use double precision for all calculations to avoid drift
+            double relativeX = st.RelativePosition.X * sx;
+            double relativeY = st.RelativePosition.Y * sy;
+            double worldCenterX = c1.X + relativeX;
+            double worldCenterY = c1.Y + relativeY;
 
             // scale the rectangle itself, honouring its own rotation
             var (newW, newH) = ScaleSizeRespectingRotation(
                 st.Size, sx, sy, st.Rotation - _actionStartRotation);
 
-            st.Source.CanvasX = (int)Math.Round(wc.X - newW / 2);
-            st.Source.CanvasY = (int)Math.Round(wc.Y - newH / 2);
+            // Calculate final position with proper rounding to reduce pixel jitter
+            double newX = worldCenterX - newW / 2.0;
+            double newY = worldCenterY - newH / 2.0;
+            
+            st.Source.CanvasX = (int)Math.Round(newX);
+            st.Source.CanvasY = (int)Math.Round(newY);
             st.Source.CanvasWidth = (int)Math.Round(newW);
             st.Source.CanvasHeight = (int)Math.Round(newH);
         }
@@ -869,26 +922,64 @@ public sealed partial class GroupSelectionControl : UserControl
                 cursorShape = InputSystemCursorShape.SizeAll;
                 break;
             case ResizeMode.TopLeft:
-            case ResizeMode.BottomRight:
-                cursorShape = InputSystemCursorShape.SizeNorthwestSoutheast;
-                break;
             case ResizeMode.TopRight:
             case ResizeMode.BottomLeft:
-                cursorShape = InputSystemCursorShape.SizeNortheastSouthwest;
-                break;
+            case ResizeMode.BottomRight:
             case ResizeMode.Top:
             case ResizeMode.Bottom:
-                cursorShape = InputSystemCursorShape.SizeNorthSouth;
-                break;
             case ResizeMode.Left:
             case ResizeMode.Right:
-                cursorShape = InputSystemCursorShape.SizeWestEast;
+                cursorShape = GetRotatedCursorShape(resizeMode);
                 break;
             default:
                 cursorShape = InputSystemCursorShape.Arrow;
                 break;
         }
         return InputSystemCursor.Create(cursorShape);
+    }
+    
+    private InputSystemCursorShape GetRotatedCursorShape(ResizeMode resizeMode)
+    {
+        // Get the current group rotation angle
+        var rotation = _groupRotation;
+        
+        // Normalize rotation to 0-360 range
+        rotation = ((rotation % 360) + 360) % 360;
+        
+        // Determine the effective direction after rotation
+        // We use 8 directions, so every 45 degrees shifts the cursor
+        var rotationSteps = (int)Math.Round(rotation / 45.0) % 8;
+        
+        // Map resize modes to direction indices (0 = N, 1 = NE, 2 = E, etc.)
+        var directionIndex = resizeMode switch
+        {
+            ResizeMode.Top => 0,           // North
+            ResizeMode.TopRight => 1,     // Northeast  
+            ResizeMode.Right => 2,        // East
+            ResizeMode.BottomRight => 3,  // Southeast
+            ResizeMode.Bottom => 4,       // South
+            ResizeMode.BottomLeft => 5,   // Southwest
+            ResizeMode.Left => 6,         // West
+            ResizeMode.TopLeft => 7,      // Northwest
+            _ => 0
+        };
+        
+        // Apply rotation offset
+        var rotatedDirection = (directionIndex + rotationSteps) % 8;
+        
+        // Map back to cursor shapes
+        return rotatedDirection switch
+        {
+            0 => InputSystemCursorShape.SizeNorthSouth,        // North-South
+            1 => InputSystemCursorShape.SizeNortheastSouthwest, // Northeast-Southwest
+            2 => InputSystemCursorShape.SizeWestEast,          // East-West
+            3 => InputSystemCursorShape.SizeNorthwestSoutheast, // Southeast-Northwest
+            4 => InputSystemCursorShape.SizeNorthSouth,        // South-North
+            5 => InputSystemCursorShape.SizeNortheastSouthwest, // Southwest-Northeast
+            6 => InputSystemCursorShape.SizeWestEast,          // West-East
+            7 => InputSystemCursorShape.SizeNorthwestSoutheast, // Northwest-Southeast
+            _ => InputSystemCursorShape.SizeAll
+        };
     }
 
     private T? FindParent<T>(DependencyObject child) where T : DependencyObject

@@ -204,6 +204,17 @@ public sealed partial class DraggableSourceItem : UserControl
                 case nameof(SourceItem.CropBottomPct):
                 case nameof(SourceItem.CropRotation):
                     UpdateCropShading();
+                    // If in crop mode, also update the crop rectangle visuals
+                    if (_isCropping)
+                    {
+                        var newCropRect = new Rect(
+                            ActualWidth * Source.CropLeftPct,
+                            ActualHeight * Source.CropTopPct,
+                            ActualWidth * (1 - Source.CropLeftPct - Source.CropRightPct),
+                            ActualHeight * (1 - Source.CropTopPct - Source.CropBottomPct)
+                        );
+                        UpdateCropVisuals(newCropRect, Source.CropRotation);
+                    }
                     break;
 
                 case nameof(SourceItem.DisplayName):
@@ -967,28 +978,29 @@ public sealed partial class DraggableSourceItem : UserControl
 
     private void AcceptCropButton_Click(object sender, RoutedEventArgs e)
     {
-        var cropRect = new Rect(Canvas.GetLeft(CropRect), Canvas.GetTop(CropRect), CropRect.Width, CropRect.Height);
-
-        // Convert pixels to percentages
-        Source.CropLeftPct = cropRect.X / ActualWidth;
-        Source.CropTopPct = cropRect.Y / ActualHeight;
-        Source.CropRightPct = (ActualWidth - cropRect.Right) / ActualWidth;
-        Source.CropBottomPct = (ActualHeight - cropRect.Bottom) / ActualHeight;
-
-        // Apply current rotation to the crop
-        var transform = CropRect.RenderTransform as RotateTransform;
-        if (transform != null)
+        // Source properties have already been updated live during cropping
+        // Just save the final state for undo/redo and persistence
+        var viewModel = App.GetService<MainViewModel>();
+        if (viewModel != null)
         {
-            Source.CropRotation = (int)Math.Round(transform.Angle);
+            viewModel.SaveUndoState();
+            viewModel.SaveSourcesCommand.Execute(null);
         }
-
-        App.GetService<MainViewModel>()?.SaveSourcesCommand.Execute(null);
 
         ExitCropMode();
     }
 
     private void CancelCropButton_Click(object sender, RoutedEventArgs e)
     {
+        // Restore original crop values since we've been updating them live
+        if (Source != null)
+        {
+            Source.CropLeftPct = _cropStartRect.X / ActualWidth;
+            Source.CropTopPct = _cropStartRect.Y / ActualHeight;
+            Source.CropRightPct = (ActualWidth - _cropStartRect.Right) / ActualWidth;
+            Source.CropBottomPct = (ActualHeight - _cropStartRect.Bottom) / ActualHeight;
+            Source.CropRotation = (int)Math.Round(_cropActionStartRotation);
+        }
         ExitCropMode();
     }
 
@@ -1024,6 +1036,9 @@ public sealed partial class DraggableSourceItem : UserControl
 
         var deltaX = currentPoint.X - _cropActionStartPointerPosition.X;
         var deltaY = currentPoint.Y - _cropActionStartPointerPosition.Y;
+        
+        // Check if Shift key is pressed (used by multiple cases)
+        var isShiftDown = e.KeyModifiers.HasFlag(Windows.System.VirtualKeyModifiers.Shift);
 
         switch (_cropResizeMode)
         {
@@ -1038,7 +1053,6 @@ public sealed partial class DraggableSourceItem : UserControl
                 var angleDelta = currentAngle - startAngle;
                 var newAngle = _cropActionStartRotation + angleDelta;
 
-                var isShiftDown = e.KeyModifiers.HasFlag(Windows.System.VirtualKeyModifiers.Shift);
                 if (isShiftDown)
                 {
                     newAngle = Math.Round(newAngle / 15.0) * 15.0; // Snap to 15-degree increments
@@ -1061,7 +1075,9 @@ public sealed partial class DraggableSourceItem : UserControl
                         _cropResizeMode,
                         deltaX,           // raw screen-space delta
                         deltaY,
-                        _cropActionStartRotation);
+                        _cropActionStartRotation,
+                        10,               // minSize
+                        isShiftDown);     // preserveAspectRatio
 
                     // keep the whole rotated rect inside the source card
                     var aabb = GetRotatedAabb(
@@ -1133,7 +1149,8 @@ public sealed partial class DraggableSourceItem : UserControl
         double dxScreen,
         double dyScreen,
         double rotationDeg,
-        double minSize = 10)
+        double minSize = 10,
+        bool preserveAspectRatio = false)
     {
         // ---- 0. helpers ----
         double θ = rotationDeg * Math.PI / 180.0;
@@ -1156,6 +1173,39 @@ public sealed partial class DraggableSourceItem : UserControl
         // ---- 2. new size in LOCAL space ----
         double w1 = w0 + (mR ? δL.X : 0) - (mL ? δL.X : 0);
         double h1 = h0 + (mB ? δL.Y : 0) - (mT ? δL.Y : 0);
+        
+        // ---- 2a. Preserve aspect ratio if Shift is held ----
+        if (preserveAspectRatio && w0 > 0 && h0 > 0)
+        {
+            double aspectRatio = w0 / h0;
+            bool isCornerResize = (mL || mR) && (mT || mB); // corner resize modes
+            
+            if (isCornerResize)
+            {
+                // For corner resize, use the dominant direction to drive both dimensions
+                if (Math.Abs(δL.X) >= Math.Abs(δL.Y))
+                {
+                    // Width-driven resize
+                    h1 = w1 / aspectRatio;
+                }
+                else
+                {
+                    // Height-driven resize
+                    w1 = h1 * aspectRatio;
+                }
+            }
+            else if (mL || mR)
+            {
+                // Pure horizontal resize - adjust height to maintain aspect ratio
+                h1 = w1 / aspectRatio;
+            }
+            else if (mT || mB)
+            {
+                // Pure vertical resize - adjust width to maintain aspect ratio
+                w1 = h1 * aspectRatio;
+            }
+        }
+        
         w1 = Math.Max(minSize, w1);
         h1 = Math.Max(minSize, h1);
 
@@ -1231,6 +1281,16 @@ public sealed partial class DraggableSourceItem : UserControl
 
         // Apply shading using the temporary crop values
         UpdateCropShadingWithValues(tempCropLeftPct, tempCropTopPct, tempCropRightPct, tempCropBottomPct, tempCropRotation);
+        
+        // Update Source properties for live panel sync (only during active cropping)
+        if (_isCropping && Source != null)
+        {
+            Source.CropLeftPct = tempCropLeftPct;
+            Source.CropTopPct = tempCropTopPct;
+            Source.CropRightPct = tempCropRightPct;
+            Source.CropBottomPct = tempCropBottomPct;
+            Source.CropRotation = (int)Math.Round(tempCropRotation);
+        }
 
         // Update handles with rotation
         const double handleOffset = 5; // half of handle size
@@ -1455,6 +1515,7 @@ public sealed partial class DraggableSourceItem : UserControl
     private InputCursor GetCursor(ResizeMode resizeMode)
     {
         InputSystemCursorShape cursorShape;
+        
         switch (resizeMode)
         {
             case ResizeMode.Rotate:
@@ -1464,26 +1525,64 @@ public sealed partial class DraggableSourceItem : UserControl
                 cursorShape = InputSystemCursorShape.SizeAll;
                 break;
             case ResizeMode.TopLeft:
-            case ResizeMode.BottomRight:
-                cursorShape = InputSystemCursorShape.SizeNorthwestSoutheast;
-                break;
             case ResizeMode.TopRight:
             case ResizeMode.BottomLeft:
-                cursorShape = InputSystemCursorShape.SizeNortheastSouthwest;
-                break;
+            case ResizeMode.BottomRight:
             case ResizeMode.Top:
             case ResizeMode.Bottom:
-                cursorShape = InputSystemCursorShape.SizeNorthSouth;
-                break;
             case ResizeMode.Left:
             case ResizeMode.Right:
-                cursorShape = InputSystemCursorShape.SizeWestEast;
+                cursorShape = GetRotatedCursorShape(resizeMode);
                 break;
             default:
                 cursorShape = InputSystemCursorShape.Arrow;
                 break;
         }
         return InputSystemCursor.Create(cursorShape);
+    }
+    
+    private InputSystemCursorShape GetRotatedCursorShape(ResizeMode resizeMode)
+    {
+        // Get the current rotation angle
+        var rotation = Source?.Rotation ?? 0;
+        
+        // Normalize rotation to 0-360 range
+        rotation = ((rotation % 360) + 360) % 360;
+        
+        // Determine the effective direction after rotation
+        // We use 8 directions, so every 45 degrees shifts the cursor
+        var rotationSteps = (int)Math.Round(rotation / 45.0) % 8;
+        
+        // Map resize modes to direction indices (0 = N, 1 = NE, 2 = E, etc.)
+        var directionIndex = resizeMode switch
+        {
+            ResizeMode.Top => 0,           // North
+            ResizeMode.TopRight => 1,     // Northeast  
+            ResizeMode.Right => 2,        // East
+            ResizeMode.BottomRight => 3,  // Southeast
+            ResizeMode.Bottom => 4,       // South
+            ResizeMode.BottomLeft => 5,   // Southwest
+            ResizeMode.Left => 6,         // West
+            ResizeMode.TopLeft => 7,      // Northwest
+            _ => 0
+        };
+        
+        // Apply rotation offset
+        var rotatedDirection = (directionIndex + rotationSteps) % 8;
+        
+        // Map back to cursor shapes
+        return rotatedDirection switch
+        {
+            0 => InputSystemCursorShape.SizeNorthSouth,        // North-South
+            1 => InputSystemCursorShape.SizeNortheastSouthwest, // Northeast-Southwest
+            2 => InputSystemCursorShape.SizeWestEast,          // East-West
+            3 => InputSystemCursorShape.SizeNorthwestSoutheast, // Southeast-Northwest
+            4 => InputSystemCursorShape.SizeNorthSouth,        // South-North
+            5 => InputSystemCursorShape.SizeNortheastSouthwest, // Southwest-Northeast
+            6 => InputSystemCursorShape.SizeWestEast,          // West-East
+            7 => InputSystemCursorShape.SizeNorthwestSoutheast, // Northwest-Southeast
+            _ => InputSystemCursorShape.SizeAll
+        };
     }
 
     private void UpdateDisplay(SourceItem source)

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Better_SignalRGB_Screen_Capture.Models;
 using Better_SignalRGB_Screen_Capture.ViewModels;
+using Better_SignalRGB_Screen_Capture.Contracts.ViewModels;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -17,7 +18,7 @@ using Microsoft.UI.Dispatching;
 
 namespace Better_SignalRGB_Screen_Capture.Views;
 
-public sealed partial class MainPage : Page
+public sealed partial class MainPage : Page, INavigationAware
 {
     public MainViewModel ViewModel { get; }
     private bool _isSelecting;
@@ -33,33 +34,21 @@ public sealed partial class MainPage : Page
     {
         ViewModel = App.GetService<MainViewModel>();
         InitializeComponent();
-        ViewModel.Sources.CollectionChanged += OnSourcesCollectionChanged;
-        ViewModel.PropertyChanged += ViewModel_PropertyChanged;
-        ViewModel.SourcesMoved += OnSourcesMoved;
+        
         Loaded += (s, e) =>
         {
-            UpdateCanvas();
             // Ensure the canvas can receive keyboard focus
             ContentArea.Focus(FocusState.Programmatic);
             
-            // Subscribe to zoom changes to sync the slider
-            if (CanvasScrollViewer != null)
+            // Initialize zoom slider with current zoom factor
+            if (CanvasScrollViewer != null && ZoomSlider != null && ZoomPercentageText != null)
             {
-                CanvasScrollViewer.ViewChanged += CanvasScrollViewer_ViewChanged;
-                
-                // Initialize zoom slider with current zoom factor
-                if (ZoomSlider != null && ZoomPercentageText != null)
-                {
-                    ZoomSlider.Value = CanvasScrollViewer.ZoomFactor;
-                    ZoomPercentageText.Text = $"{CanvasScrollViewer.ZoomFactor * 100:F0}%";
-                }
+                ZoomSlider.Value = CanvasScrollViewer.ZoomFactor;
+                ZoomPercentageText.Text = $"{CanvasScrollViewer.ZoomFactor * 100:F0}%";
             }
 
-            // Sync initial selection from loaded data
-            UpdateSelectionInViewModel();
-            UpdateListViewSelection();
-            UpdateSelectionOnCanvas();
-            UpdateFlipIconsTheme();
+            // Call OnNavigatedTo to set up everything properly
+            OnNavigatedTo(null);
         };
 
         this.ActualThemeChanged += (s,e) => UpdateFlipIconsTheme();
@@ -947,5 +936,108 @@ public sealed partial class MainPage : Page
             CollapseIcon.Glyph = "\uE8A0"; // Open Pane
             ToolTipService.SetToolTip(CollapseButton, "Show Properties");
         }
+    }
+
+    public void OnNavigatedTo(object parameter)
+    {
+        // Re-attach event handlers and restart services
+        if (ViewModel != null)
+        {
+            ViewModel.Sources.CollectionChanged += OnSourcesCollectionChanged;
+            ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+            ViewModel.SourcesMoved += OnSourcesMoved;
+        }
+        
+        if (CanvasScrollViewer != null)
+        {
+            CanvasScrollViewer.ViewChanged += CanvasScrollViewer_ViewChanged;
+        }
+        
+        // Restart preview and streaming services
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            try
+            {
+                UpdateCanvas();
+                UpdateSelectionInViewModel();
+                UpdateListViewSelection();
+                UpdateSelectionOnCanvas();
+                UpdateFlipIconsTheme();
+                
+                // Restart captures for active sources
+                if (ViewModel.IsRecording)
+                {
+                    await ViewModel.ToggleRecordingCommand.ExecuteAsync(null);
+                    await Task.Delay(100); // Brief delay before restarting
+                    await ViewModel.ToggleRecordingCommand.ExecuteAsync(null);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't crash
+                System.Diagnostics.Debug.WriteLine($"Error restarting services: {ex.Message}");
+            }
+        });
+    }
+
+    public void OnNavigatedFrom()
+    {
+        // Detach all event handlers
+        if (ViewModel != null)
+        {
+            ViewModel.Sources.CollectionChanged -= OnSourcesCollectionChanged;
+            ViewModel.PropertyChanged -= ViewModel_PropertyChanged; 
+            ViewModel.SourcesMoved -= OnSourcesMoved;
+        }
+        
+        if (CanvasScrollViewer != null)
+        {
+            CanvasScrollViewer.ViewChanged -= CanvasScrollViewer_ViewChanged;
+        }
+        
+        // Detach handlers from all source items
+        if (SourceCanvas != null)
+        {
+            foreach (var item in SourceCanvas.Children.OfType<DraggableSourceItem>())
+            {
+                item.DragStarted -= OnDraggableItemDragStarted;
+                item.DragDelta -= OnDraggableItemDragDelta;
+                item.Tapped -= OnDraggableItemTapped;
+                item.DeleteRequested -= OnSourceDeleteRequested;
+                item.CopyRequested -= OnSourceCopyRequested;
+                item.CenterRequested -= OnSourceCenterRequested;
+                item.EditRequested -= OnSourceEditRequested;
+            }
+        }
+        
+        // Detach group selection handlers
+        if (_groupSelectionControl != null)
+        {
+            _groupSelectionControl.DragStarted -= OnGroupSelectionDragStarted;
+            _groupSelectionControl.DragDelta -= OnGroupSelectionDragDelta;
+        }
+        
+        // Stop all capture and streaming services
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            try
+            {
+                if (ViewModel.IsRecording)
+                {
+                    await ViewModel.ToggleRecordingCommand.ExecuteAsync(null);
+                }
+                
+                // Stop preview updates
+                if (ViewModel.IsPreviewing)
+                {
+                    // This will be handled by the ViewModel's disposal
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't crash
+                System.Diagnostics.Debug.WriteLine($"Error stopping services: {ex.Message}");
+            }
+        });
     }
 }

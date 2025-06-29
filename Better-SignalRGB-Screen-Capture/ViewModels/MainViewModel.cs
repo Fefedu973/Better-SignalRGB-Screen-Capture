@@ -655,16 +655,24 @@ public partial class MainViewModel : ObservableRecipient
 
     public bool SelectedSourceIsMirroredVertically
     {
-        get => SelectedSources.FirstOrDefault()?.IsMirroredVertically ?? false;
+        get
+        {
+            if (SelectedSources.Count == 0) return false;
+            if (SelectedSources.Count == 1) return SelectedSources[0].IsMirroredVertically;
+            var first = SelectedSources[0].IsMirroredVertically;
+            return SelectedSources.Skip(1).All(s => s.IsMirroredVertically == first) ? first : false;
+        }
         set
         {
-            if (SelectedSources.FirstOrDefault()?.IsMirroredVertically != value)
+            if (SelectedSources.Count > 0)
             {
+                SaveUndoState();
                 foreach (var source in SelectedSources)
                 {
                     source.IsMirroredVertically = value;
                 }
-                _ = SaveSourcesWithUndoAsync();
+                _ = SaveSourcesAsync();
+                OnPropertyChanged();
             }
         }
     }
@@ -692,13 +700,38 @@ public partial class MainViewModel : ObservableRecipient
         var offX = w * src.CropLeftPct;
         var offY = h * src.CropTopPct;
 
-        // 4. Determine the center of the visible part in canvas coordinates
-        var centre = new Point(
-            src.CanvasX + offX + effW / 2,
-            src.CanvasY + offY + effH / 2);
+        // 4. Apply mirror transforms to the offset if needed
+        if (src.IsMirroredHorizontally)
+        {
+            offX = w - offX - effW; // Mirror horizontally
+        }
+        if (src.IsMirroredVertically)
+        {
+            offY = h - offY - effH; // Mirror vertically
+        }
 
-        // 5. Get the AABB of the rotated visible part
-        return GetRotatedAabb(centre, new Size(effW, effH), src.Rotation + src.CropRotation);
+        // 5. First apply the item's rotation to the control center
+        var controlCenter = new Point(src.CanvasX + w / 2.0, src.CanvasY + h / 2.0);
+        
+        // 6. Calculate the center of the visible part relative to the control center, 
+        //    then apply item rotation, then translate to world coordinates
+        var relativeCenterX = offX + effW / 2.0 - w / 2.0;
+        var relativeCenterY = offY + effH / 2.0 - h / 2.0;
+        
+        // Rotate the relative center by the item's rotation
+        var itemRotRad = src.Rotation * Math.PI / 180.0;
+        var itemCos = Math.Cos(itemRotRad);
+        var itemSin = Math.Sin(itemRotRad);
+        
+        var rotatedRelX = relativeCenterX * itemCos - relativeCenterY * itemSin;
+        var rotatedRelY = relativeCenterX * itemSin + relativeCenterY * itemCos;
+        
+        var visibleCenter = new Point(
+            controlCenter.X + rotatedRelX,
+            controlCenter.Y + rotatedRelY);
+
+        // 7. Get the AABB of the rotated visible part (item rotation + crop rotation)
+        return GetRotatedAabb(visibleCenter, new Size(effW, effH), src.Rotation + src.CropRotation);
     }
 
     private static Rect GetRotatedAabb(Point center, Size size, double angleDeg)
@@ -839,9 +872,17 @@ public partial class MainViewModel : ObservableRecipient
     {
         if (SelectedSources.Count == 0) return;
 
+        SaveUndoState();
+
         if (SelectedSources.Count == 1)
         {
-            SelectedSources[0].IsMirroredHorizontally = !SelectedSources[0].IsMirroredHorizontally;
+            var source = SelectedSources[0];
+            source.IsMirroredHorizontally = !source.IsMirroredHorizontally;
+            
+            // Mirror rotation angle for horizontal flip
+            // 30° becomes 330° (or -30°), 45° becomes 315° (or -45°), etc.
+            source.Rotation = 360 - source.Rotation;
+            if (source.Rotation >= 360) source.Rotation -= 360;
         }
         else
         {
@@ -859,6 +900,10 @@ public partial class MainViewModel : ObservableRecipient
                 var newSourceCenter = selectionCenterX + (selectionCenterX - sourceCenter);
                 s.CanvasX = (int)(newSourceCenter - s.CanvasWidth / 2.0);
                 s.IsMirroredHorizontally = !s.IsMirroredHorizontally;
+                
+                // Mirror rotation angle for horizontal flip
+                s.Rotation = 360 - s.Rotation;
+                if (s.Rotation >= 360) s.Rotation -= 360;
             }
         }
         await SaveSourcesAsync();
@@ -869,9 +914,17 @@ public partial class MainViewModel : ObservableRecipient
     {
         if (SelectedSources.Count == 0) return;
 
+        SaveUndoState();
+
         if (SelectedSources.Count == 1)
         {
-            SelectedSources[0].IsMirroredVertically = !SelectedSources[0].IsMirroredVertically;
+            var source = SelectedSources[0];
+            source.IsMirroredVertically = !source.IsMirroredVertically;
+            
+            // Mirror rotation angle for vertical flip
+            // 30° becomes -30°, 45° becomes -45°, etc.
+            source.Rotation = -source.Rotation;
+            if (source.Rotation < 0) source.Rotation += 360;
         }
         else
         {
@@ -889,6 +942,10 @@ public partial class MainViewModel : ObservableRecipient
                 var newSourceCenter = selectionCenterY + (selectionCenterY - sourceCenter);
                 s.CanvasY = (int)(newSourceCenter - s.CanvasHeight / 2.0);
                 s.IsMirroredVertically = !s.IsMirroredVertically;
+                
+                // Mirror rotation angle for vertical flip
+                s.Rotation = -s.Rotation;
+                if (s.Rotation < 0) s.Rotation += 360;
             }
         }
         await SaveSourcesAsync();

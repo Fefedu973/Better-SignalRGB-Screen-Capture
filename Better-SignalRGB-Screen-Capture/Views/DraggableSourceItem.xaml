@@ -18,46 +18,49 @@
             <RotateTransform x:Name="RotateTransform" />
         </Grid.RenderTransform>
 
+        <!-- Border without flip transform - provides background and styling -->
         <Border
             x:Name="ItemBorder"
             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
             BorderThickness="1"
+            CornerRadius="{StaticResource ControlCornerRadius}" />
+
+        <!-- Content container with flip transform -->
+        <Border
+            x:Name="ContentBorder"
             CornerRadius="{StaticResource ControlCornerRadius}"
             RenderTransformOrigin="0.5,0.5">
             <Border.RenderTransform>
                 <ScaleTransform ScaleX="{x:Bind Source.IsMirroredHorizontally, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" ScaleY="{x:Bind Source.IsMirroredVertically, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" />
             </Border.RenderTransform>
-            <Grid>
-                <!--  Content Grid  -->
-                <Grid Padding="8">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <TextBlock
-                        x:Name="DisplayNameText"
-                        Grid.Row="0"
-                        HorizontalAlignment="Left"
-                        Style="{ThemeResource CaptionTextBlockStyle}"
-                        Text="Source Name"
-                        TextTrimming="CharacterEllipsis" />
-                    <TextBlock
-                        x:Name="TypeText"
-                        Grid.Row="1"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        FontWeight="SemiBold"
-                        Style="{ThemeResource BodyTextBlockStyle}"
-                        Text="Source Type" />
-                </Grid>
-
-                <!--  Crop shading (one path, even-odd fill)  -->
-                <Path x:Name="CropShadePath"
-                      Fill="Black"
-                      Opacity="0.35"/>
+            <Grid Padding="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <TextBlock
+                    x:Name="DisplayNameText"
+                    Grid.Row="0"
+                    HorizontalAlignment="Left"
+                    Style="{ThemeResource CaptionTextBlockStyle}"
+                    Text="Source Name"
+                    TextTrimming="CharacterEllipsis" />
+                <TextBlock
+                    x:Name="TypeText"
+                    Grid.Row="1"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    FontWeight="SemiBold"
+                    Style="{ThemeResource BodyTextBlockStyle}"
+                    Text="Source Type" />
             </Grid>
         </Border>
+        
+        <!-- Crop shading overlay - NOT affected by flip transform -->
+        <Path x:Name="CropShadePath"
+              Fill="Black"
+              Opacity="0.35"/>
 
         <Border
             x:Name="HoverBorder"
