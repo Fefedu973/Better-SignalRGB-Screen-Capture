@@ -15,6 +15,7 @@ using Windows.System;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Dispatching;
+using Better_SignalRGB_Screen_Capture.Contracts.Services;
 
 namespace Better_SignalRGB_Screen_Capture.Views;
 
@@ -940,96 +941,43 @@ public sealed partial class MainPage : Page, INavigationAware
 
     public void OnNavigatedTo(object parameter)
     {
-        // Re-attach event handlers and restart services
-        if (ViewModel != null)
-        {
-            ViewModel.Sources.CollectionChanged += OnSourcesCollectionChanged;
-            ViewModel.PropertyChanged += ViewModel_PropertyChanged;
-            ViewModel.SourcesMoved += OnSourcesMoved;
-        }
-        
-        if (CanvasScrollViewer != null)
-        {
-            CanvasScrollViewer.ViewChanged += CanvasScrollViewer_ViewChanged;
-        }
-        
-        // Restart preview and streaming services
-        DispatcherQueue.TryEnqueue(async () =>
-        {
-            try
-            {
-                UpdateCanvas();
-                UpdateSelectionInViewModel();
-                UpdateListViewSelection();
-                UpdateSelectionOnCanvas();
-                UpdateFlipIconsTheme();
+        ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+        ViewModel.Sources.CollectionChanged += OnSourcesCollectionChanged;
+        ViewModel.SourcesMoved += OnSourcesMoved;
 
-                await ViewModel.StartAllCapturesAsync();
-            }
-            catch (Exception ex)
-            {
-                // Log error but don't crash
-                System.Diagnostics.Debug.WriteLine($"Error restarting services: {ex.Message}");
-            }
+        // When navigating back, captures might have been stopped by OnNavigatedFrom.
+        // We should restart them.
+        var captureService = App.GetService<ICaptureService>();
+        foreach (var source in ViewModel.Sources)
+        {
+            // Don't wait, let them start in the background
+            _ = captureService.StartCaptureAsync(source);
+        }
+
+        // Defer UI updates until the page is fully loaded
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            UpdateCanvas();
+            UpdateListViewSelection();
+            UpdateSelectionOnCanvas();
         });
     }
 
     public void OnNavigatedFrom()
     {
-        // Detach all event handlers
-        if (ViewModel != null)
-        {
-            ViewModel.Sources.CollectionChanged -= OnSourcesCollectionChanged;
-            ViewModel.PropertyChanged -= ViewModel_PropertyChanged; 
-            ViewModel.SourcesMoved -= OnSourcesMoved;
-        }
-        
-        if (CanvasScrollViewer != null)
-        {
-            CanvasScrollViewer.ViewChanged -= CanvasScrollViewer_ViewChanged;
-        }
-        
-        // Detach handlers from all source items
-        if (SourceCanvas != null)
-        {
-            foreach (var item in SourceCanvas.Children.OfType<DraggableSourceItem>())
-            {
-                item.DragStarted -= OnDraggableItemDragStarted;
-                item.DragDelta -= OnDraggableItemDragDelta;
-                item.Tapped -= OnDraggableItemTapped;
-                item.DeleteRequested -= OnSourceDeleteRequested;
-                item.CopyRequested -= OnSourceCopyRequested;
-                item.CenterRequested -= OnSourceCenterRequested;
-                item.EditRequested -= OnSourceEditRequested;
-            }
-        }
-        
-        // Detach and remove the group selection control
-        if (_groupSelectionControl != null)
-        {
-            _groupSelectionControl.DragStarted -= OnGroupSelectionDragStarted;
-            _groupSelectionControl.DragDelta -= OnGroupSelectionDragDelta;
+        ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+        ViewModel.Sources.CollectionChanged -= OnSourcesCollectionChanged;
+        ViewModel.SourcesMoved -= OnSourcesMoved;
 
-            if (SourceCanvas != null && SourceCanvas.Children.Contains(_groupSelectionControl))
-            {
-                SourceCanvas.Children.Remove(_groupSelectionControl);
-            }
+        // Stop all captures when leaving the page to prevent background processing
+        // that might access unloaded UI elements.
+        // We need to do this synchronously on this thread as the page is about to be torn down.
+        // Using the dispatcher queue can be unreliable here.
+        var stopTask = ViewModel.StopAllCapturesAsync();
+        stopTask.Wait(); // Block to ensure completion before navigating away
 
-            _groupSelectionControl = null;
-        }
-        
-        // Stop all capture and streaming services
-        DispatcherQueue.TryEnqueue(async () =>
-        {
-            try
-            {
-                await ViewModel.StopAllCapturesAsync();
-            }
-            catch (Exception ex)
-            {
-                // Log error but don't crash
-                System.Diagnostics.Debug.WriteLine($"Error stopping services: {ex.Message}");
-            }
-        });
+        // Clear the canvas to ensure all UI elements and their event handlers are released
+        SourceCanvas.Children.Clear();
+        _groupSelectionControl = null;
     }
 }

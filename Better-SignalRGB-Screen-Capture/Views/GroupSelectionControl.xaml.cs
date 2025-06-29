@@ -518,8 +518,15 @@ public sealed partial class GroupSelectionControl : UserControl
         foreach (var st in _itemStates)
         {
             // Calculate new item properties without committing
-            var rp = new Point(st.RelativePosition.X * sx, st.RelativePosition.Y * sy);
-            var wc = new Point(c1.X + rp.X, c1.Y + rp.Y);
+            // ① convert relative offset to group-local coords
+            var relLocal = ToLocal(st.RelativePosition.X, st.RelativePosition.Y);
+            // ② scale inside that basis
+            relLocal = new Point(relLocal.X * sx, relLocal.Y * sy);
+            // ③ turn the scaled vector back into world space
+            var relWorld = ToWorld(relLocal.X, relLocal.Y);
+            // ④ final child centre in world space
+            var wc = new Point(c1.X + relWorld.X, c1.Y + relWorld.Y);
+
             var (newW, newH) = ScaleSizeRespectingRotation(
                 st.Size, sx, sy, st.Rotation - _actionStartRotation);
             
@@ -550,10 +557,15 @@ public sealed partial class GroupSelectionControl : UserControl
         foreach (var st in _itemStates)
         {
             // Use double precision for all calculations to avoid drift
-            double relativeX = st.RelativePosition.X * sx;
-            double relativeY = st.RelativePosition.Y * sy;
-            double worldCenterX = c1.X + relativeX;
-            double worldCenterY = c1.Y + relativeY;
+            // ① convert relative offset to group-local coords
+            var relLocal = ToLocal(st.RelativePosition.X, st.RelativePosition.Y);
+            // ② scale inside that basis
+            relLocal = new Point(relLocal.X * sx, relLocal.Y * sy);
+            // ③ turn the scaled vector back into world space
+            var relWorld = ToWorld(relLocal.X, relLocal.Y);
+            // ④ final child centre in world space
+            double worldCenterX = c1.X + relWorld.X;
+            double worldCenterY = c1.Y + relWorld.Y;
 
             // scale the rectangle itself, honouring its own rotation
             var (newW, newH) = ScaleSizeRespectingRotation(
