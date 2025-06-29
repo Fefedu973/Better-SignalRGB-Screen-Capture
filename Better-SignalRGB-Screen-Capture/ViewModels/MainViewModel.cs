@@ -700,20 +700,10 @@ public partial class MainViewModel : ObservableRecipient
         var offX = w * src.CropLeftPct;
         var offY = h * src.CropTopPct;
 
-        // 4. Apply mirror transforms to the offset if needed
-        if (src.IsMirroredHorizontally)
-        {
-            offX = w - offX - effW; // Mirror horizontally
-        }
-        if (src.IsMirroredVertically)
-        {
-            offY = h - offY - effH; // Mirror vertically
-        }
-
-        // 5. First apply the item's rotation to the control center
+        // 4. First apply the item's rotation to the control center
         var controlCenter = new Point(src.CanvasX + w / 2.0, src.CanvasY + h / 2.0);
         
-        // 6. Calculate the center of the visible part relative to the control center, 
+        // 5. Calculate the center of the visible part relative to the control center, 
         //    then apply item rotation, then translate to world coordinates
         var relativeCenterX = offX + effW / 2.0 - w / 2.0;
         var relativeCenterY = offY + effH / 2.0 - h / 2.0;

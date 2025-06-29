@@ -189,7 +189,7 @@ public sealed partial class DraggableSourceItem : UserControl
                     _isSelected = Source.IsSelected;
                     if (_isCropping && !_isSelected)
                     {
-                        ExitCropMode();
+                        CancelCrop();
                     }
                     SetSelected(_isSelected);
                     break;
@@ -992,6 +992,11 @@ public sealed partial class DraggableSourceItem : UserControl
 
     private void CancelCropButton_Click(object sender, RoutedEventArgs e)
     {
+        CancelCrop();
+    }
+
+    private void CancelCrop()
+    {
         // Restore original crop values since we've been updating them live
         if (Source != null)
         {
@@ -1019,6 +1024,11 @@ public sealed partial class DraggableSourceItem : UserControl
         if (_cropResizeMode != ResizeMode.None)
         {
             CropCanvas.CapturePointer(e.Pointer);
+        }
+        else
+        {
+            // Click outside the crop rectangle cancels the edit
+            CancelCrop();
         }
     }
 
