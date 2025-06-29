@@ -709,20 +709,8 @@ public sealed partial class DraggableSourceItem : UserControl
         horizontalIcon.RenderTransform = new RotateTransform { Angle = 90, CenterX = 8, CenterY = 8 };
         flipHorizontalItem.Icon = horizontalIcon;
 
-        flipHorizontalItem.Click += async (s, a) => 
-        {
-            if (viewModel?.SelectedSources.Any() != true) return;
-            var targetState = !viewModel.SelectedSources[0].IsMirroredHorizontally;
-            foreach(var source in viewModel.SelectedSources) source.IsMirroredHorizontally = targetState;
-            await viewModel.SaveSourcesAsync();
-        };
-        flipVerticalItem.Click += async (s, a) => 
-        {
-            if (viewModel?.SelectedSources.Any() != true) return;
-            var targetState = !viewModel.SelectedSources[0].IsMirroredVertically;
-            foreach(var source in viewModel.SelectedSources) source.IsMirroredVertically = targetState;
-            await viewModel.SaveSourcesAsync();
-        };
+        flipHorizontalItem.Click += (s, a) => viewModel.ToggleFlipHorizontalCommand.Execute(null);
+        flipVerticalItem.Click += (s, a) => viewModel.ToggleFlipVerticalCommand.Execute(null);
         menuFlyout.Items.Add(flipHorizontalItem);
         menuFlyout.Items.Add(flipVerticalItem);
 
@@ -788,20 +776,8 @@ public sealed partial class DraggableSourceItem : UserControl
         horizontalIcon.RenderTransform = new RotateTransform { Angle = 90, CenterX = 8, CenterY = 8 };
         flipHorizontalItem.Icon = horizontalIcon;
 
-        flipHorizontalItem.Click += async (s, a) => 
-        {
-            if (viewModel?.SelectedSources.Any() != true) return;
-            var targetState = !viewModel.SelectedSources[0].IsMirroredHorizontally;
-            foreach (var source in viewModel.SelectedSources) source.IsMirroredHorizontally = targetState;
-            await viewModel.SaveSourcesAsync();
-        };
-        flipVerticalItem.Click += async (s, a) =>
-        {
-            if (viewModel?.SelectedSources.Any() != true) return;
-            var targetState = !viewModel.SelectedSources[0].IsMirroredVertically;
-            foreach (var source in viewModel.SelectedSources) source.IsMirroredVertically = targetState;
-            await viewModel.SaveSourcesAsync();
-        };
+        flipHorizontalItem.Click += (s, a) => viewModel.ToggleFlipHorizontalCommand.Execute(null);
+        flipVerticalItem.Click += (s, a) => viewModel.ToggleFlipVerticalCommand.Execute(null);
         menuFlyout.Items.Add(flipHorizontalItem);
         menuFlyout.Items.Add(flipVerticalItem);
 
@@ -978,8 +954,52 @@ public sealed partial class DraggableSourceItem : UserControl
 
     private void AcceptCropButton_Click(object sender, RoutedEventArgs e)
     {
-        // Source properties have already been updated live during cropping
-        // Just save the final state for undo/redo and persistence
+        if (Source == null)
+        {
+            ExitCropMode();
+            return;
+        }
+
+        var parentCanvas = FindParent<Canvas>(this);
+        if (parentCanvas != null)
+        {
+            // Calculate the AABB of the *visible* (cropped) area.
+            var visibleAabb = MainViewModel.GetVisibleAreaAabb(Source);
+
+            if (!visibleAabb.IsEmpty)
+            {
+                // Determine if there's an overflow and calculate the adjustment needed.
+                double dx = 0;
+                double dy = 0;
+
+                if (visibleAabb.Left < 0)
+                {
+                    dx = -visibleAabb.Left;
+                }
+                else if (visibleAabb.Right > parentCanvas.ActualWidth)
+                {
+                    dx = parentCanvas.ActualWidth - visibleAabb.Right;
+                }
+
+                if (visibleAabb.Top < 0)
+                {
+                    dy = -visibleAabb.Top;
+                }
+                else if (visibleAabb.Bottom > parentCanvas.ActualHeight)
+                {
+                    dy = parentCanvas.ActualHeight - visibleAabb.Bottom;
+                }
+
+                // Apply adjustment to the source's main position if needed.
+                if (dx != 0 || dy != 0)
+                {
+                    Source.CanvasX += (int)Math.Round(dx);
+                    Source.CanvasY += (int)Math.Round(dy);
+                }
+            }
+        }
+        
+        // Source properties are accepted. Save the final state.
         var viewModel = App.GetService<MainViewModel>();
         if (viewModel != null)
         {

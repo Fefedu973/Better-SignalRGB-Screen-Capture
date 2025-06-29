@@ -740,7 +740,7 @@ public sealed partial class GroupSelectionControl : UserControl
 
         var flipHorizontalItem = new MenuFlyoutItem { Text = "Flip Horizontally" };
         var flipVerticalItem = new MenuFlyoutItem { Text = "Flip Vertically" };
-
+        
         // Set icons based on theme
         var theme = (this.XamlRoot.Content as FrameworkElement)?.ActualTheme ?? ElementTheme.Light;
         var iconName = theme == ElementTheme.Dark ? "Flip-dark.svg" : "Flip-white.svg";
@@ -752,9 +752,9 @@ public sealed partial class GroupSelectionControl : UserControl
         var horizontalIcon = new ImageIcon { Source = new SvgImageSource(iconUri), Width = 16, Height = 16 };
         horizontalIcon.RenderTransform = new RotateTransform { Angle = 90, CenterX = 8, CenterY = 8 };
         flipHorizontalItem.Icon = horizontalIcon;
-
-        flipHorizontalItem.Click += async (s, a) => await FlipGroup(true, false, viewModel);
-        flipVerticalItem.Click += async (s, a) => await FlipGroup(false, true, viewModel);
+        
+        flipHorizontalItem.Click += (s, a) => viewModel.ToggleFlipHorizontalCommand.Execute(null);
+        flipVerticalItem.Click += (s, a) => viewModel.ToggleFlipVerticalCommand.Execute(null);
         menuFlyout.Items.Add(flipHorizontalItem);
         menuFlyout.Items.Add(flipVerticalItem);
 
@@ -810,30 +810,22 @@ public sealed partial class GroupSelectionControl : UserControl
 
     private async Task FlipGroup(bool horizontal, bool vertical, MainViewModel viewModel)
     {
-        var sourcesToFlip = SelectedSources.ToList();
-        if (!sourcesToFlip.Any()) return;
+        if (!SelectedSources.Any()) return;
 
         viewModel.SaveUndoState();
+        
+        var sourcesToFlip = SelectedSources.ToList();
 
-        /* ------------------------------------------------------------
-         * 1) Decide the *target* mirror state for the whole group
-         *    (opposite of whatever the first item has right now)
-         * ------------------------------------------------------------ */
-        bool horizTarget = horizontal
-            ? !sourcesToFlip[0].IsMirroredHorizontally
-            : default;                // value won't be used
-        bool vertTarget  = vertical
-            ? !sourcesToFlip[0].IsMirroredVertically
-            : default;
+        // Determine the target state based on the first item
+        var horizTarget = horizontal ? !sourcesToFlip[0].IsMirroredHorizontally : sourcesToFlip[0].IsMirroredHorizontally;
+        var vertTarget = vertical ? !sourcesToFlip[0].IsMirroredVertically : sourcesToFlip[0].IsMirroredVertically;
 
-        /* ------------------------------------------------------------
-         * 2) Stable pivot – same as before
-         * ------------------------------------------------------------ */
+        // Bounding box of the whole group
         Rect groupBounds = Rect.Empty;
         foreach (var s in sourcesToFlip)
         {
-            var c = new Point(s.CanvasX + s.CanvasWidth * .5,
-                              s.CanvasY + s.CanvasHeight * .5);
+            var c = new Point(s.CanvasX + s.CanvasWidth * 0.5,
+                              s.CanvasY + s.CanvasHeight * 0.5);
             var sz = new Size(s.CanvasWidth, s.CanvasHeight);
             var box = GetRotatedAabb(c, sz, s.Rotation);
 
@@ -860,6 +852,10 @@ public sealed partial class GroupSelectionControl : UserControl
                 src.CanvasX = (int)Math.Round(
                     2 * groupCenter.X - src.CanvasX - src.CanvasWidth);
                 src.IsMirroredHorizontally = horizTarget;
+
+                // Mirror rotation when flipping
+                src.Rotation = 360 - src.Rotation;
+                if (src.Rotation >= 360) src.Rotation -= 360;
             }
 
             if (vertical)
@@ -867,6 +863,10 @@ public sealed partial class GroupSelectionControl : UserControl
                 src.CanvasY = (int)Math.Round(
                     2 * groupCenter.Y - src.CanvasY - src.CanvasHeight);
                 src.IsMirroredVertically = vertTarget;
+
+                // Mirror rotation when flipping vertically
+                src.Rotation = -src.Rotation;
+                if (src.Rotation < 0) src.Rotation += 360;
             }
         }
 
