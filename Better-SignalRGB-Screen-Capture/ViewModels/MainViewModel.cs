@@ -634,20 +634,15 @@ public partial class MainViewModel : ObservableRecipient
         get
         {
             if (SelectedSources.Count == 0) return false;
-            if (SelectedSources.Count == 1) return SelectedSources[0].IsMirroredHorizontally;
-            var first = SelectedSources[0].IsMirroredHorizontally;
-            return SelectedSources.Skip(1).All(s => s.IsMirroredHorizontally == first) ? first : false;
+            // For multi-selection, consider it "on" if ALL are mirrored, otherwise "off"
+            return SelectedSources.All(s => s.IsMirroredHorizontally);
         }
         set
         {
-            if (SelectedSources.Count > 0)
+            if (SelectedSources.Count > 0 && SelectedSourceIsMirroredHorizontally != value)
             {
-                SaveUndoState();
-                foreach (var source in SelectedSources)
-                {
-                    source.IsMirroredHorizontally = value;
-                }
-                _ = SaveSourcesAsync();
+                // This setter is now the trigger for the flip action
+                _ = ToggleFlipHorizontalCommand.ExecuteAsync(null);
                 OnPropertyChanged();
             }
         }
@@ -658,20 +653,15 @@ public partial class MainViewModel : ObservableRecipient
         get
         {
             if (SelectedSources.Count == 0) return false;
-            if (SelectedSources.Count == 1) return SelectedSources[0].IsMirroredVertically;
-            var first = SelectedSources[0].IsMirroredVertically;
-            return SelectedSources.Skip(1).All(s => s.IsMirroredVertically == first) ? first : false;
+            // For multi-selection, consider it "on" if ALL are mirrored, otherwise "off"
+            return SelectedSources.All(s => s.IsMirroredVertically);
         }
         set
         {
-            if (SelectedSources.Count > 0)
+            if (SelectedSources.Count > 0 && SelectedSourceIsMirroredVertically != value)
             {
-                SaveUndoState();
-                foreach (var source in SelectedSources)
-                {
-                    source.IsMirroredVertically = value;
-                }
-                _ = SaveSourcesAsync();
+                // This setter is now the trigger for the flip action
+                _ = ToggleFlipVerticalCommand.ExecuteAsync(null);
                 OnPropertyChanged();
             }
         }
@@ -860,84 +850,62 @@ public partial class MainViewModel : ObservableRecipient
     [RelayCommand]
     private async Task ToggleFlipHorizontalAsync()
     {
-        if (SelectedSources.Count == 0) return;
-
-        SaveUndoState();
-
-        if (SelectedSources.Count == 1)
-        {
-            var source = SelectedSources[0];
-            source.IsMirroredHorizontally = !source.IsMirroredHorizontally;
-            
-            // Mirror rotation angle for horizontal flip
-            // 30° becomes 330° (or -30°), 45° becomes 315° (or -45°), etc.
-            source.Rotation = 360 - source.Rotation;
-            if (source.Rotation >= 360) source.Rotation -= 360;
-        }
-        else
-        {
-            var selectionRect = new System.Drawing.Rectangle(
-                SelectedSources.Min(s => s.CanvasX),
-                SelectedSources.Min(s => s.CanvasY),
-                SelectedSources.Max(s => s.CanvasX + s.CanvasWidth) - SelectedSources.Min(s => s.CanvasX),
-                SelectedSources.Max(s => s.CanvasY + s.CanvasHeight) - SelectedSources.Min(s => s.CanvasY)
-            );
-            var selectionCenterX = selectionRect.X + selectionRect.Width / 2.0;
-
-            foreach (var s in SelectedSources)
-            {
-                var sourceCenter = s.CanvasX + s.CanvasWidth / 2.0;
-                var newSourceCenter = selectionCenterX + (selectionCenterX - sourceCenter);
-                s.CanvasX = (int)(newSourceCenter - s.CanvasWidth / 2.0);
-                s.IsMirroredHorizontally = !s.IsMirroredHorizontally;
-                
-                // Mirror rotation angle for horizontal flip
-                s.Rotation = 360 - s.Rotation;
-                if (s.Rotation >= 360) s.Rotation -= 360;
-            }
-        }
-        await SaveSourcesAsync();
+        await FlipSelectedSourcesAsync(horizontal: true, vertical: false);
     }
 
     [RelayCommand]
     private async Task ToggleFlipVerticalAsync()
     {
+        await FlipSelectedSourcesAsync(horizontal: false, vertical: true);
+    }
+
+    private async Task FlipSelectedSourcesAsync(bool horizontal, bool vertical)
+    {
         if (SelectedSources.Count == 0) return;
 
         SaveUndoState();
 
-        if (SelectedSources.Count == 1)
-        {
-            var source = SelectedSources[0];
-            source.IsMirroredVertically = !source.IsMirroredVertically;
-            
-            // Mirror rotation angle for vertical flip
-            // 30° becomes -30°, 45° becomes -45°, etc.
-            source.Rotation = -source.Rotation;
-            if (source.Rotation < 0) source.Rotation += 360;
-        }
-        else
-        {
-            var selectionRect = new System.Drawing.Rectangle(
-                SelectedSources.Min(s => s.CanvasX),
-                SelectedSources.Min(s => s.CanvasY),
-                SelectedSources.Max(s => s.CanvasX + s.CanvasWidth) - SelectedSources.Min(s => s.CanvasX),
-                SelectedSources.Max(s => s.CanvasY + s.CanvasHeight) - SelectedSources.Min(s => s.CanvasY)
-            );
-            var selectionCenterY = selectionRect.Y + selectionRect.Height / 2.0;
+        var sourcesToFlip = SelectedSources.ToList();
 
-            foreach (var s in SelectedSources)
+        bool horizTarget = horizontal ? !sourcesToFlip[0].IsMirroredHorizontally : default;
+        bool vertTarget  = vertical ? !sourcesToFlip[0].IsMirroredVertically : default;
+
+        Rect groupBounds = Rect.Empty;
+        foreach (var s in sourcesToFlip)
+        {
+            var c = new Point(s.CanvasX + s.CanvasWidth * 0.5,
+                              s.CanvasY + s.CanvasHeight * 0.5);
+            var sz = new Size(s.CanvasWidth, s.CanvasHeight);
+            var box = GetRotatedAabb(c, sz, s.Rotation);
+
+            if (groupBounds.IsEmpty)
+                groupBounds = box;
+            else
+                groupBounds.Union(box);
+        }
+
+        var groupCenter = new Point(groupBounds.X + groupBounds.Width * 0.5,
+                                    groupBounds.Y + groupBounds.Height * 0.5);
+
+        foreach (var src in sourcesToFlip)
+        {
+            if (horizontal)
             {
-                var sourceCenter = s.CanvasY + s.CanvasHeight / 2.0;
-                var newSourceCenter = selectionCenterY + (selectionCenterY - sourceCenter);
-                s.CanvasY = (int)(newSourceCenter - s.CanvasHeight / 2.0);
-                s.IsMirroredVertically = !s.IsMirroredVertically;
-                
-                // Mirror rotation angle for vertical flip
-                s.Rotation = -s.Rotation;
-                if (s.Rotation < 0) s.Rotation += 360;
+                src.CanvasX = (int)Math.Round(2 * groupCenter.X - src.CanvasX - src.CanvasWidth);
+                src.IsMirroredHorizontally = horizTarget;
+                src.Rotation = 360 - src.Rotation;
+                if (src.Rotation >= 360) src.Rotation -= 360;
+            }
+
+            if (vertical)
+            {
+                src.CanvasY = (int)Math.Round(2 * groupCenter.Y - src.CanvasY - src.CanvasHeight);
+                src.IsMirroredVertically = vertTarget;
+                src.Rotation = -src.Rotation;
+                if (src.Rotation < 0) src.Rotation += 360;
             }
         }
+
         await SaveSourcesAsync();
     }
 
@@ -1055,7 +1023,7 @@ public partial class MainViewModel : ObservableRecipient
         }
     }
 
-    private async Task StartAllCapturesAsync()
+    public async Task StartAllCapturesAsync()
     {
         foreach (var source in Sources)
         {
@@ -1111,7 +1079,7 @@ public partial class MainViewModel : ObservableRecipient
         };
     }
     
-    private async Task StopAllCapturesAsync()
+    public async Task StopAllCapturesAsync()
     {
         // Stop test frame generator
         _testFrameCancellation?.Cancel();

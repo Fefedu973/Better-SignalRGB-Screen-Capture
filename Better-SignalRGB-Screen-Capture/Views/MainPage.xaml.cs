@@ -963,14 +963,8 @@ public sealed partial class MainPage : Page, INavigationAware
                 UpdateListViewSelection();
                 UpdateSelectionOnCanvas();
                 UpdateFlipIconsTheme();
-                
-                // Restart captures for active sources
-                if (ViewModel.IsRecording)
-                {
-                    await ViewModel.ToggleRecordingCommand.ExecuteAsync(null);
-                    await Task.Delay(100); // Brief delay before restarting
-                    await ViewModel.ToggleRecordingCommand.ExecuteAsync(null);
-                }
+
+                await ViewModel.StartAllCapturesAsync();
             }
             catch (Exception ex)
             {
@@ -1010,11 +1004,18 @@ public sealed partial class MainPage : Page, INavigationAware
             }
         }
         
-        // Detach group selection handlers
+        // Detach and remove the group selection control
         if (_groupSelectionControl != null)
         {
             _groupSelectionControl.DragStarted -= OnGroupSelectionDragStarted;
             _groupSelectionControl.DragDelta -= OnGroupSelectionDragDelta;
+
+            if (SourceCanvas != null && SourceCanvas.Children.Contains(_groupSelectionControl))
+            {
+                SourceCanvas.Children.Remove(_groupSelectionControl);
+            }
+
+            _groupSelectionControl = null;
         }
         
         // Stop all capture and streaming services
@@ -1022,16 +1023,7 @@ public sealed partial class MainPage : Page, INavigationAware
         {
             try
             {
-                if (ViewModel.IsRecording)
-                {
-                    await ViewModel.ToggleRecordingCommand.ExecuteAsync(null);
-                }
-                
-                // Stop preview updates
-                if (ViewModel.IsPreviewing)
-                {
-                    // This will be handled by the ViewModel's disposal
-                }
+                await ViewModel.StopAllCapturesAsync();
             }
             catch (Exception ex)
             {

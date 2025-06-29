@@ -736,32 +736,34 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" 
-                                            HorizontalAlignment="Stretch"
-                                            Command="{x:Bind ViewModel.ToggleFlipHorizontalCommand}">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <ImageIcon
-                                                x:Name="MultiSelectFlipHorizontalIcon"
-                                                Width="16"
-                                                Height="16">
-                                                <ImageIcon.RenderTransform>
-                                                    <RotateTransform Angle="90" CenterX="8" CenterY="8" />
-                                                </ImageIcon.RenderTransform>
-                                            </ImageIcon>
-                                            <TextBlock Text="Flip Horizontal" />
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Grid.Column="1" 
-                                            HorizontalAlignment="Stretch"
-                                            Command="{x:Bind ViewModel.ToggleFlipVerticalCommand}">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <ImageIcon
-                                                x:Name="MultiSelectFlipVerticalIcon"
-                                                Width="16"
-                                                Height="16" />
-                                            <TextBlock Text="Flip Vertical" />
-                                        </StackPanel>
-                                    </Button>
+                                    <ToggleSwitch Grid.Column="0"
+                                                  IsOn="{x:Bind ViewModel.SelectedSourceIsMirroredHorizontally, Mode=TwoWay, FallbackValue=false}">
+                                        <ToggleSwitch.Header>
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <ImageIcon
+                                                    x:Name="MultiSelectFlipHorizontalIcon"
+                                                    Width="16"
+                                                    Height="16">
+                                                    <ImageIcon.RenderTransform>
+                                                        <RotateTransform Angle="90" CenterX="8" CenterY="8" />
+                                                    </ImageIcon.RenderTransform>
+                                                </ImageIcon>
+                                                <TextBlock Text="Flip Horizontal" />
+                                            </StackPanel>
+                                        </ToggleSwitch.Header>
+                                    </ToggleSwitch>
+                                    <ToggleSwitch Grid.Column="1"
+                                                  IsOn="{x:Bind ViewModel.SelectedSourceIsMirroredVertically, Mode=TwoWay, FallbackValue=false}">
+                                        <ToggleSwitch.Header>
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <ImageIcon
+                                                    x:Name="MultiSelectFlipVerticalIcon"
+                                                    Width="16"
+                                                    Height="16" />
+                                                <TextBlock Text="Flip Vertical" />
+                                            </StackPanel>
+                                        </ToggleSwitch.Header>
+                                    </ToggleSwitch>
                                 </Grid>
                             </StackPanel>
 

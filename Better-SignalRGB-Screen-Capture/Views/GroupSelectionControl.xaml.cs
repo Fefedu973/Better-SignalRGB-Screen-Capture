@@ -388,22 +388,18 @@ public sealed partial class GroupSelectionControl : UserControl
         }
     }
 
-    // Returns the new width / height that result from a non-uniform group scale
-    // when the child rectangle is rotated by δ degrees relative to the group.
+    /// <param name="sx">X-axis scale factor in the group's local space</param>
+    /// <param name="sy">Y-axis scale factor in the group's local space</param>
+    /// <param name="deltaAngleDeg">The child's rotation relative to group's</param>
+    /// <returns>The new width/height of the child item</returns>
     private static (double w, double h) ScaleSizeRespectingRotation(
             Size original, double sx, double sy, double deltaAngleDeg)
     {
-        var δ   = deltaAngleDeg * Math.PI / 180.0;
-        var cos = Math.Cos(δ);
-        var sin = Math.Sin(δ);
-
-        // length of the child's local-X axis after the group scale
-        var scaleW = Math.Sqrt(Math.Pow(sx * cos, 2) + Math.Pow(sy * sin, 2));
-        // length of the child's local-Y axis after the group scale
-        var scaleH = Math.Sqrt(Math.Pow(sx * sin, 2) + Math.Pow(sy * cos, 2));
-
-        return (original.Width  * scaleW,
-                original.Height * scaleH);
+        // The scaling factors sx and sy are already in the group's local coordinate space.
+        // The child items should just scale directly by these factors.
+        // Their individual rotation doesn't change their scaled size, only their
+        // final position and bounding box, which is handled elsewhere.
+        return (original.Width * sx, original.Height * sy);
     }
 
     private void ApplyGroupResize(Point currentPoint, bool keepAspect)
