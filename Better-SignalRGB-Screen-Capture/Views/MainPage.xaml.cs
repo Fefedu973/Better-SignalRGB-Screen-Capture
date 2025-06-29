@@ -36,24 +36,20 @@ public sealed partial class MainPage : Page, INavigationAware
         ViewModel = App.GetService<MainViewModel>();
         InitializeComponent();
         
-        Loaded += (s, e) =>
-        {
-            // Ensure the canvas can receive keyboard focus
-            ContentArea.Focus(FocusState.Programmatic);
+        ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+        ViewModel.Sources.CollectionChanged += OnSourcesCollectionChanged;
+        ViewModel.SourcesMoved += OnSourcesMoved;
             
-            // Initialize zoom slider with current zoom factor
-            if (CanvasScrollViewer != null && ZoomSlider != null && ZoomPercentageText != null)
-            {
-                ZoomSlider.Value = CanvasScrollViewer.ZoomFactor;
-                ZoomPercentageText.Text = $"{CanvasScrollViewer.ZoomFactor * 100:F0}%";
-            }
-
-            // Set the initial icon theme
-            OnNavigatedTo(null);
+        // Wire up group selection bounds synchronization
+        ViewModel.GroupSelectionBoundsChanged += OnGroupSelectionBoundsChangedFromViewModel;
+        
+        // Update flip icons based on theme
             UpdateFlipIconsTheme();
 
-            // Note: OnNavigatedTo is now handled correctly by the navigation service
-            // and the page's Unloaded event.
+        Loaded += async (sender, e) =>
+        {
+            await ViewModel.StartAllCapturesAsync();
+            UpdateCanvas();
         };
 
         this.ActualThemeChanged += (s,e) => UpdateFlipIconsTheme();
@@ -880,6 +876,7 @@ public sealed partial class MainPage : Page, INavigationAware
             _groupSelectionControl = new GroupSelectionControl();
             _groupSelectionControl.DragStarted += OnGroupSelectionDragStarted;
             _groupSelectionControl.DragDelta += OnGroupSelectionDragDelta;
+            _groupSelectionControl.BoundsChanged += OnGroupSelectionBoundsChangedFromControl;
             SourceCanvas.Children.Add(_groupSelectionControl);
             Canvas.SetZIndex(_groupSelectionControl, 1000); // Ensure it's on top
         }
@@ -893,6 +890,13 @@ public sealed partial class MainPage : Page, INavigationAware
 
         var selectedSources = ViewModel.Sources.Where(s => s.IsSelected).ToList();
         _groupSelectionControl.UpdateSelection(selectedSources);
+        
+        // Update ViewModel with current group bounds when selection changes
+        if (selectedSources.Count >= 2)
+        {
+            var bounds = _groupSelectionControl.GetGroupBounds();
+            ViewModel.UpdateGroupSelectionBounds(bounds.x, bounds.y, bounds.width, bounds.height, bounds.rotation);
+        }
     }
 
     private void OnGroupSelectionDragStarted(object? sender, EventArgs e)
@@ -983,5 +987,26 @@ public sealed partial class MainPage : Page, INavigationAware
         // Clear the canvas to ensure all UI elements and their event handlers are released
         SourceCanvas.Children.Clear();
         _groupSelectionControl = null;
+    }
+
+    private void OnGroupSelectionBoundsChangedFromViewModel()
+    {
+        // Update GroupSelectionControl when ViewModel properties change
+        if (_groupSelectionControl != null && ViewModel.IsMultiSelect)
+        {
+            _groupSelectionControl.SetGroupBounds(
+                ViewModel.GroupSelectionX,
+                ViewModel.GroupSelectionY,
+                ViewModel.GroupSelectionWidth,
+                ViewModel.GroupSelectionHeight,
+                ViewModel.GroupSelectionRotation,
+                true);
+        }
+    }
+
+    private void OnGroupSelectionBoundsChangedFromControl(object? sender, (double x, double y, double width, double height, double rotation) bounds)
+    {
+        // Update ViewModel when GroupSelectionControl bounds change
+        ViewModel.UpdateGroupSelectionBounds(bounds.x, bounds.y, bounds.width, bounds.height, bounds.rotation);
     }
 }

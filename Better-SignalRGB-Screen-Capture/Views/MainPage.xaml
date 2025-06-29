@@ -724,14 +724,84 @@
 
                         <!--  Selected Source Properties (Multiple)  -->
                         <StackPanel Spacing="16" Visibility="{x:Bind ViewModel.IsMultiSelect, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="Multiple Selection" />
+                            <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="Group Selection" />
 
+                            <!--  Group Transform Properties  -->
                             <StackPanel Spacing="8">
-                                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Actions" />
+                                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Transform" />
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <NumberBox
+                                        Grid.Column="0"
+                                        Header="X"
+                                        Value="{x:Bind ViewModel.GroupSelectionX, Mode=TwoWay}" />
+                                    <NumberBox
+                                        Grid.Column="1"
+                                        Header="Y"
+                                        Value="{x:Bind ViewModel.GroupSelectionY, Mode=TwoWay}" />
+                                </Grid>
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <NumberBox
+                                        Grid.Column="0"
+                                        Header="Width"
+                                        Minimum="50"
+                                        SmallChange="10"
+                                        Value="{x:Bind ViewModel.GroupSelectionWidth, Mode=TwoWay}" />
+                                    <ToggleButton
+                                        Grid.Column="1"
+                                        Margin="0,0,0,0"
+                                        VerticalAlignment="Bottom"
+                                        IsChecked="{x:Bind ViewModel.IsGroupAspectRatioLocked, Mode=TwoWay}">
+                                        <FontIcon Glyph="&#xE72E;" />
+                                    </ToggleButton>
+                                    <NumberBox
+                                        Grid.Column="2"
+                                        Header="Height"
+                                        Minimum="50"
+                                        SmallChange="10"
+                                        Value="{x:Bind ViewModel.GroupSelectionHeight, Mode=TwoWay}" />
+                                </Grid>
+                                <StackPanel Spacing="4">
+                                    <TextBlock
+                                        Margin="0,8,0,0"
+                                        Style="{ThemeResource CaptionTextBlockStyle}"
+                                        Text="Rotation" />
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Slider
+                                            VerticalAlignment="Center"
+                                            Maximum="180"
+                                            Minimum="-180"
+                                            SmallChange="1"
+                                            StepFrequency="1"
+                                            Value="{x:Bind ViewModel.GroupSelectionRotation, Mode=TwoWay}" />
+                                        <NumberBox
+                                            Grid.Column="1"
+                                            Width="80"
+                                            LargeChange="15"
+                                            SmallChange="1"
+                                            Value="{x:Bind ViewModel.GroupSelectionRotation, Mode=TwoWay}" />
+                                    </Grid>
+                                </StackPanel>
                                 <Button
                                     HorizontalAlignment="Stretch"
                                     Command="{x:Bind ViewModel.CenterSourceCommand}"
                                     Content="Center" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="8">
+                                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Actions" />
                                 <Grid ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />

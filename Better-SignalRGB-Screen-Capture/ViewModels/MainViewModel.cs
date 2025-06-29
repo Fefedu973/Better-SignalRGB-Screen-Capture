@@ -43,6 +43,191 @@ public partial class MainViewModel : ObservableRecipient
     [ObservableProperty]
     private bool isRecording;
 
+    [ObservableProperty]
+    private bool _isAspectRatioLocked;
+
+    private bool _isUpdatingDimensions;
+
+    // Group selection properties
+    [ObservableProperty]
+    private bool _isGroupAspectRatioLocked;
+
+    private bool _isUpdatingGroupDimensions;
+
+    public double GroupSelectionX
+    {
+        get => _groupSelectionX;
+        set
+        {
+            if (_isUpdatingGroupDimensions) return;
+            if (IsMultiSelect && Math.Abs(_groupSelectionX - value) > 0.01)
+            {
+                _isUpdatingGroupDimensions = true;
+                try
+                {
+                    _groupSelectionX = value;
+                    OnPropertyChanged();
+                    // Notify MainPage to update GroupSelectionControl position
+                    GroupSelectionBoundsChanged?.Invoke();
+                }
+                finally
+                {
+                    _isUpdatingGroupDimensions = false;
+                }
+            }
+        }
+    }
+    private double _groupSelectionX;
+
+    public double GroupSelectionY
+    {
+        get => _groupSelectionY;
+        set
+        {
+            if (_isUpdatingGroupDimensions) return;
+            if (IsMultiSelect && Math.Abs(_groupSelectionY - value) > 0.01)
+            {
+                _isUpdatingGroupDimensions = true;
+                try
+                {
+                    _groupSelectionY = value;
+                    OnPropertyChanged();
+                    // Notify MainPage to update GroupSelectionControl position
+                    GroupSelectionBoundsChanged?.Invoke();
+                }
+                finally
+                {
+                    _isUpdatingGroupDimensions = false;
+                }
+            }
+        }
+    }
+    private double _groupSelectionY;
+
+    public double GroupSelectionWidth
+    {
+        get => _groupSelectionWidth;
+        set
+        {
+            if (_isUpdatingGroupDimensions) return;
+            if (IsMultiSelect && Math.Abs(_groupSelectionWidth - value) > 0.01)
+            {
+                var newValue = Math.Max(50, value); // Minimum group width
+                if (Math.Abs(_groupSelectionWidth - newValue) > 0.01)
+                {
+                    _isUpdatingGroupDimensions = true;
+                    try
+                    {
+                        if (IsGroupAspectRatioLocked && _groupSelectionHeight > 0)
+                        {
+                            var aspectRatio = _groupSelectionWidth / _groupSelectionHeight;
+                            _groupSelectionHeight = newValue / aspectRatio;
+                            OnPropertyChanged(nameof(GroupSelectionHeight));
+                        }
+                        _groupSelectionWidth = newValue;
+                        OnPropertyChanged();
+                        // Notify MainPage to update GroupSelectionControl size
+                        GroupSelectionBoundsChanged?.Invoke();
+                    }
+                    finally
+                    {
+                        _isUpdatingGroupDimensions = false;
+                    }
+                }
+            }
+        }
+    }
+    private double _groupSelectionWidth;
+
+    public double GroupSelectionHeight
+    {
+        get => _groupSelectionHeight;
+        set
+        {
+            if (_isUpdatingGroupDimensions) return;
+            if (IsMultiSelect && Math.Abs(_groupSelectionHeight - value) > 0.01)
+            {
+                var newValue = Math.Max(50, value); // Minimum group height
+                if (Math.Abs(_groupSelectionHeight - newValue) > 0.01)
+                {
+                    _isUpdatingGroupDimensions = true;
+                    try
+                    {
+                        if (IsGroupAspectRatioLocked && _groupSelectionWidth > 0)
+                        {
+                            var aspectRatio = _groupSelectionWidth / _groupSelectionHeight;
+                            _groupSelectionWidth = newValue * aspectRatio;
+                            OnPropertyChanged(nameof(GroupSelectionWidth));
+                        }
+                        _groupSelectionHeight = newValue;
+                        OnPropertyChanged();
+                        // Notify MainPage to update GroupSelectionControl size
+                        GroupSelectionBoundsChanged?.Invoke();
+                    }
+                    finally
+                    {
+                        _isUpdatingGroupDimensions = false;
+                    }
+                }
+            }
+        }
+    }
+    private double _groupSelectionHeight;
+
+    public double GroupSelectionRotation
+    {
+        get => _groupSelectionRotation;
+        set
+        {
+            if (_isUpdatingGroupDimensions) return;
+            if (IsMultiSelect && Math.Abs(_groupSelectionRotation - value) > 0.01)
+            {
+                _isUpdatingGroupDimensions = true;
+                try
+                {
+                    _groupSelectionRotation = value;
+                    OnPropertyChanged();
+                    // Notify MainPage to update GroupSelectionControl rotation
+                    GroupSelectionBoundsChanged?.Invoke();
+                }
+                finally
+                {
+                    _isUpdatingGroupDimensions = false;
+                }
+            }
+        }
+    }
+    private double _groupSelectionRotation;
+
+    // Event to notify when group selection bounds change from ViewModel
+    public event Action? GroupSelectionBoundsChanged;
+
+    // Method to update group selection properties from GroupSelectionControl
+    public void UpdateGroupSelectionBounds(double x, double y, double width, double height, double rotation)
+    {
+        if (_isUpdatingGroupDimensions) return;
+        
+        _isUpdatingGroupDimensions = true;
+        try
+        {
+            _groupSelectionX = x;
+            _groupSelectionY = y;
+            _groupSelectionWidth = width;
+            _groupSelectionHeight = height;
+            _groupSelectionRotation = rotation;
+            
+            OnPropertyChanged(nameof(GroupSelectionX));
+            OnPropertyChanged(nameof(GroupSelectionY));
+            OnPropertyChanged(nameof(GroupSelectionWidth));
+            OnPropertyChanged(nameof(GroupSelectionHeight));
+            OnPropertyChanged(nameof(GroupSelectionRotation));
+        }
+        finally
+        {
+            _isUpdatingGroupDimensions = false;
+        }
+    }
+
     public MainViewModel(ILocalSettingsService localSettingsService, ICaptureService captureService, IMjpegStreamingService mjpegStreamingService, ICompositeFrameService compositeFrameService)
     {
         _localSettingsService = localSettingsService;
@@ -372,9 +557,6 @@ public partial class MainViewModel : ObservableRecipient
     public bool IsSourceSelected => SelectedSources.Any();
     public bool IsMultiSelect => SelectedSources.Count > 1;
     public bool IsSingleSelect => SelectedSources.Count == 1;
-    [ObservableProperty]
-    private bool isAspectRatioLocked;
-    private bool _isUpdatingDimensions;
 
     #region Selection Properties
 

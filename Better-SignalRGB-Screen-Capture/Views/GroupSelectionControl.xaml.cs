@@ -21,6 +21,9 @@ public sealed partial class GroupSelectionControl : UserControl
     public event EventHandler<Point>? DragDelta;
     public event EventHandler? DragStarted;
 
+    // Event to notify when group bounds change
+    public event EventHandler<(double x, double y, double width, double height, double rotation)>? BoundsChanged;
+
     private bool _isDragging;
     private bool _isResizing;
     private ResizeMode _resizeMode = ResizeMode.None;
@@ -199,6 +202,14 @@ public sealed partial class GroupSelectionControl : UserControl
         RotationHandleLine.X2 = handleX;  RotationHandleLine.Y2 =   0;
 
         ClampInsideParent();    // makes sure programmatic updates also stay inside
+        
+        // Fire bounds changed event when group is updated
+        FireBoundsChangedEvent();
+    }
+
+    private void FireBoundsChangedEvent()
+    {
+        BoundsChanged?.Invoke(this, (Canvas.GetLeft(this), Canvas.GetTop(this), Width, Height, _groupRotation));
     }
 
     private static Rect GetRotatedAabb(Point center, Size size, double angleDeg)
@@ -344,7 +355,7 @@ public sealed partial class GroupSelectionControl : UserControl
         }
 
         // Check if rotation would cause overflow
-        if (WouldGroupRotationCauseOverflow(newGroupRotation))
+        if (WouldGroupRotationCauseOverflow(newGroupRotation, _actionStartBounds))
         {
             return; // Don't apply rotation if it overflows
         }
@@ -360,6 +371,7 @@ public sealed partial class GroupSelectionControl : UserControl
         ApplyGroupRotationToItems(_groupRotation - _actionStartRotation);
 
         ClampInsideParent();
+        FireBoundsChangedEvent();
     }
 
     private void ApplyGroupRotationToItems(double totalAngleDelta)
@@ -386,20 +398,27 @@ public sealed partial class GroupSelectionControl : UserControl
             state.Source.CanvasY = (int)Math.Round(newItemCenter.Y - state.OriginalSize.Height / 2);
             state.Source.Rotation = (int)(state.OriginalRotation + totalAngleDelta);
         }
+
+        // final safety – if the rotated frame sticks out, slide it back in
+        ClampInsideParent();
+        FireBoundsChangedEvent();
     }
 
-    /// <param name="sx">X-axis scale factor in the group's local space</param>
-    /// <param name="sy">Y-axis scale factor in the group's local space</param>
-    /// <param name="deltaAngleDeg">The child's rotation relative to group's</param>
     /// <returns>The new width/height of the child item</returns>
     private static (double w, double h) ScaleSizeRespectingRotation(
             Size original, double sx, double sy, double deltaAngleDeg)
     {
-        // The scaling factors sx and sy are already in the group's local coordinate space.
-        // The child items should just scale directly by these factors.
-        // Their individual rotation doesn't change their scaled size, only their
-        // final position and bounding box, which is handled elsewhere.
-        return (original.Width * sx, original.Height * sy);
+        // Δangle between child and group, in radians
+        double θ = deltaAngleDeg * Math.PI / 180.0;
+        double c = Math.Cos(θ);
+        double s = Math.Sin(θ);
+
+        // length of the transformed basis vectors
+        double widthScale  = Math.Sqrt((sx * c) * (sx * c) + (sy * s) * (sy * s));
+        double heightScale = Math.Sqrt((sx * s) * (sx * s) + (sy * c) * (sy * c));
+
+        return (original.Width  * widthScale,
+                original.Height * heightScale);
     }
 
     private void ApplyGroupResize(Point currentPoint, bool keepAspect)
@@ -427,24 +446,42 @@ public sealed partial class GroupSelectionControl : UserControl
         double w1 = w0 + (mR ? ΔL.X : 0) - (mL ? ΔL.X : 0);
         double h1 = h0 + (mB ? ΔL.Y : 0) - (mT ? ΔL.Y : 0);
 
-        // Calculate minimum group size based on the most constrained child item
-        const double itemMinWidth = 100;
-        const double itemMinHeight = 80;
+        // ------------------------------------------------------------------
+        // 0.  minimum group size so that *every* child still satisfies
+        //     itemMinWidth / itemMinHeight after rotation
+        // ------------------------------------------------------------------
+        const double itemMinWidth  = 100;
+        const double itemMinHeight =  80;
 
-        double minScaleX = 0;
-        if (_itemStates.Any(st => st.OriginalSize.Width > 0))
+        double minScaleX = 0.0;   // (we'll take the max over all children)
+        double minScaleY = 0.0;
+
+        foreach (var st in _itemStates)
         {
-            minScaleX = _itemStates.Where(st => st.OriginalSize.Width > 0).Max(st => itemMinWidth / st.OriginalSize.Width);
+            // rotation of this child *relative to the group frame*
+            double theta   = (st.Rotation - _actionStartRotation) * Math.PI / 180.0;
+            double absCos  = Math.Abs(Math.Cos(theta));
+            double absSin  = Math.Abs(Math.Sin(theta));
+
+            // current projections of the child on group axes
+            double projX0 = st.Size.Width  * absCos + st.Size.Height * absSin;
+            double projY0 = st.Size.Width  * absSin + st.Size.Height * absCos;
+
+            // required projections to keep the child ≥ min WxH
+            double projXmin = itemMinWidth  * absCos + itemMinHeight * absSin;
+            double projYmin = itemMinWidth  * absSin + itemMinHeight * absCos;
+
+            // scale factors that would shrink projX0 / projY0 down to the minima
+            double needSX = projX0 > 0.001 ? projXmin / projX0 : 0;
+            double needSY = projY0 > 0.001 ? projYmin / projY0 : 0;
+
+            minScaleX = Math.Max(minScaleX, needSX);
+            minScaleY = Math.Max(minScaleY, needSY);
         }
 
-        double minScaleY = 0;
-        if (_itemStates.Any(st => st.OriginalSize.Height > 0))
-        {
-            minScaleY = _itemStates.Where(st => st.OriginalSize.Height > 0).Max(st => itemMinHeight / st.OriginalSize.Height);
-        }
-
-        var minGroupW = _actionStartBounds.Width * minScaleX;
-        var minGroupH = _actionStartBounds.Height * minScaleY;
+        // the group must not scale below these factors
+        double minGroupW = _actionStartBounds.Width  * minScaleX;
+        double minGroupH = _actionStartBounds.Height * minScaleY;
         
         if (keepAspect)
         {
@@ -583,6 +620,7 @@ public sealed partial class GroupSelectionControl : UserControl
 
         // final safety – if the rotated frame sticks out, slide it back in
         ClampInsideParent();
+        FireBoundsChangedEvent();
     }
 
     private Rect CalculateNewGroupBounds(double deltaX, double deltaY, bool keepAspectRatio)
@@ -650,15 +688,16 @@ public sealed partial class GroupSelectionControl : UserControl
         }
 
         DragDelta?.Invoke(this, new Point(actualDeltaX, actualDeltaY));
+        FireBoundsChangedEvent();
     }
 
-    private bool WouldGroupRotationCauseOverflow(double newRotation)
+    private bool WouldGroupRotationCauseOverflow(double newRotation, Rect bounds)
     {
         var parent = this.Parent as FrameworkElement;
         if (parent == null) return false;
 
-        var groupCenter = new Point(_actionStartBounds.X + _actionStartBounds.Width / 2, _actionStartBounds.Y + _actionStartBounds.Height / 2);
-        var groupSize = new Size(_actionStartBounds.Width, _actionStartBounds.Height);
+        var groupCenter = new Point(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2);
+        var groupSize = new Size(bounds.Width, bounds.Height);
         var rotatedAabb = GetRotatedAabb(groupCenter, groupSize, newRotation);
 
         return rotatedAabb.Left < 0 || rotatedAabb.Top < 0 || 
@@ -689,6 +728,7 @@ public sealed partial class GroupSelectionControl : UserControl
         if (wasTransforming)
         {
             UpdateGroupBounds(false);      // new maths keeps position perfect for both rotation and resize
+            FireBoundsChangedEvent();      // Notify of bounds change
         }
 
         // Save changes
@@ -1020,5 +1060,124 @@ public sealed partial class GroupSelectionControl : UserControl
             RotationHandleLine.X2 = handleX;
             RotationHandleLine.Y2 = 0;
         }
+    }
+
+    // Method to get current group bounds
+    public (double x, double y, double width, double height, double rotation) GetGroupBounds()
+    {
+        return (Canvas.GetLeft(this), Canvas.GetTop(this), Width, Height, _groupRotation);
+    }
+
+    // Method to set group bounds programmatically
+    public void SetGroupBounds(double x, double y, double width, double height, double rotation, bool maintainRelativePositions = true)
+    {
+        if (SelectedSources.Count < 2) return;
+
+        var currentBounds = new Rect(Canvas.GetLeft(this), Canvas.GetTop(this), Width, Height);
+
+        var rotationChanged = Math.Abs(_groupRotation - rotation) > 0.01;
+        if (rotationChanged)
+        {
+            if (WouldGroupRotationCauseOverflow(rotation, currentBounds))
+            {
+                FireBoundsChangedEvent(); // Revert UI
+                return;
+            }
+        }
+        
+        var newBounds = new Rect(x, y, width, height);
+
+        if (maintainRelativePositions)
+        {
+            // Calculate scale factors
+            var scaleX = width / currentBounds.Width;
+            var scaleY = height / currentBounds.Height;
+            var rotationDelta = rotation - _groupRotation;
+
+            // Store current state
+            foreach (var state in _itemStates)
+            {
+                state.OriginalPosition = new Point(state.Source.CanvasX, state.Source.CanvasY);
+                state.OriginalSize = new Size(state.Source.CanvasWidth, state.Source.CanvasHeight);
+                state.OriginalRotation = state.Source.Rotation;
+            }
+
+            // Apply transformation similar to resize/rotation logic
+            var oldCenter = new Point(currentBounds.X + currentBounds.Width / 2, currentBounds.Y + currentBounds.Height / 2);
+            var newCenter = new Point(x + width / 2, y + height / 2);
+
+            foreach (var state in _itemStates)
+            {
+                // Apply scaling
+                var newW = state.OriginalSize.Width * scaleX;
+                var newH = state.OriginalSize.Height * scaleY;
+
+                // Apply rotation and translation
+                var relativePos = new Point(
+                    state.OriginalPosition.X + state.OriginalSize.Width / 2 - oldCenter.X,
+                    state.OriginalPosition.Y + state.OriginalSize.Height / 2 - oldCenter.Y
+                );
+
+                // Scale relative position
+                relativePos = new Point(relativePos.X * scaleX, relativePos.Y * scaleY);
+
+                // Apply rotation if there's a rotation delta
+                if (Math.Abs(rotationDelta) > 0.01)
+                {
+                    var angleRad = rotationDelta * Math.PI / 180.0;
+                    var cos = Math.Cos(angleRad);
+                    var sin = Math.Sin(angleRad);
+                    var rotatedX = relativePos.X * cos - relativePos.Y * sin;
+                    var rotatedY = relativePos.X * sin + relativePos.Y * cos;
+                    relativePos = new Point(rotatedX, rotatedY);
+                }
+
+                // Calculate final position
+                var finalCenter = new Point(newCenter.X + relativePos.X, newCenter.Y + relativePos.Y);
+                var finalX = finalCenter.X - newW / 2;
+                var finalY = finalCenter.Y - newH / 2;
+
+                // Update source properties
+                state.Source.CanvasX = (int)Math.Round(finalX);
+                state.Source.CanvasY = (int)Math.Round(finalY);
+                state.Source.CanvasWidth = (int)Math.Round(newW);
+                state.Source.CanvasHeight = (int)Math.Round(newH);
+                state.Source.Rotation = (int)Math.Round(state.OriginalRotation + rotationDelta);
+            }
+        }
+
+        // Update group control bounds
+        Canvas.SetLeft(this, x);
+        Canvas.SetTop(this, y);
+        Width = width;
+        Height = height;
+        _groupRotation = rotation;
+
+        // Apply rotation transform
+        if (Math.Abs(_groupRotation) > 0.001)
+        {
+            RenderTransform = new RotateTransform { Angle = _groupRotation };
+            RenderTransformOrigin = new Point(0.5, 0.5);
+        }
+        else
+        {
+            RenderTransform = null;
+        }
+
+        // Update rotation handle position
+        var handleX = width / 2.0;
+        Canvas.SetLeft(RotationHandle, handleX - (RotationHandle.Width / 2));
+        Canvas.SetTop(RotationHandle, -40);
+
+        RotationHandleLine.X1 = handleX;
+        RotationHandleLine.Y1 = -24;
+        RotationHandleLine.X2 = handleX;
+        RotationHandleLine.Y2 = 0;
+
+        // Apply bounds checking
+        ClampInsideParent();
+        
+        // Fire bounds changed event
+        FireBoundsChangedEvent();
     }
 } 
