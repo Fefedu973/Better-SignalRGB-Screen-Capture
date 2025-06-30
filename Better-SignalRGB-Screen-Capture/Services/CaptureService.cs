@@ -253,7 +253,8 @@ public class CaptureService : ICaptureService
             recordingSource.IsVideoCaptureEnabled = true; // Video enabled
             recordingSource.Stretch = StretchMode.Fill; // Fill the aspect ratio
             recordingSource.IsVideoFramePreviewEnabled = true; // Enable frame preview
-            recordingSource.VideoFramePreviewSize = new ScreenSize(0, 150); // Preview size
+            // Let the library pick an optimal preview size (full resolution) by not forcing a 150-pixel height.
+            // Removing the hard-coded height of 150px avoids unintended down-scaling that caused mismatched resolutions.
 
             // Apply custom size if draggable source has been resized
             if (source.CanvasWidth > 0 && source.CanvasHeight > 0)
@@ -283,8 +284,7 @@ public class CaptureService : ICaptureService
                     RecorderMode = RecorderMode.Video, // Video mode
                     Stretch = StretchMode.Fill,
                     IsVideoCaptureEnabled = true,
-                    IsVideoFramePreviewEnabled = true, // Enable output frame preview
-                    VideoFramePreviewSize = new ScreenSize(0, 150)
+                    IsVideoFramePreviewEnabled = true // Let default (full-res) preview size apply
                 },
                 VideoEncoderOptions = new VideoEncoderOptions
                 {
@@ -736,29 +736,40 @@ public class CaptureService : ICaptureService
     {
         try
         {
+            // ScreenRecorderLib returns BGRA rows that are aligned to a 256-byte boundary. The stride
+            // (frameData.Stride) may therefore be larger than Width * 4. Copy row-by-row, skipping the
+            // pad bytes, to obtain a tightly-packed buffer before feeding it to the encoder.
+
+            int rowPitch = frameData.Stride;          // bytes per row including padding
+            int rowSize  = frameData.Width * 4;       // actual BGRA pixels per row
+            var packed   = new byte[rowSize * frameData.Height];
+
+            for (int y = 0; y < frameData.Height; y++)
+            {
+                IntPtr srcRow = IntPtr.Add(frameData.Data, y * rowPitch);
+                Marshal.Copy(srcRow, packed, y * rowSize, rowSize);
+            }
+
             using var stream = new InMemoryRandomAccessStream();
             var encoder = BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId, stream).AsTask().Result;
-            
-            // Copy frame data
-            var pixels = new byte[frameData.Length];
-            Marshal.Copy(frameData.Data, pixels, 0, frameData.Length);
-            
+
             encoder.SetPixelData(
                 BitmapPixelFormat.Bgra8,
                 BitmapAlphaMode.Premultiplied,
                 (uint)frameData.Width,
                 (uint)frameData.Height,
-                96, 96, pixels);
-            
+                96, 96,
+                packed);
+
             encoder.FlushAsync().AsTask().Wait();
-            
-            // Convert to byte array
+
+            // Return JPEG bytes
             stream.Seek(0);
             using var reader = new DataReader(stream.GetInputStreamAt(0));
             reader.LoadAsync((uint)stream.Size).AsTask().Wait();
             var buffer = new byte[stream.Size];
             reader.ReadBytes(buffer);
-            
+
             return buffer;
         }
         catch (Exception ex)

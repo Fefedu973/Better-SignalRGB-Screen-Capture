@@ -179,7 +179,7 @@ public sealed partial class DraggableSourceItem : UserControl
 
     private void OnFrameAvailable(object? sender, SourceFrameEventArgs e)
     {
-        if (Source == null || e.Source.Id != Source.Id) return;
+        if (Source == null || e.Source.Id != Source.Id || !Source.IsLivePreviewEnabled) return;
         
         DispatcherQueue.TryEnqueue(async () =>
         {

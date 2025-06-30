@@ -26,6 +26,18 @@
             BorderThickness="1"
             CornerRadius="{StaticResource ControlCornerRadius}" />
 
+        <!-- Live preview frame (mirrors the same flip transforms applied to content) -->
+        <Image x:Name="PreviewImage"
+               Stretch="UniformToFill"
+               IsHitTestVisible="False"
+               RenderTransformOrigin="0.5,0.5"
+               Visibility="{x:Bind Source.IsLivePreviewEnabled, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Image.RenderTransform>
+                <ScaleTransform ScaleX="{x:Bind Source.IsMirroredHorizontally, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" 
+                               ScaleY="{x:Bind Source.IsMirroredVertically, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}"/>
+            </Image.RenderTransform>
+        </Image>
+
         <!-- Content container with flip transform -->
         <Border
             x:Name="ContentBorder"
@@ -34,19 +46,10 @@
             <Border.RenderTransform>
                 <ScaleTransform ScaleX="{x:Bind Source.IsMirroredHorizontally, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" ScaleY="{x:Bind Source.IsMirroredVertically, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" />
             </Border.RenderTransform>
-            <Grid>
-                <!-- Preview Image -->
-                <Image
-                    x:Name="PreviewImage"
-                    Stretch="UniformToFill"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center" />
-                
-                <!-- Info overlay -->
-                <Grid Padding="8" VerticalAlignment="Bottom" Background="{ThemeResource LayerFillColorDefaultBrush}">
+            <Grid Padding="8">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <TextBlock
                     x:Name="DisplayNameText"
@@ -58,11 +61,11 @@
                 <TextBlock
                     x:Name="TypeText"
                     Grid.Row="1"
-                        HorizontalAlignment="Left"
-                        Style="{ThemeResource CaptionTextBlockStyle}"
-                        Text="Source Type"
-                        Opacity="0.7" />
-                </Grid>
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    FontWeight="SemiBold"
+                    Style="{ThemeResource BodyTextBlockStyle}"
+                    Text="Source Type" />
             </Grid>
         </Border>
         

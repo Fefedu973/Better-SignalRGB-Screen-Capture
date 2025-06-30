@@ -24,6 +24,7 @@ public class SourceItem : INotifyPropertyChanged
     private double _cropBottomPct;
     private bool _isMirroredHorizontally;
     private bool _isMirroredVertically;
+    private bool _isLivePreviewEnabled = true;
     private bool _isSelected;
     private int _rotation;
     private int _cropRotation;
@@ -244,6 +245,16 @@ public class SourceItem : INotifyPropertyChanged
     {
         get => _isMirroredVertically;
         set => SetProperty(ref _isMirroredVertically, value);
+    }
+
+    /// <summary>
+    /// When false no preview frames are rendered for this source inside the design canvas.
+    /// Does not affect the actual capture or MJPEG output.
+    /// </summary>
+    public bool IsLivePreviewEnabled
+    {
+        get => _isLivePreviewEnabled;
+        set => SetProperty(ref _isLivePreviewEnabled, value);
     }
 
     public int Rotation
