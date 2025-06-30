@@ -14,6 +14,7 @@ using Windows.Storage.Pickers;      // FileOpenPicker
 using Better_SignalRGB_Screen_Capture.Contracts.Services;
 using Better_SignalRGB_Screen_Capture.Models;
 using ScreenRecorderLib;
+using System.Runtime.InteropServices;
 
 namespace Better_SignalRGB_Screen_Capture.Views;
 
@@ -109,28 +110,53 @@ public sealed partial class AddSourceDialog : ContentDialog
     {
         try
         {
-            var selector = DisplayMonitor.GetDeviceSelector();
-            var devices = await DeviceInformation.FindAllAsync(selector);
-
-            var monitors = await Task.WhenAll(devices.Select(d => DisplayMonitor.FromInterfaceIdAsync(d.Id).AsTask()));
+            // Use ScreenRecorderLib to get displays
+            var displays = await Task.Run(() => Recorder.GetDisplays());
 
             await DispatcherQueue.EnqueueAsync(() =>
             {
-                foreach (var mon in monitors)
+                MonitorCombo.Items.Clear();
+                
+                foreach (var display in displays)
                 {
-                    string name = string.IsNullOrWhiteSpace(mon.DisplayName)
+                    string name = string.IsNullOrWhiteSpace(display.FriendlyName)
                                     ? $"Monitor {MonitorCombo.Items.Count + 1}"
-                                    : mon.DisplayName;
+                                    : display.FriendlyName;
+
+                    // Handle null OutputSize gracefully
+                    string displayInfo = "";
+                    if (display.OutputSize != null)
+                    {
+                        displayInfo = $" ({display.OutputSize.Width}x{display.OutputSize.Height})";
+                    }
+                    
+                    // Add position info if available
+                    string positionInfo = "";
+                    if (display.Position != null)
+                    {
+                        positionInfo = $" [{display.Position.Left},{display.Position.Top}]";
+                    }
 
                     MonitorCombo.Items.Add(new ComboBoxItem
                     {
-                        Content = $"{name}  {mon.NativeResolutionInRawPixels.Width}x{mon.NativeResolutionInRawPixels.Height}",
-                        Tag = mon.DeviceId
+                        Content = $"{name}{positionInfo}{displayInfo}",
+                        Tag = display.DeviceName
+                    });
+                }
+
+                if (MonitorCombo.Items.Count == 0)
+                {
+                    MonitorCombo.Items.Add(new ComboBoxItem
+                    {
+                        Content = "No monitors found",
+                        Tag = null,
+                        IsEnabled = false
                     });
                 }
 
                 MonitorCombo.SelectedIndex = 0;
-                MonitorCombo.IsEnabled = true;
+                MonitorCombo.IsEnabled = MonitorCombo.Items.Count > 0 && 
+                                       ((ComboBoxItem)MonitorCombo.Items[0]).IsEnabled != false;
                 MonitorRing.IsActive = false;
                 MonitorRing.Visibility = Visibility.Collapsed;
                 
@@ -148,7 +174,24 @@ public sealed partial class AddSourceDialog : ContentDialog
                 }
             });
         }
-        catch { /* ignore & leave spinner */ }
+        catch (Exception ex) 
+        { 
+            Debug.WriteLine($"Failed to discover monitors: {ex.Message}");
+            
+            await DispatcherQueue.EnqueueAsync(() =>
+            {
+                MonitorCombo.Items.Add(new ComboBoxItem
+                {
+                    Content = "Error discovering monitors",
+                    Tag = null,
+                    IsEnabled = false
+                });
+                MonitorCombo.SelectedIndex = 0;
+                MonitorCombo.IsEnabled = false;
+                MonitorRing.IsActive = false;
+                MonitorRing.Visibility = Visibility.Collapsed;
+            });
+        }
     }
 
     // --------------------------------------------
@@ -158,56 +201,76 @@ public sealed partial class AddSourceDialog : ContentDialog
     {
         var list = new List<ProcessInfo>();
 
-        foreach (var p in Process.GetProcesses())
+        try
+        {
+            // Use ScreenRecorderLib to get windows
+            var windows = await Task.Run(() => Recorder.GetWindows());
+            
+            var processedNames = new HashSet<string>();
+            
+            foreach (var window in windows)
         {
             try
         {
+                    // Skip if window title is empty or too short
+                    if (string.IsNullOrWhiteSpace(window.Title) || window.Title.Length < 2)
+                        continue;
+                        
+                    // Use P/Invoke to get process ID from window handle
+                    uint processId;
+                    GetWindowThreadProcessId(window.Handle, out processId);
+                    
+                    if (processId == 0)
+                        continue;
+                    
+                    // Try to get the process
+                    using var process = Process.GetProcessById((int)processId);
+                    string processName = process.ProcessName;
+                    
+                    // Skip if we've already processed this process name
+                    if (processedNames.Contains(processName))
+                        continue;
+                    
+                    processedNames.Add(processName);
+                    
             string? path = null;
-                string processName = p.ProcessName;
-                
-                // Try to get the executable path
                 try 
                 { 
-                    path = p.MainModule?.FileName; 
+                        path = process.MainModule?.FileName;
                 } 
                 catch 
                 { 
-                    // If we can't get MainModule, try alternative methods
-                    try
-                    {
-                        // For some processes, we can still get useful info
-                        if (!string.IsNullOrEmpty(processName) && p.MainWindowHandle != IntPtr.Zero)
-                        {
-                            // Use process name as fallback path for processes with windows
+                        // If we can't get the path, use process name as fallback
                             path = $"{processName}.exe";
                         }
-                    }
-                    catch { }
-                }
-                
-                // Include processes that either have a path OR have a main window
-                if (!string.IsNullOrEmpty(path) || p.MainWindowHandle != IntPtr.Zero)
+                    
+                    if (!string.IsNullOrEmpty(path))
                 {
-                    // Use actual path if available, otherwise construct from process name
-                    var finalPath = !string.IsNullOrEmpty(path) ? path : $"{processName}.exe";
-                    list.Add(new ProcessInfo(p.Id, processName, finalPath));
+                        list.Add(new ProcessInfo((int)processId, processName, path));
             }
         }
             catch
             {
-                // Skip processes we can't access at all
+                    // Skip processes we can't access
                 continue;
             }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to discover processes: {ex.Message}");
         }
 
         // Sort by process name for better UX
-        _processes = list.OrderBy(p => p.Name).ToList();
+        _processes = list.OrderBy(p => p.Name).Distinct().ToList();
 
         await DispatcherQueue.EnqueueAsync(() =>
         {
             ProcessBox.IsEnabled = true;
             ProcessRing.IsActive = false;
             ProcessRing.Visibility = Visibility.Collapsed;
+            
+            Debug.WriteLine($"Discovered {_processes.Count} processes");
             
             // If we're in edit mode and waiting to pre-fill, do it now
             if (IsEditMode && _editingSource != null && _editingSource.Type == SourceType.Process)
@@ -296,6 +359,10 @@ public sealed partial class AddSourceDialog : ContentDialog
     }
 
     private readonly record struct ProcessInfo(int Id, string Name, string? Path);
+
+    // P/Invoke for getting process ID from window handle
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
     // --------------------------------------------
     // AutoSuggest for processes

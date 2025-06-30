@@ -12,6 +12,9 @@ using Windows.System;
 using Windows.UI.Core;
 using Better_SignalRGB_Screen_Capture.Models;
 using Better_SignalRGB_Screen_Capture.ViewModels;
+using Better_SignalRGB_Screen_Capture.Contracts.Services;
+using System.IO;
+using Windows.Storage.Streams;
 
 namespace Better_SignalRGB_Screen_Capture.Views;
 
@@ -40,6 +43,7 @@ public sealed partial class DraggableSourceItem : UserControl
     private ResizeMode _resizeMode = ResizeMode.None;
     private bool _isSelected;
     private bool _isCropping;
+    private readonly ICaptureService? _captureService;
 
     // Drag/resize start state
     private Point _actionStartPointerPosition;
@@ -152,6 +156,15 @@ public sealed partial class DraggableSourceItem : UserControl
     {
         InitializeComponent();
         
+        // Get the capture service
+        _captureService = App.GetService<ICaptureService>();
+        
+        // Subscribe to frame updates
+        if (_captureService != null)
+        {
+            _captureService.FrameAvailable += OnFrameAvailable;
+        }
+        
         // Set up event handlers
         PointerPressed += OnPointerPressed;
         PointerMoved += OnPointerMoved;
@@ -161,6 +174,40 @@ public sealed partial class DraggableSourceItem : UserControl
         RightTapped += OnRightTapped;
         Loaded += OnLoaded;
         SizeChanged += OnSizeChanged;
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnFrameAvailable(object? sender, SourceFrameEventArgs e)
+    {
+        if (Source == null || e.Source.Id != Source.Id) return;
+        
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            try
+            {
+                if (e.FrameData != null && e.FrameData.Length > 0)
+                {
+                    // Convert JPEG byte array to BitmapImage
+                    using var stream = new MemoryStream(e.FrameData);
+                    var bitmap = new BitmapImage();
+                    await bitmap.SetSourceAsync(stream.AsRandomAccessStream());
+                    PreviewImage.Source = bitmap;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error displaying frame: {ex.Message}");
+            }
+        });
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        // Unsubscribe from frame updates
+        if (_captureService != null)
+        {
+            _captureService.FrameAvailable -= OnFrameAvailable;
+        }
     }
 
     private static void OnSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using System.Linq;
 using System;
+using System.Collections.Concurrent;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Better_SignalRGB_Screen_Capture.Models;
@@ -22,6 +23,7 @@ public partial class MainViewModel : ObservableRecipient
     private List<SourceItem> _copiedSources = new();
     private readonly UndoRedoManager _undoRedoManager = new();
     private bool _isUndoRedoOperation = false; // To prevent saving undo state during undo/redo
+    private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _restartTimers = new(); // 5-second delay timers
     public event EventHandler? SourcesMoved;
     
     [ObservableProperty]
@@ -271,7 +273,7 @@ public partial class MainViewModel : ObservableRecipient
         _ = SavePreviewFpsAsync();
         
         // Update capture service framerate
-        _captureService.SetFrameRate(value);
+        _ = _captureService.SetFrameRate(value);
     }
     
     [RelayCommand]
@@ -1248,20 +1250,25 @@ public partial class MainViewModel : ObservableRecipient
             var savedSources = await _localSettingsService.ReadSettingAsync<SourceItem[]>(SourcesSettingsKey);
             if (savedSources != null)
             {
-                Sources.Clear();
                 foreach (var source in savedSources)
                 {
-                    // Property change listener will be attached automatically via Sources.CollectionChanged
+                    if (source != null && source.Id != Guid.Empty)
+                    {
+                        // Ensure source has valid dimensions
+                        if (source.CanvasWidth <= 0) source.CanvasWidth = 200;
+                        if (source.CanvasHeight <= 0) source.CanvasHeight = 150;
+                        
                     Sources.Add(source);
                     
-                    // Start capture for loaded sources
-                    _ = Task.Run(async () => await _captureService.StartCaptureAsync(source));
+                        // Automatically start capturing for this source
+                        await _captureService.StartCaptureAsync(source);
+                    }
                 }
             }
         }
         catch
         {
-            // If loading fails, start with empty collection
+            // Handle load error if needed
         }
     }
     
@@ -1295,18 +1302,25 @@ public partial class MainViewModel : ObservableRecipient
     
     private void OnFrameAvailable(object? sender, SourceFrameEventArgs e)
     {
-        // Handle frame received from capture service
         // Send individual source frame to composite service
         if (e.FrameData != null)
         {
             _compositeFrameService.UpdateSourceFrame(e.Source, e.FrameData);
         }
+
+        // Update live preview if this source is selected
+        if (e.Source.IsSelected && e.FrameImage != null)
+        {
+            // TODO: Update live preview UI with e.FrameImage
+            System.Diagnostics.Debug.WriteLine($"📺 Live preview frame for {e.Source.Name}");
+        }
     }
     
     private void OnCompositeFrameAvailable(object? sender, byte[] compositeFrame)
     {
-        // Send composite frame to MJPEG streaming service
+        // Send composite frame to streaming service
         _mjpegStreamingService.UpdateFrame(compositeFrame);
+        System.Diagnostics.Debug.WriteLine($"🎬 Composite frame sent to streaming service ({compositeFrame.Length} bytes)");
     }
     
     private void OnStreamingUrlChanged(object? sender, string url)
@@ -1320,48 +1334,42 @@ public partial class MainViewModel : ObservableRecipient
         if (IsRecording)
         {
             await StopAllCapturesAsync();
+            IsRecording = false;
         }
         else
         {
             await StartAllCapturesAsync();
+            IsRecording = true;
         }
     }
 
     public async Task StartAllCapturesAsync()
     {
-        foreach (var source in Sources)
+        try
         {
-            if (!_captureService.IsCapturing(source))
+            // Clean up any pending restart timers
+            foreach (var timer in _restartTimers.Values)
+        {
+                timer.Cancel();
+                timer.Dispose();
+            }
+            _restartTimers.Clear();
+
+            // Start capture for each source
+            foreach (var source in Sources)
             {
                 await _captureService.StartCaptureAsync(source);
-            }
         }
         
-        // Also start a test frame generator to ensure MJPEG stream works
-        _testFrameCancellation?.Cancel();
-        _testFrameCancellation = new CancellationTokenSource();
-        
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                while (!_testFrameCancellation.Token.IsCancellationRequested)
-                {
-                    // Generate a test frame every second
-                    await Task.Delay(1000, _testFrameCancellation.Token);
-                    
-                    // Generate a simple test JPEG frame
-                    var testFrame = GenerateTestFrame();
-                    _mjpegStreamingService.UpdateFrame(testFrame);
-                }
+            // Start streaming service
+            await _mjpegStreamingService.StartStreamingAsync();
+            
+            System.Diagnostics.Debug.WriteLine($"✅ Started capturing {Sources.Count} sources and streaming service");
             }
-            catch (OperationCanceledException)
+        catch (Exception ex)
             {
-                // Expected when cancellation is requested
-            }
-        }, _testFrameCancellation.Token);
-
-        IsRecording = true;
+            System.Diagnostics.Debug.WriteLine($"❌ Failed to start captures: {ex.Message}");
+        }
     }
     
     private byte[] GenerateTestFrame()
@@ -1385,12 +1393,25 @@ public partial class MainViewModel : ObservableRecipient
     
     public async Task StopAllCapturesAsync()
     {
-        // Stop test frame generator
-        _testFrameCancellation?.Cancel();
-        
+        try
+        {
+            // Clean up any pending restart timers
+            foreach (var timer in _restartTimers.Values)
+            {
+                timer.Cancel();
+                timer.Dispose();
+            }
+            _restartTimers.Clear();
+
+            // Stop all captures
         await _captureService.StopAllCapturesAsync();
 
-        IsRecording = false;
+            System.Diagnostics.Debug.WriteLine("🛑 Stopped all captures and cleaned up timers");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ Failed to stop captures: {ex.Message}");
+        }
     }
 
     [RelayCommand(CanExecute = nameof(IsSourceSelected))]
@@ -1480,7 +1501,78 @@ public partial class MainViewModel : ObservableRecipient
 
     private void Source_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (sender is not SourceItem source || !source.IsSelected) return;
+        if (sender is not SourceItem source) return;
+
+        // Properties that require capture restart
+        var captureRestartProperties = new[]
+        {
+            nameof(SourceItem.CanvasX),
+            nameof(SourceItem.CanvasY),
+            nameof(SourceItem.CanvasWidth),
+            nameof(SourceItem.CanvasHeight),
+
+            nameof(SourceItem.Rotation),
+            nameof(SourceItem.CropLeftPct),
+            nameof(SourceItem.CropTopPct),
+            nameof(SourceItem.CropRightPct),
+            nameof(SourceItem.CropBottomPct),
+
+            nameof(SourceItem.IsMirroredHorizontally),
+            nameof(SourceItem.IsMirroredVertically),
+            nameof(SourceItem.RegionX),
+            nameof(SourceItem.RegionY),
+            nameof(SourceItem.RegionWidth),
+            nameof(SourceItem.RegionHeight)
+        };
+
+        // Check if we need to restart capture
+        if (captureRestartProperties.Contains(e.PropertyName) && _captureService.IsCapturing(source))
+        {
+            // Only restart if recording is active
+            if (IsRecording)
+            {
+                // Cancel any existing restart timer for this source
+                if (_restartTimers.TryGetValue(source.Id, out var existingTimer))
+                {
+                    existingTimer.Cancel();
+                    existingTimer.Dispose();
+                }
+
+                // Start new 5-second delay timer
+                var cancellationTokenSource = new CancellationTokenSource();
+                _restartTimers[source.Id] = cancellationTokenSource;
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        // Wait 5 seconds
+                        await Task.Delay(5000, cancellationTokenSource.Token);
+                        
+                        // Check if still recording and capturing
+                        if (!cancellationTokenSource.Token.IsCancellationRequested && 
+                            IsRecording && 
+                            _captureService.IsCapturing(source))
+                        {
+                            await RestartSourceCaptureAsync(source);
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Timer was cancelled, do nothing
+                    }
+                    finally
+                    {
+                        // Clean up timer
+                        _restartTimers.TryRemove(source.Id, out _);
+                        cancellationTokenSource.Dispose();
+                    }
+                }, cancellationTokenSource.Token);
+            }
+        }
+
+        // Update UI properties if this source is selected
+        if (!source.IsSelected) return;
 
         // Update property panel if this source is currently selected
         // This works for both single and multi-select scenarios
@@ -1534,6 +1626,21 @@ public partial class MainViewModel : ObservableRecipient
         OnPropertyChanged(nameof(IsSourceSelected));
         OnPropertyChanged(nameof(IsMultiSelect));
         OnPropertyChanged(nameof(IsSingleSelect));
+    }
+
+    private async Task RestartSourceCaptureAsync(SourceItem source)
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine($"🔄 Restarting capture for {source.Name} due to property change");
+            await _captureService.StopCaptureAsync(source);
+            await Task.Delay(50); // Small delay for cleanup
+            await _captureService.StartCaptureAsync(source);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"❌ Failed to restart capture for {source.Name}: {ex.Message}");
+        }
     }
 
     // Undo/Redo properties

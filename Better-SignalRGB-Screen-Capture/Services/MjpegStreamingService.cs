@@ -17,11 +17,27 @@ public class MjpegStreamingService : IMjpegStreamingService
     private readonly object _frameLock = new();
     private byte[]? _currentFrame;
     private int _port;
+    private readonly ICaptureService _captureService;
 
     public event EventHandler<string>? StreamingUrlChanged;
 
     public bool IsStreaming => _httpListener?.IsListening == true;
     public string? StreamingUrl { get; private set; }
+
+    public MjpegStreamingService(ICaptureService captureService)
+    {
+        _captureService = captureService;
+        _captureService.FrameAvailable += OnFrameAvailable;
+    }
+
+    private void OnFrameAvailable(object? sender, SourceFrameEventArgs e)
+    {
+        // Update the current frame with the latest data
+        if (e.FrameData != null)
+        {
+            UpdateFrame(e.FrameData);
+        }
+    }
 
     public async Task StartStreamingAsync(int port = 8080)
     {
@@ -168,18 +184,18 @@ public class MjpegStreamingService : IMjpegStreamingService
                 }
                 else
                 {
-                    // Send a black 800x600 placeholder frame if no data available
-                    var placeholderFrame = CreateBlackFrame800x600();
-                    if (placeholderFrame != null)
+                    // Get a frame from the capture service
+                    var mjpegFrame = _captureService.GetMjpegFrame();
+                    if (mjpegFrame != null)
                     {
                         try
                         {
                             var headers = Encoding.UTF8.GetBytes(
                                 $"Content-Type: image/jpeg\r\n" +
-                                $"Content-Length: {placeholderFrame.Length}\r\n\r\n");
+                                $"Content-Length: {mjpegFrame.Length}\r\n\r\n");
                             
                             await outputStream.WriteAsync(headers, 0, headers.Length, cancellationToken);
-                            await outputStream.WriteAsync(placeholderFrame, 0, placeholderFrame.Length, cancellationToken);
+                            await outputStream.WriteAsync(mjpegFrame, 0, mjpegFrame.Length, cancellationToken);
                             await outputStream.WriteAsync(boundary, 0, boundary.Length, cancellationToken);
                             await outputStream.FlushAsync(cancellationToken);
                         }

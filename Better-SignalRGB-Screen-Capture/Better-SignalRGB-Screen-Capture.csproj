@@ -13,6 +13,7 @@
     <Nullable>enable</Nullable>
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <None Remove="Views\AddSourceDialog.xaml" />
@@ -31,6 +32,7 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.250610002-experimental3" />
     <PackageReference Include="Microsoft.Xaml.Behaviors.WinUI.Managed" Version="3.0.0" />
     <PackageReference Include="ScreenRecorderLib" Version="6.5.1" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.0-preview.5.25277.114" />
     <PackageReference Include="WinUIEx" Version="2.6.0" />
   </ItemGroup>
   <ItemGroup>

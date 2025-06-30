@@ -119,9 +119,19 @@ public class SourceItem : INotifyPropertyChanged
                 _regionBounds = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(DisplaySubtitle));
+                OnPropertyChanged(nameof(RegionX));
+                OnPropertyChanged(nameof(RegionY));
+                OnPropertyChanged(nameof(RegionWidth));
+                OnPropertyChanged(nameof(RegionHeight));
             }
         }
     }
+    
+    // Helper properties for easier access to region bounds
+    public int? RegionX => RegionBounds?.X;
+    public int? RegionY => RegionBounds?.Y;
+    public int? RegionWidth => RegionBounds?.Width;
+    public int? RegionHeight => RegionBounds?.Height;
     
     public string? WebcamDeviceId
     {
@@ -151,6 +161,17 @@ public class SourceItem : INotifyPropertyChanged
             }
         }
     }
+    
+    // DeviceId property for compatibility with new CaptureService
+    public string DeviceId => Type switch
+    {
+        SourceType.Monitor or SourceType.Display => MonitorDeviceId ?? string.Empty,
+        SourceType.Process or SourceType.Window => ProcessId?.ToString() ?? string.Empty,
+        SourceType.Region => RegionBounds.HasValue ? $"{RegionBounds.Value.X},{RegionBounds.Value.Y},{RegionBounds.Value.Width},{RegionBounds.Value.Height}" : string.Empty,
+        SourceType.Webcam => WebcamDeviceId ?? string.Empty,
+        SourceType.Website => WebsiteUrl ?? string.Empty,
+        _ => string.Empty
+    };
     
     // Canvas position and size (in canvas coordinates 0-800, 0-600)
     public int CanvasX
@@ -378,8 +399,10 @@ public class SourceItem : INotifyPropertyChanged
 
 public enum SourceType
 {
-    Monitor,
-    Process,
+    Monitor, // Kept for backward compatibility
+    Display = Monitor, // New name for monitors/displays
+    Process, // Kept for backward compatibility  
+    Window = Process, // New name for windows/processes
     Region,
     Webcam,
     Website

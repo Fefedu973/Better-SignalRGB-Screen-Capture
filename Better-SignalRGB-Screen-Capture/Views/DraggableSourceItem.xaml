@@ -34,10 +34,19 @@
             <Border.RenderTransform>
                 <ScaleTransform ScaleX="{x:Bind Source.IsMirroredHorizontally, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" ScaleY="{x:Bind Source.IsMirroredVertically, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" />
             </Border.RenderTransform>
-            <Grid Padding="8">
+            <Grid>
+                <!-- Preview Image -->
+                <Image
+                    x:Name="PreviewImage"
+                    Stretch="UniformToFill"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center" />
+                
+                <!-- Info overlay -->
+                <Grid Padding="8" VerticalAlignment="Bottom" Background="{ThemeResource LayerFillColorDefaultBrush}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <TextBlock
                     x:Name="DisplayNameText"
@@ -49,11 +58,11 @@
                 <TextBlock
                     x:Name="TypeText"
                     Grid.Row="1"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    FontWeight="SemiBold"
-                    Style="{ThemeResource BodyTextBlockStyle}"
-                    Text="Source Type" />
+                        HorizontalAlignment="Left"
+                        Style="{ThemeResource CaptionTextBlockStyle}"
+                        Text="Source Type"
+                        Opacity="0.7" />
+                </Grid>
             </Grid>
         </Border>
         

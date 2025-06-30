@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Better_SignalRGB_Screen_Capture.Models;
-using Windows.Graphics.Imaging;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace Better_SignalRGB_Screen_Capture.Contracts.Services;
 
@@ -14,19 +14,20 @@ public interface ICaptureService
     Task StopAllCapturesAsync();
     
     bool IsCapturing(SourceItem source);
-    void SetFrameRate(int fps);
+    Task SetFrameRate(int fps);
+    byte[]? GetMjpegFrame(Guid sourceId);
     byte[]? GetMjpegFrame();
 }
 
 public class SourceFrameEventArgs : EventArgs
 {
     public SourceItem Source { get; }
-    public SoftwareBitmap Frame { get; }
+    public BitmapImage FrameImage { get; }
     public byte[]? FrameData { get; set; }
     
-    public SourceFrameEventArgs(SourceItem source, SoftwareBitmap frame)
+    public SourceFrameEventArgs(SourceItem source, BitmapImage frameImage)
     {
         Source = source;
-        Frame = frame;
+        FrameImage = frameImage;
     }
 } 
