@@ -1,7 +1,9 @@
 using System;
+using System.Numerics;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
@@ -442,6 +444,17 @@ public sealed partial class DraggableSourceItem : UserControl
             var currentAngle = Math.Atan2(currentVector.Y, currentVector.X) * (180.0 / Math.PI);
 
             var angleDelta = currentAngle - startAngle;
+
+            // Normalize the delta to handle the wrap-around from +180 to -180
+            if (angleDelta > 180)
+            {
+                angleDelta -= 360;
+            }
+            if (angleDelta < -180)
+            {
+                angleDelta += 360;
+            }
+            
             var newAngle = _actionStartRotation + angleDelta;
             
             if (isShiftDown)
@@ -1097,6 +1110,17 @@ public sealed partial class DraggableSourceItem : UserControl
                 var currentAngle = Math.Atan2(currentVector.Y, currentVector.X) * (180.0 / Math.PI);
 
                 var angleDelta = currentAngle - startAngle;
+
+                // Normalize the delta to handle the wrap-around from +180 to -180
+                if (angleDelta > 180)
+                {
+                    angleDelta -= 360;
+                }
+                if (angleDelta < -180)
+                {
+                    angleDelta += 360;
+                }
+
                 var newAngle = _cropActionStartRotation + angleDelta;
 
                 if (isShiftDown)
@@ -1106,7 +1130,6 @@ public sealed partial class DraggableSourceItem : UserControl
 
                 UpdateCropVisuals(_cropActionStartBounds, newAngle);
                 return;
-
             case ResizeMode.Left:
             case ResizeMode.Right:
             case ResizeMode.Top:
@@ -1116,28 +1139,17 @@ public sealed partial class DraggableSourceItem : UserControl
             case ResizeMode.BottomLeft:
             case ResizeMode.BottomRight:
                 {
+                    // Constrain the deltas to prevent going out of bounds
+                    var constrainedDeltas = ConstrainResizeDeltas(_cropActionStartBounds, _cropResizeMode, deltaX, deltaY, _cropActionStartRotation);
+                    
                     newBounds = ApplyCropResize(
                         _cropActionStartBounds,
                         _cropResizeMode,
-                        deltaX,           // raw screen-space delta
-                        deltaY,
+                        constrainedDeltas.X,    // constrained delta
+                        constrainedDeltas.Y,    // constrained delta
                         _cropActionStartRotation,
                         10,               // minSize
                         isShiftDown);     // preserveAspectRatio
-
-                    // To allow overflow, we check if the intersection is empty.
-                    // If it is, the crop is fully outside the source, which we prevent.
-                    var aabb = GetRotatedAabb(
-                        new Point(newBounds.X + newBounds.Width / 2,
-                                  newBounds.Y + newBounds.Height / 2),
-                        new Size(newBounds.Width, newBounds.Height),
-                        _cropActionStartRotation);
-                    
-                    var sourceBounds = new Rect(0, 0, ActualWidth, ActualHeight);
-                    var intersection = IntersectRects(aabb, sourceBounds);
-
-                    if (intersection.IsEmpty)
-                        return; // Refuse this drag - would be fully outside
                     break;
                 }
             case ResizeMode.Move:
@@ -1146,26 +1158,12 @@ public sealed partial class DraggableSourceItem : UserControl
                     double newX = _cropActionStartBounds.X + deltaX;
                     double newY = _cropActionStartBounds.Y + deltaY;
 
-                    // 2. make sure the *rotated* crop stays inside the control
-                    var centre = new Point(
-                        newX + _cropActionStartBounds.Width * 0.5,
-                        newY + _cropActionStartBounds.Height * 0.5);
+                    // 2. Clamp the movement to keep the crop rectangle inside the control
+                    var tempBounds = new Rect(newX, newY, _cropActionStartBounds.Width, _cropActionStartBounds.Height);
+                    tempBounds = ClampCropPositionToBounds(tempBounds, _cropActionStartRotation);
 
-                    var aabb = GetRotatedAabb(
-                        centre,
-                        new Size(_cropActionStartBounds.Width, _cropActionStartBounds.Height),
-                        _cropActionStartRotation);
-                    
-                    var sourceBounds = new Rect(0, 0, ActualWidth, ActualHeight);
-                    var intersection = IntersectRects(aabb, sourceBounds);
-                    
-                    if (intersection.IsEmpty)
-                    {
-                         return; // Refuse this drag – would be fully outside
-                    }
-
-                    newBounds.X = newX;
-                    newBounds.Y = newY;
+                    newBounds.X = tempBounds.X;
+                    newBounds.Y = tempBounds.Y;
                 }
                 break;
         }
@@ -1280,6 +1278,142 @@ public sealed partial class DraggableSourceItem : UserControl
         double y1 = centre1.Y - h1 / 2;
 
         return new Rect(x1, y1, w1, h1);
+    }
+
+    private Point ConstrainResizeDeltas(Rect startBounds, ResizeMode mode, double deltaX, double deltaY, double rotationDegrees)
+    {
+        // For unrotated rectangles, use simple edge-based constraints
+        if (Math.Abs(rotationDegrees) < 0.001)
+        {
+            double constrainedDeltaX = deltaX;
+            double constrainedDeltaY = deltaY;
+
+            // Constrain based on which edges are moving and the control bounds
+            switch (mode)
+            {
+                case ResizeMode.Left:
+                case ResizeMode.TopLeft:
+                case ResizeMode.BottomLeft:
+                    // Left edge moving - constrain to not go past left boundary
+                    constrainedDeltaX = Math.Max(deltaX, -startBounds.X);
+                    break;
+                    
+                case ResizeMode.Right:
+                case ResizeMode.TopRight:
+                case ResizeMode.BottomRight:
+                    // Right edge moving - constrain to not go past right boundary
+                    constrainedDeltaX = Math.Min(deltaX, ActualWidth - startBounds.Right);
+                    break;
+            }
+
+            switch (mode)
+            {
+                case ResizeMode.Top:
+                case ResizeMode.TopLeft:
+                case ResizeMode.TopRight:
+                    // Top edge moving - constrain to not go past top boundary
+                    constrainedDeltaY = Math.Max(deltaY, -startBounds.Y);
+                    break;
+                    
+                case ResizeMode.Bottom:
+                case ResizeMode.BottomLeft:
+                case ResizeMode.BottomRight:
+                    // Bottom edge moving - constrain to not go past bottom boundary
+                    constrainedDeltaY = Math.Min(deltaY, ActualHeight - startBounds.Bottom);
+                    break;
+            }
+
+            return new Point(constrainedDeltaX, constrainedDeltaY);
+        }
+
+        // For rotated rectangles, we need to check if the resulting AABB would fit
+        // This is more complex, so we'll use a binary search approach to find the maximum allowed delta
+        var testDeltaX = deltaX;
+        var testDeltaY = deltaY;
+        
+        // Test if the current deltas work
+        var testBounds = ApplyCropResize(startBounds, mode, testDeltaX, testDeltaY, rotationDegrees, 10, false);
+        var testCenter = new Point(testBounds.X + testBounds.Width / 2, testBounds.Y + testBounds.Height / 2);
+        var testAabb = GetRotatedAabb(testCenter, new Size(testBounds.Width, testBounds.Height), rotationDegrees);
+        
+        if (testAabb.Left >= 0 && testAabb.Top >= 0 && testAabb.Right <= ActualWidth && testAabb.Bottom <= ActualHeight)
+        {
+            return new Point(testDeltaX, testDeltaY); // Original deltas work fine
+        }
+
+        // Binary search to find the maximum allowed deltas
+        double minScale = 0.0;
+        double maxScale = 1.0;
+        double workingScale = 0.0;
+
+        for (int i = 0; i < 10; i++) // 10 iterations should be enough for reasonable precision
+        {
+            double testScale = (minScale + maxScale) / 2;
+            testDeltaX = deltaX * testScale;
+            testDeltaY = deltaY * testScale;
+
+            testBounds = ApplyCropResize(startBounds, mode, testDeltaX, testDeltaY, rotationDegrees, 10, false);
+            testCenter = new Point(testBounds.X + testBounds.Width / 2, testBounds.Y + testBounds.Height / 2);
+            testAabb = GetRotatedAabb(testCenter, new Size(testBounds.Width, testBounds.Height), rotationDegrees);
+
+            if (testAabb.Left >= 0 && testAabb.Top >= 0 && testAabb.Right <= ActualWidth && testAabb.Bottom <= ActualHeight)
+            {
+                workingScale = testScale;
+                minScale = testScale;
+            }
+            else
+            {
+                maxScale = testScale;
+            }
+        }
+
+        return new Point(deltaX * workingScale, deltaY * workingScale);
+    }
+
+    private Rect ClampCropPositionToBounds(Rect rect, double rotationDegrees)
+    {
+        // For rotation = 0, simple clamping
+        if (Math.Abs(rotationDegrees) < 0.001)
+        {
+            double clampedX = Math.Clamp(rect.X, 0, Math.Max(0, ActualWidth - rect.Width));
+            double clampedY = Math.Clamp(rect.Y, 0, Math.Max(0, ActualHeight - rect.Height));
+            double clampedWidth = Math.Clamp(rect.Width, 10, ActualWidth - clampedX);
+            double clampedHeight = Math.Clamp(rect.Height, 10, ActualHeight - clampedY);
+            
+            return new Rect(clampedX, clampedY, clampedWidth, clampedHeight);
+        }
+
+        // For rotated rectangles, calculate the AABB and ensure it fits within bounds
+        var center = new Point(rect.X + rect.Width / 2, rect.Y + rect.Height / 2);
+        var aabb = GetRotatedAabb(center, new Size(rect.Width, rect.Height), rotationDegrees);
+        
+        // Check if the AABB is within the control bounds
+        var controlBounds = new Rect(0, 0, ActualWidth, ActualHeight);
+        var intersection = IntersectRects(aabb, controlBounds);
+        
+        // If there's no intersection, the rectangle is completely outside - return the original
+        if (intersection.IsEmpty)
+        {
+            return _cropActionStartBounds; // Fallback to original bounds
+        }
+        
+        // If the AABB fits entirely within bounds, return the original rectangle
+        if (aabb.Left >= 0 && aabb.Top >= 0 && aabb.Right <= ActualWidth && aabb.Bottom <= ActualHeight)
+        {
+            return rect;
+        }
+        
+        // Calculate adjustment needed to bring the AABB within bounds
+        double deltaX = 0, deltaY = 0;
+        
+        if (aabb.Left < 0) deltaX = -aabb.Left;
+        else if (aabb.Right > ActualWidth) deltaX = ActualWidth - aabb.Right;
+        
+        if (aabb.Top < 0) deltaY = -aabb.Top;
+        else if (aabb.Bottom > ActualHeight) deltaY = ActualHeight - aabb.Bottom;
+        
+        // Apply the adjustment to the rectangle position
+        return new Rect(rect.X + deltaX, rect.Y + deltaY, rect.Width, rect.Height);
     }
 
     private void UpdateCropVisuals(Rect cropRect, double rotationAngle = 0)
@@ -1655,6 +1789,8 @@ public sealed partial class DraggableSourceItem : UserControl
                 if (Source != null) RefreshPosition();
             });
         }
+        
+        UpdateShadeClip();
     }
 
     private void OnSizeChanged(object sender, SizeChangedEventArgs e)
@@ -1665,8 +1801,21 @@ public sealed partial class DraggableSourceItem : UserControl
             RefreshPosition();
         }
         
-        // The clipping is now handled by the Path's combined geometry.
+        UpdateShadeClip();
     }
+
+
+
+private void UpdateShadeClip()
+{
+    if (ActualWidth == 0 || ActualHeight == 0) return;
+
+    CropShadePath.Clip = new RectangleGeometry
+    {
+        Rect         = new Rect(0, 0, ActualWidth, ActualHeight),
+    };
+}
+
 
     public void SetSelected(bool selected)
     {
