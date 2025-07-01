@@ -11,6 +11,7 @@ public interface IMjpegStreamingService
     Task StopStreamingAsync();
     
     void UpdateFrame(byte[] jpegData);
+    void UpdateSourceFrame(Guid sourceId, byte[] jpegData);
     
     bool IsStreaming { get; }
     string? StreamingUrl { get; }

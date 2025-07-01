@@ -15,6 +15,7 @@ using Better_SignalRGB_Screen_Capture.ViewModels;
 using Better_SignalRGB_Screen_Capture.Contracts.Services;
 using System.IO;
 using Windows.Storage.Streams;
+using System.Runtime.InteropServices.WindowsRuntime;
 
 namespace Better_SignalRGB_Screen_Capture.Views;
 
@@ -181,25 +182,53 @@ public sealed partial class DraggableSourceItem : UserControl
     {
         if (Source == null || e.Source.Id != Source.Id || !Source.IsLivePreviewEnabled) return;
         
+        // Skip frame if previous update is still in progress
+        if (_isUpdatingFrame) return;
+        _isUpdatingFrame = true;
+        
+        // Must create BitmapImage on UI thread
         DispatcherQueue.TryEnqueue(async () =>
         {
             try
             {
                 if (e.FrameData != null && e.FrameData.Length > 0)
                 {
+                    // For website sources, skip the preview image as we use WebView
+                    if (Source.Type == SourceType.Website)
+                    {
+                        _isUpdatingFrame = false;
+                        return;
+                    }
+                    
                     // Convert JPEG byte array to BitmapImage
-                    using var stream = new MemoryStream(e.FrameData);
+                    using var stream = new InMemoryRandomAccessStream();
+                    using var writer = new Windows.Storage.Streams.DataWriter(stream);
+                    writer.WriteBytes(e.FrameData);
+                    await writer.StoreAsync();
+                    await writer.FlushAsync();
+                    writer.DetachStream();
+                    
+                    stream.Seek(0);
+                    
                     var bitmap = new BitmapImage();
-                    await bitmap.SetSourceAsync(stream.AsRandomAccessStream());
+                    bitmap.DecodePixelHeight = 600; // Limit size to prevent memory issues
+                    await bitmap.SetSourceAsync(stream);
+                    
                     PreviewImage.Source = bitmap;
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error displaying frame: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error displaying frame: {ex.Message}\n{ex.StackTrace}");
+            }
+            finally
+            {
+                _isUpdatingFrame = false;
             }
         });
     }
+    
+    private bool _isUpdatingFrame = false;
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
@@ -277,6 +306,7 @@ public sealed partial class DraggableSourceItem : UserControl
 
                 case nameof(SourceItem.DisplayName):
                 case nameof(SourceItem.Type):
+                case nameof(SourceItem.WebsiteUrl):
                     UpdateDisplay(Source);
                     break;
             }
@@ -1822,6 +1852,48 @@ public sealed partial class DraggableSourceItem : UserControl
 
         DisplayNameText.Text = source.DisplayName;
         TypeText.Text = source.Type.ToString();
+        
+        // Handle website sources
+        if (source.Type == SourceType.Website && !string.IsNullOrEmpty(source.WebsiteUrl))
+        {
+            ShowWebsitePreview(source.WebsiteUrl);
+        }
+        else
+        {
+            HideWebsitePreview();
+        }
+    }
+    
+    private async void ShowWebsitePreview(string url)
+    {
+        try
+        {
+            // Hide regular content and show WebView
+            ContentBorder.Visibility = Visibility.Collapsed;
+            PreviewImage.Visibility = Visibility.Collapsed;
+            WebsitePreview.Visibility = Visibility.Visible;
+            
+            // Navigate to the website
+            await WebsitePreview.EnsureCoreWebView2Async();
+            WebsitePreview.CoreWebView2.Navigate(url);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading website preview: {ex.Message}");
+            HideWebsitePreview();
+        }
+    }
+    
+    private void HideWebsitePreview()
+    {
+        WebsitePreview.Visibility = Visibility.Collapsed;
+        ContentBorder.Visibility = Visibility.Visible;
+        
+        // Show preview image if live preview is enabled
+        if (Source?.IsLivePreviewEnabled == true && Source.Type != SourceType.Website)
+        {
+            PreviewImage.Visibility = Visibility.Visible;
+        }
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)

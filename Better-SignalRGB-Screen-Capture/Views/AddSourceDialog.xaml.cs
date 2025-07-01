@@ -502,6 +502,9 @@ public sealed partial class AddSourceDialog : ContentDialog
             NameBox.Text = source.Name;
         }
         
+        // Set the SelectedSourceType first
+        SelectedSourceType = source.Type;
+        
         // Set the source type and related data
         switch (source.Type)
         {
@@ -594,7 +597,10 @@ public sealed partial class AddSourceDialog : ContentDialog
                     }
                 }
                 WebsiteUrl = source.WebsiteUrl;
-                WebsiteUrlBox.Text = source.WebsiteUrl;
+                if (WebsiteUrlBox != null)
+                {
+                    WebsiteUrlBox.Text = source.WebsiteUrl;
+                }
                 break;
         }
         

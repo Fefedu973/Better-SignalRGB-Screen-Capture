@@ -38,6 +38,17 @@
             </Image.RenderTransform>
         </Image>
 
+        <!-- WebView for website sources -->
+        <WebView2 x:Name="WebsitePreview"
+                  IsHitTestVisible="False"
+                  RenderTransformOrigin="0.5,0.5"
+                  Visibility="Collapsed">
+            <WebView2.RenderTransform>
+                <ScaleTransform ScaleX="{x:Bind Source.IsMirroredHorizontally, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" 
+                               ScaleY="{x:Bind Source.IsMirroredVertically, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}"/>
+            </WebView2.RenderTransform>
+        </WebView2>
+
         <!-- Content container with flip transform -->
         <Border
             x:Name="ContentBorder"

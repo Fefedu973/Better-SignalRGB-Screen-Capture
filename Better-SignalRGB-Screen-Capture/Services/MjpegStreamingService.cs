@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Better_SignalRGB_Screen_Capture.Contracts.Services;
+using Better_SignalRGB_Screen_Capture.ViewModels;
 
 namespace Better_SignalRGB_Screen_Capture.Services;
 
@@ -13,9 +14,9 @@ public class MjpegStreamingService : IMjpegStreamingService
 {
     private HttpListener? _httpListener;
     private CancellationTokenSource? _cancellationTokenSource;
-    private readonly ConcurrentBag<Stream> _clientStreams = new();
+    private readonly ConcurrentDictionary<Guid, ConcurrentBag<Stream>> _sourceClientStreams = new();
+    private readonly ConcurrentDictionary<Guid, byte[]> _sourceFrames = new();
     private readonly object _frameLock = new();
-    private byte[]? _currentFrame;
     private int _port;
     private readonly ICaptureService _captureService;
 
@@ -46,13 +47,18 @@ public class MjpegStreamingService : IMjpegStreamingService
 
         _port = port;
         _httpListener = new HttpListener();
+        
+        // Add prefixes for individual source streams and canvas page
         _httpListener.Prefixes.Add($"http://localhost:{port}/stream/");
+        _httpListener.Prefixes.Add($"http://localhost:{port}/canvas/");
+        _httpListener.Prefixes.Add($"http://localhost:{port}/");
+        
         _cancellationTokenSource = new CancellationTokenSource();
 
         try
         {
             _httpListener.Start();
-            StreamingUrl = $"http://localhost:{port}/stream/";
+            StreamingUrl = $"http://localhost:{port}/canvas/";
             StreamingUrlChanged?.Invoke(this, StreamingUrl);
 
             // Start handling requests
@@ -74,15 +80,20 @@ public class MjpegStreamingService : IMjpegStreamingService
             _httpListener.Stop();
         }
 
-        // Close all client streams
-        foreach (var stream in _clientStreams)
+        // Close all client streams for all sources
+        foreach (var sourceStreams in _sourceClientStreams.Values)
         {
-            try
+            foreach (var stream in sourceStreams)
             {
-                stream.Close();
+                try
+                {
+                    stream.Close();
+                }
+                catch { /* Ignore */ }
             }
-            catch { /* Ignore */ }
         }
+        _sourceClientStreams.Clear();
+        _sourceFrames.Clear();
 
         _httpListener?.Close();
         _httpListener = null;
@@ -97,13 +108,19 @@ public class MjpegStreamingService : IMjpegStreamingService
 
     public void UpdateFrame(byte[] jpegData)
     {
+        // This method is deprecated in favor of UpdateSourceFrame
+        // Keep for backward compatibility but no longer used
+    }
+
+    public void UpdateSourceFrame(Guid sourceId, byte[] jpegData)
+    {
         lock (_frameLock)
         {
-            _currentFrame = jpegData;
+            _sourceFrames[sourceId] = jpegData;
         }
 
-        // Send frame to all connected clients
-        _ = Task.Run(() => BroadcastFrame(jpegData));
+        // Send frame to all connected clients for this source
+        _ = Task.Run(() => BroadcastSourceFrame(sourceId, jpegData));
     }
 
     private async Task HandleRequestsAsync(CancellationToken cancellationToken)
@@ -135,6 +152,50 @@ public class MjpegStreamingService : IMjpegStreamingService
 
     private async Task HandleClientAsync(HttpListenerContext context, CancellationToken cancellationToken)
     {
+        var request = context.Request;
+        var response = context.Response;
+        var path = request.Url?.AbsolutePath ?? "";
+        
+        try
+        {
+            if (path.StartsWith("/stream/"))
+            {
+                // Handle individual source stream request
+                var sourceIdString = path.Substring("/stream/".Length);
+                if (Guid.TryParse(sourceIdString, out var sourceId))
+                {
+                    await HandleSourceStreamAsync(context, sourceId, cancellationToken);
+                }
+                else
+                {
+                    response.StatusCode = 404;
+                    response.Close();
+                }
+            }
+            else if (path.StartsWith("/canvas") || path == "/")
+            {
+                // Handle canvas page request
+                await HandleCanvasPageAsync(context, cancellationToken);
+            }
+            else
+            {
+                response.StatusCode = 404;
+                response.Close();
+            }
+        }
+        catch (Exception)
+        {
+            // Client disconnected or other error
+            try
+            {
+                response.Close();
+            }
+            catch { /* Ignore */ }
+        }
+    }
+
+    private async Task HandleSourceStreamAsync(HttpListenerContext context, Guid sourceId, CancellationToken cancellationToken)
+    {
         var response = context.Response;
         
         try
@@ -147,7 +208,13 @@ public class MjpegStreamingService : IMjpegStreamingService
             response.Headers.Add("Connection", "keep-alive");
 
             var outputStream = response.OutputStream;
-            _clientStreams.Add(outputStream);
+            
+            // Add to source-specific client streams
+            if (!_sourceClientStreams.ContainsKey(sourceId))
+            {
+                _sourceClientStreams[sourceId] = new ConcurrentBag<Stream>();
+            }
+            _sourceClientStreams[sourceId].Add(outputStream);
 
             // Send initial boundary
             var boundary = Encoding.UTF8.GetBytes("\r\n--mjpegboundary\r\n");
@@ -159,7 +226,7 @@ public class MjpegStreamingService : IMjpegStreamingService
                 byte[]? frameData;
                 lock (_frameLock)
                 {
-                    frameData = _currentFrame;
+                    _sourceFrames.TryGetValue(sourceId, out frameData);
                 }
 
                 if (frameData != null)
@@ -184,8 +251,8 @@ public class MjpegStreamingService : IMjpegStreamingService
                 }
                 else
                 {
-                    // Get a frame from the capture service
-                    var mjpegFrame = _captureService.GetMjpegFrame();
+                    // Get a frame from the capture service for this specific source
+                    var mjpegFrame = _captureService.GetMjpegFrame(sourceId);
                     if (mjpegFrame != null)
                     {
                         try
@@ -271,8 +338,191 @@ public class MjpegStreamingService : IMjpegStreamingService
         throw new Exception("JPEG encoder not found");
     }
 
-    private async Task BroadcastFrame(byte[] frameData)
+    private async Task HandleCanvasPageAsync(HttpListenerContext context, CancellationToken cancellationToken)
     {
+        var response = context.Response;
+        
+        try
+        {
+            response.ContentType = "text/html";
+            var html = GenerateCanvasPageHtml();
+            var buffer = Encoding.UTF8.GetBytes(html);
+            response.ContentLength64 = buffer.Length;
+            await response.OutputStream.WriteAsync(buffer, 0, buffer.Length, cancellationToken);
+        }
+        catch (Exception)
+        {
+            // Error sending response
+        }
+        finally
+        {
+            try
+            {
+                response.Close();
+            }
+            catch { /* Ignore */ }
+        }
+    }
+
+    private string GenerateCanvasPageHtml()
+    {
+        // Get all sources from MainViewModel
+        var mainViewModel = App.GetService<MainViewModel>();
+        var sources = mainViewModel?.Sources ?? new System.Collections.ObjectModel.ObservableCollection<Models.SourceItem>();
+        
+        var sourcesHtml = new System.Text.StringBuilder();
+        var sourcesScript = new System.Text.StringBuilder();
+        
+        foreach (var source in sources)
+        {
+            // Calculate crop mask if needed
+            var cropStyle = "";
+            if (source.CropLeftPct > 0 || source.CropTopPct > 0 || source.CropRightPct > 0 || source.CropBottomPct > 0)
+            {
+                var clipLeft = source.CropLeftPct * 100;
+                var clipTop = source.CropTopPct * 100;
+                var clipRight = 100 - (source.CropRightPct * 100);
+                var clipBottom = 100 - (source.CropBottomPct * 100);
+                cropStyle = $"clip-path: polygon({clipLeft}% {clipTop}%, {clipRight}% {clipTop}%, {clipRight}% {clipBottom}%, {clipLeft}% {clipBottom}%);";
+            }
+            
+            // Calculate transform
+            var transform = "";
+            if (source.Rotation != 0 || source.IsMirroredHorizontally || source.IsMirroredVertically)
+            {
+                var scaleX = source.IsMirroredHorizontally ? -1 : 1;
+                var scaleY = source.IsMirroredVertically ? -1 : 1;
+                transform = $"transform: rotate({source.Rotation}deg) scale({scaleX}, {scaleY});";
+            }
+            
+            var style = $"left: {source.CanvasX}px; top: {source.CanvasY}px; width: {source.CanvasWidth}px; height: {source.CanvasHeight}px; opacity: {source.Opacity}; {transform} {cropStyle}";
+            
+            if (source.Type == Models.SourceType.Website && !string.IsNullOrEmpty(source.WebsiteUrl))
+            {
+                sourcesHtml.AppendLine($@"
+        <div class='source' id='source-{source.Id}' style='{style}'>
+            <iframe src='{source.WebsiteUrl}' sandbox='allow-scripts allow-same-origin'></iframe>
+        </div>");
+            }
+            else
+            {
+                sourcesHtml.AppendLine($@"
+        <div class='source' id='source-{source.Id}' style='{style}'>
+            <img src='/stream/{source.Id}' onerror='this.style.display=""none""' onload='this.style.display=""block""'>
+        </div>");
+            }
+            
+            // Add live update script for this source
+            sourcesScript.AppendLine($@"
+        updateSource('{source.Id}', {{
+            x: {source.CanvasX}, y: {source.CanvasY}, 
+            width: {source.CanvasWidth}, height: {source.CanvasHeight},
+            rotation: {source.Rotation}, opacity: {source.Opacity},
+            mirrorH: {(source.IsMirroredHorizontally ? "true" : "false")}, 
+            mirrorV: {(source.IsMirroredVertically ? "true" : "false")},
+            cropLeft: {source.CropLeftPct}, cropTop: {source.CropTopPct},
+            cropRight: {source.CropRightPct}, cropBottom: {source.CropBottomPct}
+        }});");
+        }
+        
+        return $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Signal RGB Screen Capture Canvas</title>
+    <meta charset='utf-8'>
+    <style>
+        body {{ 
+            margin: 0; 
+            padding: 20px; 
+            background: #000; 
+            font-family: Arial, sans-serif;
+        }}
+        .canvas {{ 
+            position: relative; 
+            width: 800px; 
+            height: 600px; 
+            background: #222; 
+            margin: 0 auto;
+            border: 2px solid #444;
+            overflow: hidden;
+        }}
+        .source {{ 
+            position: absolute; 
+            transform-origin: center center;
+            overflow: hidden;
+        }}
+        .source img {{ 
+            width: 100%; 
+            height: 100%; 
+            object-fit: fill;
+            display: block;
+        }}
+        .source iframe {{ 
+            width: 100%; 
+            height: 100%; 
+            border: none;
+        }}
+        .info {{
+            text-align: center;
+            color: #ccc;
+            margin-top: 20px;
+        }}
+    </style>
+</head>
+<body>
+    <div class='canvas' id='canvas'>
+{sourcesHtml}
+    </div>
+    <div class='info'>
+        <p>Canvas: 800x600px | Sources: {sources.Count}</p>
+        <p>Refresh page to update layout</p>
+    </div>
+    <script>
+        const sources = {{}};
+        
+        function updateSource(id, props) {{
+            sources[id] = props;
+            const elem = document.getElementById('source-' + id);
+            if (!elem) return;
+            
+            // Update position and size
+            elem.style.left = props.x + 'px';
+            elem.style.top = props.y + 'px';
+            elem.style.width = props.width + 'px';
+            elem.style.height = props.height + 'px';
+            elem.style.opacity = props.opacity;
+            
+            // Update transform
+            const scaleX = props.mirrorH ? -1 : 1;
+            const scaleY = props.mirrorV ? -1 : 1;
+            elem.style.transform = `rotate(${{props.rotation}}deg) scale(${{scaleX}}, ${{scaleY}})`;
+            
+            // Update crop
+            if (props.cropLeft > 0 || props.cropTop > 0 || props.cropRight > 0 || props.cropBottom > 0) {{
+                const clipLeft = props.cropLeft * 100;
+                const clipTop = props.cropTop * 100;
+                const clipRight = 100 - (props.cropRight * 100);
+                const clipBottom = 100 - (props.cropBottom * 100);
+                elem.style.clipPath = `polygon(${{clipLeft}}% ${{clipTop}}%, ${{clipRight}}% ${{clipTop}}%, ${{clipRight}}% ${{clipBottom}}%, ${{clipLeft}}% ${{clipBottom}}%)`;
+            }}
+        }}
+        
+        // Initialize sources
+{sourcesScript}
+        
+        // Auto-refresh every 30 seconds
+        setTimeout(() => location.reload(), 30000);
+    </script>
+</body>
+</html>";
+    }
+
+    private async Task BroadcastSourceFrame(Guid sourceId, byte[] frameData)
+    {
+        if (!_sourceClientStreams.TryGetValue(sourceId, out var clientStreams))
+            return;
+
         var boundary = Encoding.UTF8.GetBytes("\r\n--mjpegboundary\r\n");
         var headers = Encoding.UTF8.GetBytes(
             $"Content-Type: image/jpeg\r\n" +
@@ -280,7 +530,7 @@ public class MjpegStreamingService : IMjpegStreamingService
 
         var streamsToRemove = new List<Stream>();
 
-        foreach (var stream in _clientStreams)
+        foreach (var stream in clientStreams)
         {
             try
             {
