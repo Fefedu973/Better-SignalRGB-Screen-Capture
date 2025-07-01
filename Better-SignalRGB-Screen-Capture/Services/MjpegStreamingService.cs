@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading;
@@ -84,13 +85,13 @@ public class MjpegStreamingService : IMjpegStreamingService
         foreach (var sourceStreams in _sourceClientStreams.Values)
         {
             foreach (var stream in sourceStreams)
+        {
+            try
             {
-                try
-                {
-                    stream.Close();
-                }
-                catch { /* Ignore */ }
+                stream.Close();
             }
+            catch { /* Ignore */ }
+        }
         }
         _sourceClientStreams.Clear();
         _sourceFrames.Clear();
@@ -176,6 +177,11 @@ public class MjpegStreamingService : IMjpegStreamingService
             {
                 // Handle canvas page request
                 await HandleCanvasPageAsync(context, cancellationToken);
+            }
+            else if (path == "/api/sources")
+            {
+                // Handle API request for sources data
+                await HandleSourcesApiAsync(context, cancellationToken);
             }
             else
             {
@@ -373,7 +379,8 @@ public class MjpegStreamingService : IMjpegStreamingService
         var sourcesHtml = new System.Text.StringBuilder();
         var sourcesScript = new System.Text.StringBuilder();
         
-        foreach (var source in sources)
+        // Render sources in reverse order so that items at the top of the list (index 0) appear on top
+        foreach (var source in sources.Reverse())
         {
             // Calculate crop mask if needed
             var cropStyle = "";
@@ -395,7 +402,7 @@ public class MjpegStreamingService : IMjpegStreamingService
                 transform = $"transform: rotate({source.Rotation}deg) scale({scaleX}, {scaleY});";
             }
             
-            var style = $"left: {source.CanvasX}px; top: {source.CanvasY}px; width: {source.CanvasWidth}px; height: {source.CanvasHeight}px; opacity: {source.Opacity}; {transform} {cropStyle}";
+            var style = $"left: {source.CanvasX}px; top: {source.CanvasY}px; width: {source.CanvasWidth}px; height: {source.CanvasHeight}px; opacity: {source.Opacity.ToString(System.Globalization.CultureInfo.InvariantCulture)}; {transform} {cropStyle}";
             
             if (source.Type == Models.SourceType.Website && !string.IsNullOrEmpty(source.WebsiteUrl))
             {
@@ -417,11 +424,12 @@ public class MjpegStreamingService : IMjpegStreamingService
         updateSource('{source.Id}', {{
             x: {source.CanvasX}, y: {source.CanvasY}, 
             width: {source.CanvasWidth}, height: {source.CanvasHeight},
-            rotation: {source.Rotation}, opacity: {source.Opacity},
+            rotation: {source.Rotation}, opacity: {source.Opacity.ToString(System.Globalization.CultureInfo.InvariantCulture)},
             mirrorH: {(source.IsMirroredHorizontally ? "true" : "false")}, 
             mirrorV: {(source.IsMirroredVertically ? "true" : "false")},
-            cropLeft: {source.CropLeftPct}, cropTop: {source.CropTopPct},
-            cropRight: {source.CropRightPct}, cropBottom: {source.CropBottomPct}
+            cropLeft: {source.CropLeftPct.ToString(System.Globalization.CultureInfo.InvariantCulture)}, cropTop: {source.CropTopPct.ToString(System.Globalization.CultureInfo.InvariantCulture)},
+            cropRight: {source.CropRightPct.ToString(System.Globalization.CultureInfo.InvariantCulture)}, cropBottom: {source.CropBottomPct.ToString(System.Globalization.CultureInfo.InvariantCulture)},
+            cropRotation: {source.CropRotation}
         }});");
         }
         
@@ -498,24 +506,195 @@ public class MjpegStreamingService : IMjpegStreamingService
             const scaleY = props.mirrorV ? -1 : 1;
             elem.style.transform = `rotate(${{props.rotation}}deg) scale(${{scaleX}}, ${{scaleY}})`;
             
-            // Update crop
+            // Update crop with rotation support
             if (props.cropLeft > 0 || props.cropTop > 0 || props.cropRight > 0 || props.cropBottom > 0) {{
                 const clipLeft = props.cropLeft * 100;
                 const clipTop = props.cropTop * 100;
                 const clipRight = 100 - (props.cropRight * 100);
                 const clipBottom = 100 - (props.cropBottom * 100);
-                elem.style.clipPath = `polygon(${{clipLeft}}% ${{clipTop}}%, ${{clipRight}}% ${{clipTop}}%, ${{clipRight}}% ${{clipBottom}}%, ${{clipLeft}}% ${{clipBottom}}%)`;
+                
+                // Create inner element for crop rotation if needed
+                const img = elem.querySelector('img, iframe');
+                if (props.cropRotation && props.cropRotation !== 0) {{
+                    // Apply crop with rotation
+                    const cropCenterX = clipLeft + (clipRight - clipLeft) / 2;
+                    const cropCenterY = clipTop + (clipBottom - clipTop) / 2;
+                    
+                    // Create a wrapper for the crop if it doesn't exist
+                    let cropWrapper = elem.querySelector('.crop-wrapper');
+                    if (!cropWrapper) {{
+                        cropWrapper = document.createElement('div');
+                        cropWrapper.className = 'crop-wrapper';
+                        cropWrapper.style.width = '100%';
+                        cropWrapper.style.height = '100%';
+                        cropWrapper.style.position = 'relative';
+                        cropWrapper.style.overflow = 'hidden';
+                        img.parentNode.insertBefore(cropWrapper, img);
+                        cropWrapper.appendChild(img);
+                    }}
+                    
+                    // Apply rotated clip path
+                    const rad = props.cropRotation * Math.PI / 180;
+                    const cos = Math.cos(rad);
+                    const sin = Math.sin(rad);
+                    
+                    // Transform the four corners of the clip rectangle
+                    const corners = [
+                        {{x: clipLeft, y: clipTop}},
+                        {{x: clipRight, y: clipTop}},
+                        {{x: clipRight, y: clipBottom}},
+                        {{x: clipLeft, y: clipBottom}}
+                    ];
+                    
+                    const rotatedCorners = corners.map(corner => {{
+                        const dx = corner.x - cropCenterX;
+                        const dy = corner.y - cropCenterY;
+                        return {{
+                            x: cropCenterX + dx * cos - dy * sin,
+                            y: cropCenterY + dx * sin + dy * cos
+                        }};
+                    }});
+                    
+                    elem.style.clipPath = `polygon(${{rotatedCorners[0].x}}% ${{rotatedCorners[0].y}}%, ${{rotatedCorners[1].x}}% ${{rotatedCorners[1].y}}%, ${{rotatedCorners[2].x}}% ${{rotatedCorners[2].y}}%, ${{rotatedCorners[3].x}}% ${{rotatedCorners[3].y}}%)`;
+                }} else {{
+                    elem.style.clipPath = `polygon(${{clipLeft}}% ${{clipTop}}%, ${{clipRight}}% ${{clipTop}}%, ${{clipRight}}% ${{clipBottom}}%, ${{clipLeft}}% ${{clipBottom}}%)`;
+                }}
             }}
         }}
         
         // Initialize sources
 {sourcesScript}
         
-        // Auto-refresh every 30 seconds
-        setTimeout(() => location.reload(), 30000);
+        // Poll for updates every 2 seconds
+        let updateInterval = setInterval(async () => {{
+            try {{
+                const response = await fetch('/api/sources');
+                if (response.ok) {{
+                    const newSources = await response.json();
+                    updateSourcesFromData(newSources);
+                }}
+            }} catch (error) {{
+                console.error('Failed to fetch updates:', error);
+            }}
+        }}, 2000);
+        
+        function updateSourcesFromData(sourcesData) {{
+            // Remove sources that no longer exist
+            const existingIds = new Set(Object.keys(sources));
+            const newIds = new Set(sourcesData.map(s => s.id));
+            
+            existingIds.forEach(id => {{
+                if (!newIds.has(id)) {{
+                    const elem = document.getElementById('source-' + id);
+                    if (elem) elem.remove();
+                    delete sources[id];
+                }}
+            }});
+            
+            // Update or add sources
+            sourcesData.forEach(sourceData => {{
+                const existingElem = document.getElementById('source-' + sourceData.id);
+                
+                if (!existingElem) {{
+                    // Create new element
+                    const newElem = document.createElement('div');
+                    newElem.className = 'source';
+                    newElem.id = 'source-' + sourceData.id;
+                    
+                    if (sourceData.type === 'Website' && sourceData.websiteUrl) {{
+                        newElem.innerHTML = '<iframe src=""' + sourceData.websiteUrl + '"" sandbox=""allow-scripts allow-same-origin""></iframe>';
+                    }} else {{
+                        var img = document.createElement('img');
+                        img.src = '/stream/' + sourceData.id;
+                        img.onerror = function() {{ this.style.display = 'none'; }};
+                        img.onload = function() {{ this.style.display = 'block'; }};
+                        newElem.appendChild(img);
+                    }}
+                    
+                    document.getElementById('canvas').appendChild(newElem);
+                }}
+                
+                // Update source properties
+                updateSource(sourceData.id, {{
+                    x: sourceData.canvasX,
+                    y: sourceData.canvasY,
+                    width: sourceData.canvasWidth,
+                    height: sourceData.canvasHeight,
+                    rotation: sourceData.rotation,
+                    opacity: sourceData.opacity,
+                    mirrorH: sourceData.isMirroredHorizontally,
+                    mirrorV: sourceData.isMirroredVertically,
+                    cropLeft: sourceData.cropLeftPct,
+                    cropTop: sourceData.cropTopPct,
+                    cropRight: sourceData.cropRightPct,
+                    cropBottom: sourceData.cropBottomPct,
+                    cropRotation: sourceData.cropRotation
+                }});
+            }});
+        }}
     </script>
 </body>
 </html>";
+    }
+
+    private async Task HandleSourcesApiAsync(HttpListenerContext context, CancellationToken cancellationToken)
+    {
+        var response = context.Response;
+        
+        try
+        {
+            response.ContentType = "application/json";
+            response.Headers.Add("Access-Control-Allow-Origin", "*");
+            
+            // Get all sources from MainViewModel
+            var mainViewModel = App.GetService<MainViewModel>();
+            var sources = mainViewModel?.Sources ?? new System.Collections.ObjectModel.ObservableCollection<Models.SourceItem>();
+            
+            // Create JSON array of sources
+            var json = "[";
+            var first = true;
+            foreach (var source in sources.Reverse()) // Keep reverse order for z-index
+            {
+                if (!first) json += ",";
+                first = false;
+                
+                json += $@"{{
+                    ""id"": ""{source.Id}"",
+                    ""type"": ""{source.Type}"",
+                    ""websiteUrl"": ""{source.WebsiteUrl ?? ""}"",
+                    ""canvasX"": {source.CanvasX},
+                    ""canvasY"": {source.CanvasY},
+                    ""canvasWidth"": {source.CanvasWidth},
+                    ""canvasHeight"": {source.CanvasHeight},
+                    ""rotation"": {source.Rotation},
+                    ""opacity"": {source.Opacity.ToString(System.Globalization.CultureInfo.InvariantCulture)},
+                    ""isMirroredHorizontally"": {(source.IsMirroredHorizontally ? "true" : "false")},
+                    ""isMirroredVertically"": {(source.IsMirroredVertically ? "true" : "false")},
+                    ""cropLeftPct"": {source.CropLeftPct.ToString(System.Globalization.CultureInfo.InvariantCulture)},
+                    ""cropTopPct"": {source.CropTopPct.ToString(System.Globalization.CultureInfo.InvariantCulture)},
+                    ""cropRightPct"": {source.CropRightPct.ToString(System.Globalization.CultureInfo.InvariantCulture)},
+                    ""cropBottomPct"": {source.CropBottomPct.ToString(System.Globalization.CultureInfo.InvariantCulture)},
+                    ""cropRotation"": {source.CropRotation}
+                }}";
+            }
+            json += "]";
+            
+            var buffer = Encoding.UTF8.GetBytes(json);
+            response.ContentLength64 = buffer.Length;
+            await response.OutputStream.WriteAsync(buffer, 0, buffer.Length, cancellationToken);
+        }
+        catch (Exception)
+        {
+            // Error sending response
+        }
+        finally
+        {
+            try
+            {
+                response.Close();
+            }
+            catch { /* Ignore */ }
+        }
     }
 
     private async Task BroadcastSourceFrame(Guid sourceId, byte[] frameData)

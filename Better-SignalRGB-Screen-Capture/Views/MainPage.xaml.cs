@@ -853,7 +853,8 @@ public sealed partial class MainPage : Page, INavigationAware
             SourceCanvas.Children.Remove(item);
         }
 
-        foreach (var source in ViewModel.Sources)
+        // Add sources in reverse order so that items at the top of the list (index 0) appear on top
+        foreach (var source in ViewModel.Sources.Reverse())
         {
             var item = new DraggableSourceItem { Source = source };
             item.DragStarted += OnDraggableItemDragStarted;

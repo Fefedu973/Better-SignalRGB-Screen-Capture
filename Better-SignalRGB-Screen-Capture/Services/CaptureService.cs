@@ -332,15 +332,30 @@ public class CaptureService : ICaptureService
     {
         try
         {
-            var recordingSource = source.Type switch
+            RecordingSourceBase? recordingSource = null;
+            
+            if (source.Type == SourceType.Region)
             {
-                SourceType.Display or SourceType.Monitor => CreateDisplaySource(source) as RecordingSourceBase,
-                SourceType.Window or SourceType.Process => CreateWindowSource(source) as RecordingSourceBase,
-                SourceType.Region => CreateRegionSource(source) as RecordingSourceBase,
-                SourceType.Webcam => CreateWebcamSource(source) as RecordingSourceBase,
-                SourceType.Website => null as RecordingSourceBase, // Website will be handled as iframe, not recording
-                _ => null as RecordingSourceBase
-            };
+                // Region sources may span multiple monitors, handle them specially
+                var regionSources = CreateRegionSources(source);
+                if (regionSources != null && regionSources.Count > 0)
+                {
+                    // For now, use single source recording
+                    // In the future, we'll implement multi-source composite recording
+                    recordingSource = regionSources[0];
+                }
+            }
+            else
+            {
+                recordingSource = source.Type switch
+                {
+                    SourceType.Display or SourceType.Monitor => CreateDisplaySource(source) as RecordingSourceBase,
+                    SourceType.Window or SourceType.Process => CreateWindowSource(source) as RecordingSourceBase,
+                    SourceType.Webcam => CreateWebcamSource(source) as RecordingSourceBase,
+                    SourceType.Website => null as RecordingSourceBase, // Website will be handled as iframe, not recording
+                    _ => null as RecordingSourceBase
+                };
+            }
 
             // Use TestApp backend to calculate proper aspect ratio and placement
             if (recordingSource != null)
@@ -527,7 +542,7 @@ public class CaptureService : ICaptureService
         }
     }
 
-    private DisplayRecordingSource? CreateRegionSource(SourceItem source)
+    private List<RecordingSourceBase>? CreateRegionSources(SourceItem source)
     {
         try
         {
@@ -550,29 +565,36 @@ public class CaptureService : ICaptureService
             Debug.WriteLine($"📐 Region to capture: {regionRect.X},{regionRect.Y} {regionRect.Width}x{regionRect.Height}");
 
             // Find all displays that the region intersects with
-            var intersectingDisplays = new List<(RecordableDisplay display, System.Drawing.Rectangle overlap, int area)>();
+            var intersectingDisplays = new List<(RecordableDisplay display, System.Drawing.Rectangle overlap)>();
+
+            // Get the actual output dimensions to get proper display positions
+            var allDisplaySources = displays.Select(d => new DisplayRecordingSource(d)).ToList();
+            var outputDimens = Recorder.GetOutputDimensionsForRecordingSources(allDisplaySources);
 
             foreach (var display in displays)
             {
-                if (display.Position == null || display.OutputSize == null) continue;
+                // Find the output coordinates for this display
+                var sourceCoord = outputDimens.OutputCoordinates.FirstOrDefault(x => 
+                    x.Source is DisplayRecordingSource ds && ds.DeviceName == display.DeviceName);
+                
+                if (sourceCoord == null) continue;
                 
                 var displayRect = new System.Drawing.Rectangle(
-                    (int)display.Position.Left,
-                    (int)display.Position.Top,
-                    (int)display.OutputSize.Width,
-                    (int)display.OutputSize.Height
+                    (int)sourceCoord.Coordinates.Left,
+                    (int)sourceCoord.Coordinates.Top,
+                    (int)sourceCoord.Coordinates.Width,
+                    (int)sourceCoord.Coordinates.Height
                 );
 
                 Debug.WriteLine($"🖥️ Display {display.FriendlyName}: {displayRect.X},{displayRect.Y} {displayRect.Width}x{displayRect.Height}");
 
                 // Calculate overlap
                 var overlap = System.Drawing.Rectangle.Intersect(regionRect, displayRect);
-                var overlapArea = overlap.Width * overlap.Height;
 
-                if (overlapArea > 0)
+                if (overlap.Width > 0 && overlap.Height > 0)
                 {
-                    intersectingDisplays.Add((display, overlap, overlapArea));
-                    Debug.WriteLine($"   Overlap: {overlap.X},{overlap.Y} {overlap.Width}x{overlap.Height} (area: {overlapArea})");
+                    intersectingDisplays.Add((display, overlap));
+                    Debug.WriteLine($"   Overlap: {overlap.X},{overlap.Y} {overlap.Width}x{overlap.Height}");
                 }
             }
 
@@ -582,49 +604,71 @@ public class CaptureService : ICaptureService
                 return null;
             }
 
-            // For now, use the display with the largest overlap
-            // TODO: In the future, support multi-monitor capture by creating multiple sources
-            var bestMatch = intersectingDisplays.OrderByDescending(x => x.area).First();
-            var bestDisplay = bestMatch.display;
+            var sources = new List<RecordingSourceBase>();
 
-            Debug.WriteLine($"📐 Using display: {bestDisplay.FriendlyName} with {bestMatch.area} pixels overlap");
-
-            var displaySource = new DisplayRecordingSource(bestDisplay)
+            // Create a source for each intersecting display
+            foreach (var (display, overlap) in intersectingDisplays)
             {
-                RecorderApi = RecorderApi.WindowsGraphicsCapture,
-                IsCursorCaptureEnabled = true,
-                IsBorderRequired = false
-            };
+                Debug.WriteLine($"📐 Creating source for display: {display.FriendlyName}");
 
-            // Set the source rect to the region coordinates relative to the display
-            if (bestDisplay.Position != null)
-            {
-                var relativeLeft = regionRect.Left - (int)bestDisplay.Position.Left;
-                var relativeTop = regionRect.Top - (int)bestDisplay.Position.Top;
-                var relativeRight = regionRect.Right - (int)bestDisplay.Position.Left;
-                var relativeBottom = regionRect.Bottom - (int)bestDisplay.Position.Top;
+                var displaySource = new DisplayRecordingSource(display)
+                {
+                    RecorderApi = RecorderApi.WindowsGraphicsCapture,
+                    IsCursorCaptureEnabled = true,
+                    IsBorderRequired = false
+                };
 
-                // Clamp to display bounds
-                relativeLeft = Math.Max(0, relativeLeft);
-                relativeTop = Math.Max(0, relativeTop);
-                relativeRight = Math.Min((int)bestDisplay.OutputSize.Width, relativeRight);
-                relativeBottom = Math.Min((int)bestDisplay.OutputSize.Height, relativeBottom);
+                    // Set the source rect to the overlap region relative to this display
+                    // Get the display's position from the output coordinates
+                    var displayCoord = outputDimens.OutputCoordinates.FirstOrDefault(x => 
+                        x.Source is DisplayRecordingSource ds && ds.DeviceName == display.DeviceName);
+                    
+                    if (displayCoord != null)
+                    {
+                        var relativeLeft = overlap.Left - displayCoord.Coordinates.Left;
+                        var relativeTop = overlap.Top - displayCoord.Coordinates.Top;
+                        var relativeRight = overlap.Right - displayCoord.Coordinates.Left;
+                        var relativeBottom = overlap.Bottom - displayCoord.Coordinates.Top;
 
-                displaySource.SourceRect = new ScreenRect(
-                    relativeLeft,
-                    relativeTop,
-                    relativeRight,
-                    relativeBottom
-                );
+                    displaySource.SourceRect = new ScreenRect(
+                        (int)relativeLeft,
+                        (int)relativeTop,
+                        (int)relativeRight,
+                        (int)relativeBottom
+                    );
 
-                Debug.WriteLine($"   Source rect: ({relativeLeft},{relativeTop}) to ({relativeRight},{relativeBottom})");
+                    // Set the position in the combined output (relative to region origin)
+                    displaySource.Position = new ScreenPoint(
+                        overlap.Left - regionRect.Left,
+                        overlap.Top - regionRect.Top
+                    );
+                    
+                    // Ensure the output doesn't exceed 800x600
+                    if (regionRect.Width > 800 || regionRect.Height > 600)
+                    {
+                        // Calculate scale to fit within 800x600
+                        var scaleX = 800.0 / regionRect.Width;
+                        var scaleY = 600.0 / regionRect.Height;
+                        var scale = Math.Min(scaleX, scaleY);
+                        
+                        displaySource.OutputSize = new ScreenSize(
+                            (int)(regionRect.Width * scale),
+                            (int)(regionRect.Height * scale)
+                        );
+                    }
+
+                    Debug.WriteLine($"   Source rect: ({relativeLeft},{relativeTop}) to ({relativeRight},{relativeBottom})");
+                    Debug.WriteLine($"   Position in output: ({overlap.Left - regionRect.Left},{overlap.Top - regionRect.Top})");
+                }
+
+                sources.Add(displaySource);
             }
 
-            return displaySource;
+            return sources;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"❌ Failed to create region source: {ex.Message}");
+            Debug.WriteLine($"❌ Failed to create region sources: {ex.Message}");
             return null;
         }
     }

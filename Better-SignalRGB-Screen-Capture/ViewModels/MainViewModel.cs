@@ -280,6 +280,15 @@ public partial class MainViewModel : ObservableRecipient
         _ = _captureService.SetFrameRate(value);
     }
     
+    partial void OnIsPreviewingChanged(bool value)
+    {
+        // Update IsLivePreviewEnabled for all sources
+        foreach (var source in Sources)
+        {
+            source.IsLivePreviewEnabled = value;
+        }
+    }
+    
     [RelayCommand]
     private async Task AddSourceAsync(SourceItem? newSource = null)
     {
@@ -291,6 +300,9 @@ public partial class MainViewModel : ObservableRecipient
             var (x, y) = FindAvailableCanvasPosition();
             newSource.CanvasX = x;
             newSource.CanvasY = y;
+            
+            // Set preview state to match global preview toggle
+            newSource.IsLivePreviewEnabled = IsPreviewing;
             
             Sources.Add(newSource);
             await SaveSourcesAsync();
@@ -381,6 +393,9 @@ public partial class MainViewModel : ObservableRecipient
                 // Paste in the same location, do not find a new position
                 newSource.CanvasX = copiedSource.CanvasX;
                 newSource.CanvasY = copiedSource.CanvasY;
+                
+                // Set preview state to match global preview toggle
+                newSource.IsLivePreviewEnabled = IsPreviewing;
 
                 Sources.Add(newSource);
                 newSelection.Add(newSource);
@@ -1261,6 +1276,9 @@ public partial class MainViewModel : ObservableRecipient
                         // Ensure source has valid dimensions
                         if (source.CanvasWidth <= 0) source.CanvasWidth = 200;
                         if (source.CanvasHeight <= 0) source.CanvasHeight = 150;
+                        
+                        // Set preview state to match global preview toggle
+                        source.IsLivePreviewEnabled = IsPreviewing;
                         
                     Sources.Add(source);
                     
