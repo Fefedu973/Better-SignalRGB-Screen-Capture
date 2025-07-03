@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
@@ -15,6 +16,13 @@ using Better_SignalRGB_Screen_Capture.Contracts.Services;
 using Better_SignalRGB_Screen_Capture.Models;
 using ScreenRecorderLib;
 using System.Runtime.InteropServices;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Shapes;
+using System.Text.RegularExpressions;
+using Microsoft.UI.Xaml.Media.Imaging;
+using System.IO;
+using Microsoft.UI.Xaml.Media.Imaging;
+using System.Runtime.InteropServices.WindowsRuntime;
 
 namespace Better_SignalRGB_Screen_Capture.Views;
 
@@ -447,7 +455,421 @@ public sealed partial class AddSourceDialog : ContentDialog
                 Text = $"{r.Width} x {r.Height} at ({r.X}, {r.Y})",
                 Margin = new Thickness(0, 4, 0, 0)
             });
+            
+            // Show debug information and take screenshot
+            RegionDebugInfo.Visibility = Visibility.Visible;
+            RegionCoordinatesText.Text = $"Coordinates: X={r.X}, Y={r.Y}, Width={r.Width}, Height={r.Height}";
+            
+            // Analyze monitors and take screenshot
+            await AnalyzeRegionAndTakeScreenshotAsync(r);
         }
+    }
+    
+    private async Task AnalyzeRegionAndTakeScreenshotAsync(RectInt32 region)
+    {
+        try
+        {
+            // Get all displays
+            var displays = await Task.Run(() => Recorder.GetDisplays());
+            var intersectingDisplays = new List<(RecordableDisplay display, System.Drawing.Rectangle overlap)>();
+            var regionRect = new System.Drawing.Rectangle(region.X, region.Y, region.Width, region.Height);
+            
+            Debug.WriteLine($"🎯 Region to analyze: X={region.X}, Y={region.Y}, W={region.Width}, H={region.Height}");
+            
+            // Get virtual screen bounds for debugging
+            int virtualLeft = GetSystemMetrics(76);   // SM_XVIRTUALSCREEN
+            int virtualTop = GetSystemMetrics(77);    // SM_YVIRTUALSCREEN
+            int virtualWidth = GetSystemMetrics(78);  // SM_CXVIRTUALSCREEN
+            int virtualHeight = GetSystemMetrics(79); // SM_CYVIRTUALSCREEN
+            
+            Debug.WriteLine($"📺 Virtual Screen: X={virtualLeft}, Y={virtualTop}, W={virtualWidth}, H={virtualHeight}");
+            Debug.WriteLine($"📺 Found {displays.Count()} displays from ScreenRecorderLib");
+            
+            // First, enumerate all monitors directly to get their positions
+            var monitorsByDeviceName = new Dictionary<string, System.Drawing.Rectangle>();
+            var monitorsList = new List<(string deviceName, System.Drawing.Rectangle bounds)>();
+            
+            EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData) =>
+            {
+                var info = new MONITORINFOEX();
+                if (GetMonitorInfo(hMonitor, info))
+                {
+                    var rect = new System.Drawing.Rectangle(
+                        info.rcMonitor.left,
+                        info.rcMonitor.top,
+                        info.rcMonitor.right - info.rcMonitor.left,
+                        info.rcMonitor.bottom - info.rcMonitor.top
+                    );
+                    
+                    string deviceName = info.szDevice.TrimEnd('\0');
+                    monitorsByDeviceName[deviceName] = rect;
+                    monitorsList.Add((deviceName, rect));
+                    
+                    Debug.WriteLine($"🖥️ Found Monitor: '{deviceName}' at {rect.X},{rect.Y} {rect.Width}x{rect.Height}");
+                }
+                return true;
+            }, IntPtr.Zero);
+            
+            Debug.WriteLine($"📺 Total monitors from EnumDisplayMonitors: {monitorsList.Count}");
+            
+            // Find which monitors the region intersects with
+            foreach (var display in displays)
+            {
+                System.Drawing.Rectangle displayRect = new System.Drawing.Rectangle();
+                bool foundMonitor = false;
+                
+                Debug.WriteLine($"🔍 Checking display: {display.FriendlyName} (DeviceName: {display.DeviceName})");
+                
+                // Try exact match first
+                if (display.DeviceName != null && monitorsByDeviceName.ContainsKey(display.DeviceName))
+                {
+                    displayRect = monitorsByDeviceName[display.DeviceName];
+                    foundMonitor = true;
+                    Debug.WriteLine($"   ✅ Found exact match: {displayRect.X},{displayRect.Y} {displayRect.Width}x{displayRect.Height}");
+                }
+                else if (display.DeviceName != null)
+                {
+                    // Try without the \\.\  prefix
+                    string simpleName = display.DeviceName.Replace(@"\\.\", "");
+                    if (monitorsByDeviceName.ContainsKey(simpleName))
+                    {
+                        displayRect = monitorsByDeviceName[simpleName];
+                        foundMonitor = true;
+                        Debug.WriteLine($"   ✅ Found match without prefix: {displayRect.X},{displayRect.Y} {displayRect.Width}x{displayRect.Height}");
+                    }
+                    else
+                    {
+                        // Try to match by display number
+                        var match = System.Text.RegularExpressions.Regex.Match(display.DeviceName, @"DISPLAY(\d+)");
+                        if (match.Success && int.TryParse(match.Groups[1].Value, out int displayNum))
+                        {
+                            // Display numbers are 1-based, list is 0-based
+                            int index = displayNum - 1;
+                            if (index >= 0 && index < monitorsList.Count)
+                            {
+                                displayRect = monitorsList[index].bounds;
+                                foundMonitor = true;
+                                Debug.WriteLine($"   📍 Using monitor by index {index}: {displayRect.X},{displayRect.Y} {displayRect.Width}x{displayRect.Height}");
+                            }
+                            else
+                            {
+                                Debug.WriteLine($"   ❌ Display index {index} out of range (have {monitorsList.Count} monitors)");
+                            }
+                        }
+                    }
+                }
+                
+                if (!foundMonitor)
+                {
+                    Debug.WriteLine($"   ❌ Could not find monitor bounds for {display.DeviceName}");
+                    
+                    // Last resort: try to match by friendly name or just use index
+                    if (displays.Count() == monitorsList.Count)
+                    {
+                        var displayIndex = displays.ToList().IndexOf(display);
+                        if (displayIndex >= 0 && displayIndex < monitorsList.Count)
+                        {
+                            displayRect = monitorsList[displayIndex].bounds;
+                            foundMonitor = true;
+                            Debug.WriteLine($"   🎯 Using fallback index matching: {displayRect.X},{displayRect.Y} {displayRect.Width}x{displayRect.Height}");
+                        }
+                    }
+                }
+                
+                if (!foundMonitor)
+                {
+                    Debug.WriteLine($"   ❌ Skipping display - could not determine bounds");
+                    continue;
+                }
+                
+                Debug.WriteLine($"🖥️ Display '{display.FriendlyName}' bounds: X={displayRect.X}, Y={displayRect.Y}, W={displayRect.Width}, H={displayRect.Height}");
+                
+                var overlap = System.Drawing.Rectangle.Intersect(regionRect, displayRect);
+                if (overlap.Width > 0 && overlap.Height > 0)
+                {
+                    intersectingDisplays.Add((display, overlap));
+                    Debug.WriteLine($"   ✅ Overlaps! Area: {overlap.Width}x{overlap.Height}");
+                }
+                else
+                {
+                    Debug.WriteLine($"   ❌ No overlap");
+                }
+            }
+            
+            // Show information about the selected region
+            RegionCoordinatesText.Text = $"Coordinates: X={region.X}, Y={region.Y}, Width={region.Width}, Height={region.Height}";
+            
+            if (intersectingDisplays.Count == 0)
+            {
+                RegionMonitorsText.Text = "Region does not intersect with any monitor!";
+                Debug.WriteLine($"❌ Region does not intersect with any monitor!");
+                Debug.WriteLine($"   Region: {region.X},{region.Y} {region.Width}x{region.Height}");
+                Debug.WriteLine($"   Virtual Screen: {virtualLeft},{virtualTop} {virtualWidth}x{virtualHeight}");
+                return;
+            }
+            else if (intersectingDisplays.Count == 1)
+            {
+                var display = intersectingDisplays[0].display;
+                RegionMonitorsText.Text = $"Monitor: {display.FriendlyName}";
+            }
+            else
+            {
+                var displayNames = string.Join(", ", intersectingDisplays.Select(d => d.display.FriendlyName));
+                RegionMonitorsText.Text = $"Spans {intersectingDisplays.Count} monitors: {displayNames}";
+            }
+            
+            // Calculate output dimensions for screenshot
+            var recordingSources = intersectingDisplays.Select(d => new DisplayRecordingSource(d.display)
+            {
+                RecorderApi = RecorderApi.WindowsGraphicsCapture,
+                IsCursorCaptureEnabled = false,
+                IsBorderRequired = false
+            }).Cast<RecordingSourceBase>().ToList();
+            
+            var outputDimensions = Recorder.GetOutputDimensionsForRecordingSources(recordingSources);
+            double scale = Math.Min(1.0, 400.0 / outputDimensions.CombinedOutputSize.Width);
+            
+            // Take a screenshot for preview
+            try
+            {
+                RecorderOptions options = new RecorderOptions
+                {
+                    OutputOptions = new OutputOptions
+                    {
+                        RecorderMode = RecorderMode.Screenshot,
+                        SourceRect = null, // Capture everything
+                        Stretch = StretchMode.Uniform
+                    },
+                    SourceOptions = new SourceOptions
+                    {
+                        RecordingSources = intersectingDisplays.Select(d => new DisplayRecordingSource(d.display)
+                        {
+                            RecorderApi = RecorderApi.WindowsGraphicsCapture,
+                            IsCursorCaptureEnabled = false,
+                            IsBorderRequired = false
+                        }).Cast<RecordingSourceBase>().ToList()
+                    },
+                    SnapshotOptions = new SnapshotOptions
+                    {
+                        SnapshotFormat = ImageFormat.PNG
+                    }
+                };
+                
+                // Output dimensions tell us the combined output size
+                if (intersectingDisplays.Count > 1)
+                {
+                    options.OutputOptions.OutputFrameSize = new ScreenSize(
+                        (int)(outputDimensions.CombinedOutputSize.Width * scale),
+                        (int)(outputDimensions.CombinedOutputSize.Height * scale)
+                    );
+                }
+                else
+                {
+                    options.OutputOptions.OutputFrameSize = new ScreenSize(
+                        (int)(intersectingDisplays[0].overlap.Width * scale),
+                        (int)(intersectingDisplays[0].overlap.Height * scale)
+                    );
+                }
+                
+                Debug.WriteLine($"📷 Taking screenshot with {intersectingDisplays.Count} sources");
+                Debug.WriteLine($"   Output size: {options.OutputOptions.OutputFrameSize.Width}x{options.OutputOptions.OutputFrameSize.Height}");
+                
+                var screenshotPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"region_preview_{Guid.NewGuid()}.png");
+                var recorder = Recorder.CreateRecorder(options);
+                
+                // Use a simpler approach - just take the screenshot directly
+                try
+                {
+                    recorder.Record(screenshotPath);
+                    
+                    // Wait a bit for the screenshot to be saved
+                    await Task.Delay(500);
+                    
+                    // Check if file exists
+                    if (System.IO.File.Exists(screenshotPath))
+                    {
+                        Debug.WriteLine($"✅ Screenshot saved to: {screenshotPath}");
+                        
+                        // Load and display the screenshot with red border overlay
+                        await DisplayScreenshotWithBorderAsync(screenshotPath, regionRect, outputDimensions, scale);
+                    }
+                    else
+                    {
+                        Debug.WriteLine($"❌ Screenshot file not found at: {screenshotPath}");
+                        ShowFallbackPreview(regionRect, intersectingDisplays);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"❌ Screenshot error: {ex.Message}");
+                    ShowFallbackPreview(regionRect, intersectingDisplays);
+                }
+                finally
+                {
+                    recorder?.Dispose();
+                    
+                    // Clean up temp file
+                    try
+                    {
+                        if (System.IO.File.Exists(screenshotPath))
+                            System.IO.File.Delete(screenshotPath);
+                    }
+                    catch { }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"❌ Failed to create screenshot recorder: {ex.Message}");
+                ShowFallbackPreview(regionRect, intersectingDisplays);
+            }
+        }
+        catch (Exception ex)
+        {
+            RegionMonitorsText.Text = $"Error: {ex.Message}";
+            Debug.WriteLine($"❌ Error in AnalyzeRegionAndTakeScreenshotAsync: {ex}");
+        }
+    }
+    
+    private async Task DisplayScreenshotWithBorderAsync(string screenshotPath, System.Drawing.Rectangle regionRect, OutputDimensions outputDimensions, double scale)
+    {
+        try
+        {
+            // Load the screenshot
+            var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(screenshotPath);
+            using var stream = await file.OpenAsync(Windows.Storage.FileAccessMode.Read);
+            var bitmap = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
+            await bitmap.SetSourceAsync(stream);
+            
+            // Create a Canvas to hold the image and draw the border
+            var canvas = new Canvas
+            {
+                Width = bitmap.PixelWidth,
+                Height = bitmap.PixelHeight
+            };
+            
+            // Add the screenshot image
+            var image = new Image
+            {
+                Source = bitmap,
+                Stretch = Stretch.None
+            };
+            canvas.Children.Add(image);
+            
+            // Calculate the position of the region border in the screenshot
+            // The screenshot shows the combined output of all intersecting monitors
+            var combinedBounds = outputDimensions.OutputCoordinates[0].Coordinates;
+            
+            // Calculate the region position relative to the combined output
+            var borderX = (regionRect.X - combinedBounds.Left) * scale;
+            var borderY = (regionRect.Y - combinedBounds.Top) * scale;
+            var borderWidth = regionRect.Width * scale;
+            var borderHeight = regionRect.Height * scale;
+            
+            // Add red border rectangle
+            var border = new Rectangle
+            {
+                Width = borderWidth,
+                Height = borderHeight,
+                Stroke = new SolidColorBrush(Microsoft.UI.Colors.Red),
+                StrokeThickness = 3,
+                Fill = new SolidColorBrush(Windows.UI.Color.FromArgb(40, 255, 0, 0)) // Semi-transparent red
+            };
+            
+            Canvas.SetLeft(border, borderX);
+            Canvas.SetTop(border, borderY);
+            canvas.Children.Add(border);
+            
+            // Display the canvas in a ViewBox for proper scaling
+            var viewBox = new Viewbox
+            {
+                Stretch = Stretch.Uniform,
+                MaxHeight = 200,
+                Child = canvas
+            };
+            
+            // Clear any previous screenshot and add the new one
+            ScreenshotBorder.Child = viewBox;
+            ScreenshotBorder.Visibility = Visibility.Visible;
+            
+            // Clean up temp file
+            try { System.IO.File.Delete(screenshotPath); } catch { }
+        }
+        catch (Exception ex)
+        {
+            RegionMonitorsText.Text += $"\nDisplay error: {ex.Message}";
+        }
+    }
+    
+    // Monitor info structures and P/Invoke
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int left;
+        public int top;
+        public int right;
+        public int bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private class MONITORINFOEX
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+        public string szDevice = "";
+        
+        public MONITORINFOEX()
+        {
+            cbSize = Marshal.SizeOf(typeof(MONITORINFOEX));
+            szDevice = string.Empty;
+        }
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumProc lpfnEnum, IntPtr dwData);
+    
+    private delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData);
+    
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, [In, Out] MONITORINFOEX lpmi);
+
+    private static MONITORINFOEX? GetMonitorInfoFromDisplay(RecordableDisplay display)
+    {
+        // This method is no longer needed since we're using ScreenRecorderLib's GetOutputDimensionsForRecordingSources
+        return null;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
+
+    private static System.Drawing.Rectangle? GetMonitorBounds(string deviceName)
+    {
+        System.Drawing.Rectangle? result = null;
+        
+        EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData) =>
+        {
+            var info = new MONITORINFOEX();
+            if (GetMonitorInfo(hMonitor, info))
+            {
+                // Match by device name or primary monitor
+                if (info.szDevice == deviceName || 
+                    (string.IsNullOrEmpty(deviceName) && (info.dwFlags & 1) != 0)) // MONITORINFOF_PRIMARY
+                {
+                    result = new System.Drawing.Rectangle(
+                        info.rcMonitor.left,
+                        info.rcMonitor.top,
+                        info.rcMonitor.right - info.rcMonitor.left,
+                        info.rcMonitor.bottom - info.rcMonitor.top
+                    );
+                    return false; // Stop enumeration
+                }
+            }
+            return true; // Continue enumeration
+        }, IntPtr.Zero);
+        
+        return result;
     }
 
     // --------------------------------------------
@@ -561,6 +983,13 @@ public sealed partial class AddSourceDialog : ContentDialog
                         Text = $"{r.Width} x {r.Height} at ({r.X}, {r.Y})",
                         Margin = new Thickness(0, 4, 0, 0)
                     });
+                    
+                    // Show debug info and screenshot for existing region
+                    RegionDebugInfo.Visibility = Visibility.Visible;
+                    RegionCoordinatesText.Text = $"Coordinates: X={r.X}, Y={r.Y}, Width={r.Width}, Height={r.Height}";
+                    
+                    // Analyze and show screenshot
+                    _ = AnalyzeRegionAndTakeScreenshotAsync(r);
                 }
                 break;
                 
@@ -634,5 +1063,33 @@ public sealed partial class AddSourceDialog : ContentDialog
         }
         
         ProcessBox.Text = displayText;
+    }
+
+    private void ShowFallbackPreview(System.Drawing.Rectangle regionRect, List<(RecordableDisplay display, System.Drawing.Rectangle overlap)> intersectingDisplays)
+    {
+        // Show a simple text-based preview as fallback
+        ScreenshotBorder.Visibility = Visibility.Visible;
+        
+        // Create a simple visual representation using WriteableBitmap
+        var bitmap = new WriteableBitmap(400, 300);
+        
+        // Fill with gray background
+        using (var stream = bitmap.PixelBuffer.AsStream())
+        {
+            byte[] pixelData = new byte[400 * 300 * 4];
+            for (int i = 0; i < pixelData.Length; i += 4)
+            {
+                pixelData[i] = 240;     // B
+                pixelData[i + 1] = 240; // G
+                pixelData[i + 2] = 240; // R
+                pixelData[i + 3] = 255; // A
+            }
+            stream.Write(pixelData, 0, pixelData.Length);
+        }
+        
+        ScreenshotImage.Source = bitmap;
+        
+        // Update the text to show we couldn't get a screenshot
+        RegionMonitorsText.Text += "\n\nScreenshot preview unavailable - recording will work correctly when started.";
     }
 }

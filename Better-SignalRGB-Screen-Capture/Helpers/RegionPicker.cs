@@ -30,6 +30,7 @@ internal static class RegionPicker
         private readonly TaskCompletionSource<RectInt32?> _tcs;
         private Windows.Foundation.Point? _anchor;
         private RectInt32? _rect;
+        private RectInt32? _canvasRect; // Store canvas coordinates separately for UI positioning
         private Mode _mode = Mode.Drawing;
         private Edge? _resizeEdge;
         private const double HIT = 6;
@@ -147,7 +148,7 @@ internal static class RegionPicker
 
             _root.KeyDown += (_, e) =>
             {
-                if (e.Key == Windows.System.VirtualKey.Escape) { _rect = null; Close(); }
+                if (e.Key == Windows.System.VirtualKey.Escape) { _rect = null; _canvasRect = null; Close(); }
                 else if (e.Key == Windows.System.VirtualKey.Enter && _rect.HasValue)
                     AcceptAndClose();
             };
@@ -165,11 +166,11 @@ internal static class RegionPicker
 
             var pos = e.GetCurrentPoint(_root).Position;
 
-            if (_mode == Mode.Idle && _rect.HasValue)
+            if (_mode == Mode.Idle && _canvasRect.HasValue)
             {
                 var hit = HitEdge(pos);
                 if (hit != null) { _mode = Mode.Resizing; _resizeEdge = hit; }
-                else if (InsideRect(pos, _rect.Value)) _mode = Mode.Moving;
+                else if (InsideRect(pos, _canvasRect.Value)) _mode = Mode.Moving;
                 else { _mode = Mode.Drawing; _rubber.Visibility = Visibility.Collapsed; }
             }
             else _mode = Mode.Drawing;
@@ -193,17 +194,17 @@ internal static class RegionPicker
                               Math.Abs(pos.X - _anchor.Value.X),
                               Math.Abs(pos.Y - _anchor.Value.Y));
             }
-            else if (_mode == Mode.Moving && _rect.HasValue)
+            else if (_mode == Mode.Moving && _canvasRect.HasValue)
             {
                 var dx = pos.X - _anchor.Value.X;
                 var dy = pos.Y - _anchor.Value.Y;
-                var r = _rect.Value;
+                var r = _canvasRect.Value;
                 UpdateRubber(r.X + dx, r.Y + dy, r.Width, r.Height);
                 _anchor = pos;
             }
-            else if (_mode == Mode.Resizing && _rect.HasValue && _resizeEdge.HasValue)
+            else if (_mode == Mode.Resizing && _canvasRect.HasValue && _resizeEdge.HasValue)
             {
-                var r = _rect.Value;
+                var r = _canvasRect.Value;
                 double x = r.X, y = r.Y, w = r.Width, h = r.Height;
 
                 if (_resizeEdge.Value.HasFlag(Edge.L)) { x = Math.Min(pos.X, Right(r)); w = Right(r) - x; }
@@ -252,15 +253,31 @@ internal static class RegionPicker
             _rubber.Width = w; _rubber.Height = h;
             _rubber.Visibility = Visibility.Visible;
 
-            _rect = new RectInt32((int)Math.Round(x), (int)Math.Round(y),
+            // Store canvas coordinates for UI positioning (don't convert these!)
+            _canvasRect = new RectInt32((int)Math.Round(x), (int)Math.Round(y),
+                                       (int)Math.Round(w), (int)Math.Round(h));
+
+            // Convert canvas coordinates to virtual screen coordinates for final result
+            int virtualScreenX = GetSystemMetrics(76);  // SM_XVIRTUALSCREEN  
+            int virtualScreenY = GetSystemMetrics(77);  // SM_YVIRTUALSCREEN
+            
+            int absoluteX = (int)Math.Round(x + virtualScreenX);
+            int absoluteY = (int)Math.Round(y + virtualScreenY);
+            
+            _rect = new RectInt32(absoluteX, absoluteY,
                                   (int)Math.Round(w), (int)Math.Round(h));
+            
+            System.Diagnostics.Debug.WriteLine($"🔧 RegionPicker coordinate conversion:");
+            System.Diagnostics.Debug.WriteLine($"   Canvas coords: ({x:F1}, {y:F1}) {w:F1}x{h:F1}");
+            System.Diagnostics.Debug.WriteLine($"   Virtual screen offset: ({virtualScreenX}, {virtualScreenY})");
+            System.Diagnostics.Debug.WriteLine($"   Final region coords: ({absoluteX}, {absoluteY}) {_rect.Value.Width}x{_rect.Value.Height}");
 
             UpdateDimRects();
         }
 
         private void UpdateDimRects()
         {
-            if (_rect is not RectInt32 r) { CoverEverything(); return; }
+            if (_canvasRect is not RectInt32 r) { CoverEverything(); return; }
 
             _overlay.Visibility = Visibility.Collapsed;
 
@@ -329,13 +346,13 @@ internal static class RegionPicker
             f.PrimaryCommands.Add(cancel);
 
             ok.Click += (_, _) => AcceptAndClose();
-            cancel.Click += (_, _) => { _rect = null; Close(); };
+            cancel.Click += (_, _) => { _rect = null; _canvasRect = null; Close(); };
             return f;
         }
 
         private void ShowFlyout()
         {
-            if (_rect is not RectInt32 r) return;
+            if (_canvasRect is not RectInt32 r) return;
 
             var pos = new Windows.Foundation.Point(r.X + r.Width / 2,
                                                    Math.Max(4, r.Y - 8));
@@ -356,7 +373,7 @@ internal static class RegionPicker
         {
             var shape = InputSystemCursorShape.Arrow;
 
-            if (pos.HasValue && _rect.HasValue)
+            if (pos.HasValue && _canvasRect.HasValue)
             {
                 var edge = HitEdge(pos.Value);
                 shape = edge switch
@@ -367,7 +384,7 @@ internal static class RegionPicker
                     Edge.R | Edge.B => InputSystemCursorShape.SizeNorthwestSoutheast,
                     Edge.L | Edge.B => InputSystemCursorShape.SizeNortheastSouthwest,
                     Edge.R | Edge.T => InputSystemCursorShape.SizeNortheastSouthwest,
-                    null when InsideRect(pos.Value, _rect.Value) => InputSystemCursorShape.SizeAll,
+                    null when InsideRect(pos.Value, _canvasRect.Value) => InputSystemCursorShape.SizeAll,
                     _ => InputSystemCursorShape.Cross
                 };
             }
@@ -378,7 +395,7 @@ internal static class RegionPicker
         #region geometry helpers
         private Edge? HitEdge(Windows.Foundation.Point p)
         {
-            if (_rect is not RectInt32 r) return null;
+            if (_canvasRect is not RectInt32 r) return null;
             
             // Check if point is within the extended bounds of the rectangle (including hit tolerance)
             if (p.X < r.X - HIT || p.X > Right(r) + HIT || 
@@ -424,10 +441,16 @@ internal static class RegionPicker
 
         private static void StretchOverDesktop(IntPtr hwnd)
         {
-            int x = GetSystemMetrics(76), y = GetSystemMetrics(77);
-            int w = GetSystemMetrics(78), h = GetSystemMetrics(79);
+            int x = GetSystemMetrics(76), y = GetSystemMetrics(77);  // SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN
+            int w = GetSystemMetrics(78), h = GetSystemMetrics(79);  // SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN
             const uint SWP_SHOWWINDOW = 0x0040,
                        SWP_FRAMECHANGED = 0x0020;
+            
+            System.Diagnostics.Debug.WriteLine($"🔧 RegionPicker virtual screen from GetSystemMetrics:");
+            System.Diagnostics.Debug.WriteLine($"   Position: ({x}, {y})");
+            System.Diagnostics.Debug.WriteLine($"   Size: {w} x {h}");
+            System.Diagnostics.Debug.WriteLine($"   Bounds: ({x}, {y}) to ({x + w}, {y + h})");
+            
             SetWindowPos(hwnd, new IntPtr(-1), x, y, w, h,
                          SWP_SHOWWINDOW | SWP_FRAMECHANGED);
         }

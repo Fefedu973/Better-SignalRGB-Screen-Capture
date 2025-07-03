@@ -52,6 +52,14 @@ public partial class MainViewModel : ObservableRecipient
     private bool needsRefresh;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(TogglePauseCommand))]
+    private bool isPaused;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(TogglePauseCommand))]
+    private bool canPause;
+
+    [ObservableProperty]
     private bool _isAspectRatioLocked;
 
     private bool _isUpdatingDimensions;
@@ -296,8 +304,8 @@ public partial class MainViewModel : ObservableRecipient
         {
             SaveUndoState();
             
-            // Find a good position for the new source on canvas
-            var (x, y) = FindAvailableCanvasPosition();
+            // Find a good position for the new source on canvas based on its size
+            var (x, y) = FindAvailableCanvasPosition(newSource.CanvasWidth, newSource.CanvasHeight);
             newSource.CanvasX = x;
             newSource.CanvasY = y;
             
@@ -1234,32 +1242,58 @@ public partial class MainViewModel : ObservableRecipient
         await SaveSourcesAsync();
     }
 
-    private (int x, int y) FindAvailableCanvasPosition()
+    private (int x, int y) FindAvailableCanvasPosition(int sourceWidth = 200, int sourceHeight = 150)
     {
         const int gridSize = 20; // A slightly larger step
         const int canvasWidth = 800;
         const int canvasHeight = 600;
-        const int assumedItemWidth = 100; // Assume a default width to prevent overflow
+        const int margin = 10;
         
-        for (int row = 0; row < canvasHeight / gridSize; row++)
+        // Ensure source fits within canvas with margin
+        sourceWidth = Math.Min(sourceWidth, canvasWidth - 2 * margin);
+        sourceHeight = Math.Min(sourceHeight, canvasHeight - 2 * margin);
+        
+        // Try to find a position in a grid pattern
+        for (int row = 0; row * gridSize + sourceHeight + margin < canvasHeight; row++)
         {
-            for (int col = 0; col < (canvasWidth - assumedItemWidth) / gridSize; col++)
+            for (int col = 0; col * gridSize + sourceWidth + margin < canvasWidth; col++)
             {
-                int x = col * gridSize + 10; // Small margin
-                int y = row * gridSize + 10;
+                int x = col * gridSize + margin;
+                int y = row * gridSize + margin;
                 
-                // Check if this position is already occupied, assuming a minimum size of 80x80 for spacing
+                // Check if this position overlaps with any existing source
+                var testRect = new Rect(x, y, sourceWidth, sourceHeight);
                 bool occupied = Sources.Any(s => 
-                    Math.Abs(s.CanvasX - x) < 120 && Math.Abs(s.CanvasY - y) < 120);
+                {
+                    var sourceRect = new Rect(s.CanvasX, s.CanvasY, s.CanvasWidth, s.CanvasHeight);
+                    return RectsIntersect(testRect, sourceRect);
+                });
                 
                 if (!occupied)
                     return (x, y);
             }
         }
         
-        // If all positions occupied, place randomly
+        // If all grid positions are occupied, try to find any free space
         var random = new Random();
-        return (random.Next(0, canvasWidth - 100), random.Next(0, canvasHeight - 80));
+        for (int attempt = 0; attempt < 50; attempt++)
+        {
+            int x = random.Next(margin, Math.Max(margin + 1, canvasWidth - sourceWidth - margin));
+            int y = random.Next(margin, Math.Max(margin + 1, canvasHeight - sourceHeight - margin));
+            
+            var testRect = new Rect(x, y, sourceWidth, sourceHeight);
+            bool occupied = Sources.Any(s => 
+            {
+                var sourceRect = new Rect(s.CanvasX, s.CanvasY, s.CanvasWidth, s.CanvasHeight);
+                return RectsIntersect(testRect, sourceRect);
+            });
+            
+            if (!occupied)
+                return (x, y);
+        }
+        
+        // Last resort: cascade from top-left
+        return (margin + Sources.Count * 20, margin + Sources.Count * 20);
     }
     
     private async Task LoadSourcesAsync()
@@ -1347,47 +1381,72 @@ public partial class MainViewModel : ObservableRecipient
     [RelayCommand]
     private async Task ToggleRecordingAsync()
     {
-        if (IsRecordingLoading) return; // Prevent multiple clicks while loading
-        
-        IsRecordingLoading = true;
-        try
+        if (IsRecording)
         {
-            if (IsRecording)
-            {
-                await StopAllCapturesAsync();
-                IsRecording = false;
-                NeedsRefresh = false;
+            // Stop recording
+            await StopAllCapturesAsync();
+            await _mjpegStreamingService.StopStreamingAsync();
+            IsRecording = false;
+            IsPaused = false;
+            CanPause = false;
+            StreamingUrl = null;
+        }
+        else
+        {
+            // Start recording
+            IsRecordingLoading = true;
+            try
+        {
+            await StartAllCapturesAsync();
+                await _mjpegStreamingService.StartStreamingAsync(PreviewFps);
+            IsRecording = true;
+                CanPause = true;
+                NeedsRefresh = false; // Clear refresh flag when starting
             }
-            else
+            finally
             {
-                await StartAllCapturesAsync();
-                IsRecording = true;
-                NeedsRefresh = false;
+                IsRecordingLoading = false;
             }
         }
-        finally
+    }
+
+    [RelayCommand(CanExecute = nameof(CanPause))]
+    private async Task TogglePauseAsync()
+    {
+        if (IsPaused)
         {
-            IsRecordingLoading = false;
+            // Resume recording
+            await StartAllCapturesAsync();
+            IsPaused = false;
+        }
+        else
+        {
+            // Pause recording
+            await StopAllCapturesAsync();
+            IsPaused = true;
         }
     }
 
     [RelayCommand]
     private async Task RefreshStreamAsync()
     {
-        if (IsRecording && !IsRecordingLoading)
+        if (!IsRecording) return;
+        
+        IsRecordingLoading = true;
+        try
         {
-            IsRecordingLoading = true;
-            try
-            {
-                // Restart all captures with updated settings
-                await StopAllCapturesAsync();
-                await StartAllCapturesAsync();
-                NeedsRefresh = false;
+            // Stop current captures
+            await StopAllCapturesAsync();
+            
+            // Restart captures with new canvas configuration
+            await StartAllCapturesAsync();
+            
+            // Clear the refresh flag
+            NeedsRefresh = false;
             }
-            finally
-            {
-                IsRecordingLoading = false;
-            }
+        finally
+        {
+            IsRecordingLoading = false;
         }
     }
 
@@ -1399,15 +1458,15 @@ public partial class MainViewModel : ObservableRecipient
             foreach (var source in Sources)
             {
                 await _captureService.StartCaptureAsync(source);
-            }
+        }
         
             // Start streaming service
             await _mjpegStreamingService.StartStreamingAsync();
             
             System.Diagnostics.Debug.WriteLine($"✅ Started capturing {Sources.Count} sources and streaming service");
-        }
+            }
         catch (Exception ex)
-        {
+            {
             System.Diagnostics.Debug.WriteLine($"❌ Failed to start captures: {ex.Message}");
         }
     }
@@ -1436,7 +1495,7 @@ public partial class MainViewModel : ObservableRecipient
         try
         {
             // Stop all captures
-            await _captureService.StopAllCapturesAsync();
+        await _captureService.StopAllCapturesAsync();
 
             System.Diagnostics.Debug.WriteLine("🛑 Stopped all captures");
         }
@@ -1512,65 +1571,62 @@ public partial class MainViewModel : ObservableRecipient
 
     private void Sources_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
     {
-        // Attach property change listeners to new sources
+        // Mark canvas as needing refresh if recording
+        if (IsRecording && !_isUndoRedoOperation)
+        {
+            NeedsRefresh = true;
+        }
+        
         if (e.NewItems != null)
         {
-            foreach (SourceItem source in e.NewItems)
+            foreach (SourceItem item in e.NewItems)
             {
-                source.PropertyChanged += Source_PropertyChanged;
+                item.PropertyChanged += Source_PropertyChanged;
             }
         }
         
-        // Detach property change listeners from removed sources
         if (e.OldItems != null)
         {
-            foreach (SourceItem source in e.OldItems)
+            foreach (SourceItem item in e.OldItems)
             {
-                source.PropertyChanged -= Source_PropertyChanged;
+                item.PropertyChanged -= Source_PropertyChanged;
             }
         }
     }
 
     private void Source_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (sender is not SourceItem source) return;
-
-        // Properties that require capture restart
-        var captureRestartProperties = new[]
+        if (_isUndoRedoOperation) return;
+        
+        if (e.PropertyName == nameof(SourceItem.IsLivePreviewEnabled))
         {
-            nameof(SourceItem.CanvasX),
-            nameof(SourceItem.CanvasY),
+            // Handle preview state changes if needed
+            return;
+        }
+
+        // Check if property change affects recording
+        var recordingRelatedProperties = new[]
+        {
             nameof(SourceItem.CanvasWidth),
             nameof(SourceItem.CanvasHeight),
-
+            nameof(SourceItem.CanvasX),
+            nameof(SourceItem.CanvasY),
+            nameof(SourceItem.Type),
+            nameof(SourceItem.DeviceId),
+            nameof(SourceItem.ProcessPath),
             nameof(SourceItem.Rotation),
-            nameof(SourceItem.CropLeftPct),
-            nameof(SourceItem.CropTopPct),
-            nameof(SourceItem.CropRightPct),
-            nameof(SourceItem.CropBottomPct),
-
-            nameof(SourceItem.IsMirroredHorizontally),
-            nameof(SourceItem.IsMirroredVertically),
             nameof(SourceItem.RegionX),
             nameof(SourceItem.RegionY),
             nameof(SourceItem.RegionWidth),
             nameof(SourceItem.RegionHeight)
         };
 
-        // Check if we need to mark for refresh
-        if (captureRestartProperties.Contains(e.PropertyName) && IsRecording)
+        if (IsRecording && recordingRelatedProperties.Contains(e.PropertyName))
         {
-            // Mark that stream needs refresh instead of auto-restarting
             NeedsRefresh = true;
-            
+                }
 
-        }
-
-        // Update UI properties if this source is selected
-        if (!source.IsSelected) return;
-
-        // Update property panel if this source is currently selected
-        // This works for both single and multi-select scenarios
+        // Save state for important property changes
         switch (e.PropertyName)
         {
             case nameof(SourceItem.CanvasX):
@@ -1687,5 +1743,13 @@ public partial class MainViewModel : ObservableRecipient
         {
             _undoRedoManager.SaveState(Sources);
         }
+    }
+
+    private static bool RectsIntersect(Rect r1, Rect r2)
+    {
+        return r1.X < r2.X + r2.Width && 
+               r1.X + r1.Width > r2.X && 
+               r1.Y < r2.Y + r2.Height && 
+               r1.Y + r1.Height > r2.Y;
     }
 }

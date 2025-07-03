@@ -98,54 +98,70 @@ public sealed partial class MainPage : Page, INavigationAware
 
     private SourceItem? CreateSourceFromDialog(AddSourceDialog dialog)
     {
-        var source = new SourceItem();
-        var friendlyName = dialog.FriendlyName;
-        if (!string.IsNullOrEmpty(friendlyName))
-        {
-            source.Name = friendlyName;
-        }
+        var name = string.IsNullOrWhiteSpace(dialog.FriendlyName)
+            ? $"Source {ViewModel.Sources.Count + 1}"
+            : dialog.FriendlyName;
 
-        if (!string.IsNullOrEmpty(dialog.SelectedMonitorDeviceId))
+        var source = new SourceItem { Name = name };
+        
+        // Calculate appropriate initial size based on canvas
+        const double canvasWidth = 800;
+        const double canvasHeight = 600;
+        const double maxInitialWidth = 400; // Half of canvas width
+        const double maxInitialHeight = 300; // Half of canvas height
+        
+        switch (dialog.SelectedSourceType)
         {
+            case SourceType.Monitor:
             source.Type = SourceType.Monitor;
             source.MonitorDeviceId = dialog.SelectedMonitorDeviceId;
-            if (string.IsNullOrEmpty(source.Name))
-                source.Name = $"Monitor {dialog.SelectedMonitorDeviceId}";
-        }
-        else if (!string.IsNullOrEmpty(dialog.SelectedProcessPath))
-        {
+                // Set reasonable initial size for monitors (will be adjusted by capture service)
+                source.CanvasWidth = (int)Math.Min(maxInitialWidth, canvasWidth * 0.4);
+                source.CanvasHeight = (int)Math.Min(maxInitialHeight, canvasHeight * 0.4);
+                break;
+            case SourceType.Process:
             source.Type = SourceType.Process;
-            source.ProcessId = null;
             source.ProcessPath = dialog.SelectedProcessPath;
-            if (string.IsNullOrEmpty(source.Name))
-                source.Name = System.IO.Path.GetFileNameWithoutExtension(dialog.SelectedProcessPath);
-        }
-        else if (dialog.SelectedRegion.HasValue)
-        {
+                // Windows are often smaller, use conservative size
+                source.CanvasWidth = (int)Math.Min(300, canvasWidth * 0.3);
+                source.CanvasHeight = (int)Math.Min(200, canvasHeight * 0.3);
+                break;
+            case SourceType.Region:
             source.Type = SourceType.Region;
-            source.RegionBounds = dialog.SelectedRegion;
-            var region = dialog.SelectedRegion.Value;
-            if (string.IsNullOrEmpty(source.Name))
-                source.Name = $"Region {region.Width}x{region.Height}";
-        }
-        else if (!string.IsNullOrEmpty(dialog.SelectedWebcamDeviceId))
-        {
+                var region = dialog.SelectedRegion.GetValueOrDefault();
+                source.RegionBounds = region;
+                // Scale region to fit canvas with max size limits
+                var scaleX = maxInitialWidth / (double)region.Width;
+                var scaleY = maxInitialHeight / (double)region.Height;
+                var scale = Math.Min(Math.Min(scaleX, scaleY), 1.0); // Don't upscale
+                source.CanvasWidth = (int)(region.Width * scale);
+                source.CanvasHeight = (int)(region.Height * scale);
+                break;
+            case SourceType.Webcam:
             source.Type = SourceType.Webcam;
             source.WebcamDeviceId = dialog.SelectedWebcamDeviceId;
-            if (string.IsNullOrEmpty(source.Name))
-                source.Name = "Webcam Source";
-        }
-        else if (!string.IsNullOrEmpty(dialog.WebsiteUrl))
-        {
+                // Webcams typically have 16:9 or 4:3 aspect ratio
+                source.CanvasWidth = 320;
+                source.CanvasHeight = 240;
+                break;
+            case SourceType.Website:
             source.Type = SourceType.Website;
             source.WebsiteUrl = dialog.WebsiteUrl;
-            if (string.IsNullOrEmpty(source.Name))
-                source.Name = dialog.WebsiteUrl;
+                // Websites need reasonable viewport size
+                source.CanvasWidth = (int)Math.Min(400, canvasWidth * 0.4);
+                source.CanvasHeight = (int)Math.Min(300, canvasHeight * 0.4);
+                break;
+            default:
+                // Fallback size
+                source.CanvasWidth = 200;
+                source.CanvasHeight = 150;
+                break;
         }
-        else
-        {
-            return null;
-        }
+        
+        // Ensure minimum dimensions
+        source.CanvasWidth = Math.Max(100, source.CanvasWidth);
+        source.CanvasHeight = Math.Max(80, source.CanvasHeight);
+        
         return source;
     }
 

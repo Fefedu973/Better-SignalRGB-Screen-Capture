@@ -222,6 +222,26 @@
                             <TextBlock Text="{x:Bind ViewModel.IsRecording, Mode=OneWay, Converter={StaticResource BooleanToStringConverter}, ConverterParameter='Stop Recording|Start Recording'}" />
                         </StackPanel>
                     </ToggleButton>
+                    <Button
+                        HorizontalAlignment="Stretch"
+                        Command="{x:Bind ViewModel.TogglePauseCommand}"
+                        IsEnabled="{x:Bind ViewModel.CanPause, Mode=OneWay}"
+                        Visibility="{x:Bind ViewModel.IsRecording, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="{x:Bind ViewModel.IsPaused, Mode=OneWay, Converter={StaticResource BooleanToStringConverter}, ConverterParameter='&#xE768;|&#xE769;'}" />
+                            <TextBlock Text="{x:Bind ViewModel.IsPaused, Mode=OneWay, Converter={StaticResource BooleanToStringConverter}, ConverterParameter='Resume|Pause'}" />
+                        </StackPanel>
+                    </Button>
+                    <Button
+                        HorizontalAlignment="Stretch"
+                        Command="{x:Bind ViewModel.RefreshStreamCommand}"
+                        Visibility="{x:Bind ViewModel.NeedsRefresh, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}"
+                        Style="{StaticResource AccentButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE72C;" />
+                            <TextBlock>Refresh Recording</TextBlock>
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
                 <!--  Sources List  -->

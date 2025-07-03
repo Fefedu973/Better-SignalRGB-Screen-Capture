@@ -74,6 +74,44 @@
             Visibility="Collapsed">
             <TextBlock FontWeight="SemiBold" Text="Region options" />
             <Button Click="SelectRegion_Click" Content="Select region…" />
+
+            <!--  Region Debug Info  -->
+            <Border
+                x:Name="RegionDebugInfo"
+                Padding="8"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="4"
+                Visibility="Collapsed">
+                <StackPanel Spacing="6">
+                    <TextBlock FontWeight="SemiBold" Text="Region Information:" />
+                    <TextBlock x:Name="RegionCoordinatesText" TextWrapping="Wrap" />
+                    <TextBlock x:Name="RegionMonitorsText" TextWrapping="Wrap" />
+
+                    <!--  Debug Visualization Button  -->
+                    <Button
+                        x:Name="DebugVisualizationButton"
+                        HorizontalAlignment="Stretch"
+                        Background="{ThemeResource AccentButtonBackground}"
+                        Content="🔍 Open Debug Visualization"
+                        Foreground="{ThemeResource AccentButtonForeground}"
+                        Visibility="Collapsed" />
+
+                    <!--  Screenshot Preview  -->
+                    <Border
+                        x:Name="ScreenshotBorder"
+                        BorderBrush="Red"
+                        BorderThickness="2"
+                        CornerRadius="2"
+                        Visibility="Collapsed">
+                        <Image
+                            x:Name="ScreenshotImage"
+                            MaxHeight="200"
+                            Stretch="Uniform" />
+                    </Border>
+                </StackPanel>
+            </Border>
         </StackPanel>
 
         <!--  ‑‑‑‑ WEBCAM ‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑  -->
