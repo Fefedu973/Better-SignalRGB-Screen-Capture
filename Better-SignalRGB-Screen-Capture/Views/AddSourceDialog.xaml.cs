@@ -21,7 +21,6 @@ using Microsoft.UI.Xaml.Shapes;
 using System.Text.RegularExpressions;
 using Microsoft.UI.Xaml.Media.Imaging;
 using System.IO;
-using Microsoft.UI.Xaml.Media.Imaging;
 using System.Runtime.InteropServices.WindowsRuntime;
 
 namespace Better_SignalRGB_Screen_Capture.Views;
@@ -53,6 +52,13 @@ public sealed partial class AddSourceDialog : ContentDialog
     {
         get; private set;
     }
+
+    // Enhanced website properties
+    public double WebsiteZoom { get; private set; } = 1.0;
+    public int WebsiteRefreshInterval { get; private set; } = 0;
+    public string WebsiteUserAgent { get; private set; } = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+    public int WebsiteWidth { get; private set; } = 1920;
+    public int WebsiteHeight { get; private set; } = 1080;
 
     public SourceType SelectedSourceType { get; private set; }
 
@@ -880,7 +886,8 @@ public sealed partial class AddSourceDialog : ContentDialog
         UpdateSettingsPanels();
         if (KindBox.SelectedItem is ComboBoxItem item)
         {
-            SelectedSourceType = item.Content.ToString() switch
+            var tag = item.Tag?.ToString() ?? string.Empty;
+            SelectedSourceType = tag switch
             {
                 "Monitor" => SourceType.Monitor,
                 "Process" => SourceType.Process,
@@ -910,10 +917,42 @@ public sealed partial class AddSourceDialog : ContentDialog
     {
         if (MonitorSettings.Visibility == Visibility.Visible && MonitorCombo.SelectedItem is ComboBoxItem mi)
             SelectedMonitorDeviceId = mi.Tag as string;
+        else if (ProcessSettings.Visibility == Visibility.Visible)
+        {
+            // Process settings are handled via ProcessBox events, no additional action needed here
+            // SelectedProcessPath should already be set from ProcessBox_SuggestionChosen or BrowseExe_Click
+        }
+        else if (RegionSettings.Visibility == Visibility.Visible)
+        {
+            // Region settings are handled via SelectRegion_Click, no additional action needed here
+            // SelectedRegion should already be set
+        }
         else if (WebcamSettings.Visibility == Visibility.Visible && WebcamCombo.SelectedItem is ComboBoxItem wi)
             SelectedWebcamDeviceId = wi.Tag as string;
         else if (WebsiteSettings.Visibility == Visibility.Visible && !string.IsNullOrWhiteSpace(WebsiteUrlBox.Text))
+        {
             WebsiteUrl = WebsiteUrlBox.Text;
+            
+            // Save enhanced website settings
+            WebsiteZoom = WebsiteZoomSlider?.Value ?? 1.0;
+            WebsiteRefreshInterval = (int)(WebsiteRefreshBox?.Value ?? 0);
+            
+            // Get user agent
+            if (WebsiteUserAgentCombo?.SelectedItem is ComboBoxItem userAgentItem)
+            {
+                if (userAgentItem.Tag?.ToString() == "custom")
+                {
+                    WebsiteUserAgent = WebsiteCustomUserAgentBox?.Text ?? WebsiteUserAgent;
+                }
+                else
+                {
+                    WebsiteUserAgent = userAgentItem.Tag?.ToString() ?? WebsiteUserAgent;
+                }
+            }
+            
+            WebsiteWidth = (int)(WebsiteWidthBox?.Value ?? 1920);
+            WebsiteHeight = (int)(WebsiteHeightBox?.Value ?? 1080);
+        }
     }
     
     private void PreFillForm(SourceItem source)
@@ -1024,6 +1063,58 @@ public sealed partial class AddSourceDialog : ContentDialog
                 }
                 WebsiteUrl = source.WebsiteUrl;
                 WebsiteUrlBox.Text = source.WebsiteUrl;
+                
+                // Restore enhanced website settings
+                if (WebsiteZoomSlider != null)
+                {
+                    WebsiteZoomSlider.Value = source.WebsiteZoom;
+                    WebsiteZoomLabel.Text = $"{(int)(source.WebsiteZoom * 100)}%";
+                }
+                
+                if (WebsiteRefreshBox != null)
+                {
+                    WebsiteRefreshBox.Value = source.WebsiteRefreshInterval;
+                }
+                
+                // Set user agent
+                if (WebsiteUserAgentCombo != null)
+                {
+                    bool foundUserAgent = false;
+                    foreach (ComboBoxItem item in WebsiteUserAgentCombo.Items)
+                    {
+                        if (item.Tag?.ToString() == source.WebsiteUserAgent)
+                        {
+                            WebsiteUserAgentCombo.SelectedItem = item;
+                            foundUserAgent = true;
+                            break;
+                        }
+                    }
+                    
+                    // If not found in predefined list, select Custom and set custom text
+                    if (!foundUserAgent)
+                    {
+                        foreach (ComboBoxItem item in WebsiteUserAgentCombo.Items)
+                        {
+                            if (item.Tag?.ToString() == "custom")
+                            {
+                                WebsiteUserAgentCombo.SelectedItem = item;
+                                WebsiteCustomUserAgentBox.Visibility = Visibility.Visible;
+                                WebsiteCustomUserAgentBox.Text = source.WebsiteUserAgent;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (WebsiteWidthBox != null)
+                {
+                    WebsiteWidthBox.Value = source.WebsiteWidth;
+                }
+                
+                if (WebsiteHeightBox != null)
+                {
+                    WebsiteHeightBox.Value = source.WebsiteHeight;
+                }
                 break;
         }
         
@@ -1091,5 +1182,25 @@ public sealed partial class AddSourceDialog : ContentDialog
         
         // Update the text to show we couldn't get a screenshot
         RegionMonitorsText.Text += "\n\nScreenshot preview unavailable - recording will work correctly when started.";
+    }
+
+    // Event handlers for enhanced website controls
+    private void WebsiteZoomSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (WebsiteZoomLabel != null)
+        {
+            WebsiteZoomLabel.Text = $"{(int)(e.NewValue * 100)}%";
+        }
+    }
+
+    private void WebsiteUserAgentCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (WebsiteUserAgentCombo.SelectedItem is ComboBoxItem item)
+        {
+            if (WebsiteCustomUserAgentBox != null)
+            {
+                WebsiteCustomUserAgentBox.Visibility = item.Tag?.ToString() == "custom" ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
     }
 }

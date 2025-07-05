@@ -16,6 +16,8 @@ using Better_SignalRGB_Screen_Capture.Contracts.Services;
 using System.IO;
 using Windows.Storage.Streams;
 using System.Runtime.InteropServices.WindowsRuntime;
+using Microsoft.UI.Dispatching;
+using System.Diagnostics;
 
 namespace Better_SignalRGB_Screen_Capture.Views;
 
@@ -45,6 +47,7 @@ public sealed partial class DraggableSourceItem : UserControl
     private bool _isSelected;
     private bool _isCropping;
     private readonly ICaptureService? _captureService;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _websiteRefreshTimer;
 
     // Drag/resize start state
     private Point _actionStartPointerPosition;
@@ -237,6 +240,10 @@ public sealed partial class DraggableSourceItem : UserControl
         {
             _captureService.FrameAvailable -= OnFrameAvailable;
         }
+        
+        // Stop website refresh timer
+        _websiteRefreshTimer?.Stop();
+        _websiteRefreshTimer = null;
     }
 
     private static void OnSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -308,6 +315,32 @@ public sealed partial class DraggableSourceItem : UserControl
                 case nameof(SourceItem.Type):
                 case nameof(SourceItem.WebsiteUrl):
                     UpdateDisplay(Source);
+                    break;
+                    
+                case nameof(SourceItem.WebsiteZoom):
+                    if (Source.Type == SourceType.Website)
+                    {
+                        _ = SetPageZoomAsync();
+                    }
+                    break;
+                    
+                case nameof(SourceItem.WebsiteRefreshInterval):
+                    if (Source.Type == SourceType.Website)
+                    {
+                        SetupWebsiteRefreshTimer(); // Restart timer with new interval
+                    }
+                    break;
+                    
+                case nameof(SourceItem.WebsiteUserAgent):
+                    if (Source.Type == SourceType.Website && WebsitePreview.CoreWebView2 != null)
+                    {
+                        WebsitePreview.CoreWebView2.Settings.UserAgent = Source.WebsiteUserAgent;
+                        // Reload to apply new user agent
+                        if (!string.IsNullOrEmpty(Source.WebsiteUrl))
+                        {
+                            WebsitePreview.CoreWebView2.Navigate(Source.WebsiteUrl);
+                        }
+                    }
                     break;
             }
         });
@@ -653,14 +686,14 @@ public sealed partial class DraggableSourceItem : UserControl
         // world coordinates
         Point centre0 = new(_actionStartBounds.X + startW / 2.0,
                             _actionStartBounds.Y + startH / 2.0);
-        Point anchorWorld = new(
+        Point anchorW = new(
             centre0.X + ToScreen(anchorLocal0.X, anchorLocal0.Y).X,
             centre0.Y + ToScreen(anchorLocal0.X, anchorLocal0.Y).Y);
 
         // new centre so that anchorWorld stays put
         Point centre1 = new(
-            anchorWorld.X - ToScreen(anchorLocal1.X, anchorLocal1.Y).X,
-            anchorWorld.Y - ToScreen(anchorLocal1.X, anchorLocal1.Y).Y);
+            anchorW.X - ToScreen(anchorLocal1.X, anchorLocal1.Y).X,
+            anchorW.Y - ToScreen(anchorLocal1.X, anchorLocal1.Y).Y);
 
         double newX = centre1.X - newW / 2.0;
         double newY = centre1.Y - newH / 2.0;
@@ -1873,19 +1906,45 @@ public sealed partial class DraggableSourceItem : UserControl
             PreviewImage.Visibility = Visibility.Collapsed;
             WebsitePreview.Visibility = Visibility.Visible;
             
-            // Navigate to the website
+            // Ensure WebView
             await WebsitePreview.EnsureCoreWebView2Async();
+            
+            if (Source != null)
+            {
+                // Apply user agent (must be set before navigation)
+                if (!string.IsNullOrEmpty(Source.WebsiteUserAgent))
+                {
+                    WebsitePreview.CoreWebView2.Settings.UserAgent = Source.WebsiteUserAgent;
+                }
+                
+                // Hook NavigationCompleted once to apply zoom after page load
+                WebsitePreview.CoreWebView2.NavigationCompleted -= WebView_NavigationCompleted;
+                WebsitePreview.CoreWebView2.NavigationCompleted += WebView_NavigationCompleted;
+
+                // Setup auto-refresh timer
+                SetupWebsiteRefreshTimer();
+            }
+            
             WebsitePreview.CoreWebView2.Navigate(url);
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading website preview: {ex.Message}");
+            Debug.WriteLine($"Error loading website preview: {ex.Message}");
             HideWebsitePreview();
         }
+    }
+
+    private void WebView_NavigationCompleted(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2NavigationCompletedEventArgs e)
+    {
+        _ = SetPageZoomAsync();
     }
     
     private void HideWebsitePreview()
     {
+        // Stop refresh timer
+        _websiteRefreshTimer?.Stop();
+        _websiteRefreshTimer = null;
+        
         WebsitePreview.Visibility = Visibility.Collapsed;
         ContentBorder.Visibility = Visibility.Visible;
         
@@ -1950,6 +2009,62 @@ private void UpdateShadeClip()
         {
             var transform = CropRect.RenderTransform as RotateTransform;
             UpdateCropVisuals(_cropStartRect, transform?.Angle ?? 0);
+        }
+    }
+
+    private void SetupWebsiteRefreshTimer()
+    {
+        // Stop existing timer
+        _websiteRefreshTimer?.Stop();
+        _websiteRefreshTimer = null;
+        
+        // Create new timer if refresh interval is set
+        if (Source != null && Source.WebsiteRefreshInterval > 0)
+        {
+            _websiteRefreshTimer = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().CreateTimer();
+            _websiteRefreshTimer.Interval = TimeSpan.FromSeconds(Source.WebsiteRefreshInterval);
+            _websiteRefreshTimer.Tick += (sender, e) =>
+            {
+                try
+                {
+                    if (WebsitePreview.Visibility == Visibility.Visible && 
+                        WebsitePreview.CoreWebView2 != null && 
+                        !string.IsNullOrEmpty(Source?.WebsiteUrl))
+                    {
+                        WebsitePreview.CoreWebView2.Reload();
+                        Debug.WriteLine($"🔄 Auto-refreshed website: {Source.Name}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error during auto-refresh: {ex.Message}");
+                }
+            };
+            _websiteRefreshTimer.Start();
+            Debug.WriteLine($"⏰ Auto-refresh timer started for {Source.Name}: {Source.WebsiteRefreshInterval} seconds");
+        }
+    }
+
+    private async Task SetPageZoomAsync()
+    {
+        if (Source == null || WebsitePreview.CoreWebView2 == null) return;
+        try
+        {
+            // Try native ZoomFactor property via reflection (not available in all SDK versions)
+            var zoomProp = WebsitePreview.CoreWebView2.GetType().GetProperty("ZoomFactor");
+            if (zoomProp != null && zoomProp.CanWrite)
+            {
+                zoomProp.SetValue(WebsitePreview.CoreWebView2, Source.WebsiteZoom);
+                return;
+            }
+            // Fallback to CSS zoom on both html and body elements
+            var zoomCss = Source.WebsiteZoom.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+            string js = $"document.documentElement.style.zoom='{zoomCss}'; document.body.style.zoom='{zoomCss}';";
+            await WebsitePreview.CoreWebView2.ExecuteScriptAsync(js);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"SetPageZoom error: {ex.Message}");
         }
     }
 } 

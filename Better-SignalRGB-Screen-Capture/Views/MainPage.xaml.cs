@@ -147,6 +147,14 @@ public sealed partial class MainPage : Page, INavigationAware
             case SourceType.Website:
             source.Type = SourceType.Website;
             source.WebsiteUrl = dialog.WebsiteUrl;
+                
+                // Set enhanced website properties from dialog
+                source.WebsiteZoom = dialog.WebsiteZoom;
+                source.WebsiteRefreshInterval = dialog.WebsiteRefreshInterval;
+                source.WebsiteUserAgent = dialog.WebsiteUserAgent;
+                source.WebsiteWidth = dialog.WebsiteWidth;
+                source.WebsiteHeight = dialog.WebsiteHeight;
+                
                 // Websites need reasonable viewport size
                 source.CanvasWidth = (int)Math.Min(400, canvasWidth * 0.4);
                 source.CanvasHeight = (int)Math.Min(300, canvasHeight * 0.4);
@@ -237,6 +245,13 @@ public sealed partial class MainPage : Page, INavigationAware
                 break;
             case SourceType.Website:
                 source.WebsiteUrl = dialog.WebsiteUrl;
+                
+                // Update enhanced website properties
+                source.WebsiteZoom = dialog.WebsiteZoom;
+                source.WebsiteRefreshInterval = dialog.WebsiteRefreshInterval;
+                source.WebsiteUserAgent = dialog.WebsiteUserAgent;
+                source.WebsiteWidth = dialog.WebsiteWidth;
+                source.WebsiteHeight = dialog.WebsiteHeight;
                 break;
         }
     }
@@ -1025,5 +1040,16 @@ public sealed partial class MainPage : Page, INavigationAware
     {
         // Update ViewModel when GroupSelectionControl bounds change
         ViewModel.UpdateGroupSelectionBounds(bounds.x, bounds.y, bounds.width, bounds.height, bounds.rotation);
+    }
+
+    private async void StreamingLink_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.StreamingUrl is string url && !string.IsNullOrWhiteSpace(url))
+        {
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                await Windows.System.Launcher.LaunchUriAsync(uri);
+            }
+        }
     }
 }

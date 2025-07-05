@@ -19,6 +19,7 @@ public partial class MainViewModel : ObservableRecipient
     private readonly ICompositeFrameService _compositeFrameService;
     private const string SourcesSettingsKey = "SavedSources";
     private const string PreviewFpsSettingsKey = "PreviewFps";
+    private const string IsPreviewingSettingsKey = "IsPreviewing";
 
     private List<SourceItem> _copiedSources = new();
     private readonly UndoRedoManager _undoRedoManager = new();
@@ -290,6 +291,9 @@ public partial class MainViewModel : ObservableRecipient
     
     partial void OnIsPreviewingChanged(bool value)
     {
+        // Save the preview setting when it changes
+        _ = SaveIsPreviewingAsync();
+        
         // Update IsLivePreviewEnabled for all sources
         foreach (var source in Sources)
         {
@@ -1336,10 +1340,16 @@ public partial class MainViewModel : ObservableRecipient
             {
                 PreviewFps = savedFps.Value;
             }
+            
+            var savedIsPreviewing = await _localSettingsService.ReadSettingAsync<bool?>(IsPreviewingSettingsKey);
+            if (savedIsPreviewing.HasValue)
+            {
+                IsPreviewing = savedIsPreviewing.Value;
+            }
         }
         catch
         {
-            // If loading fails, keep default value
+            // If loading fails, keep default values
         }
     }
     
@@ -1348,6 +1358,18 @@ public partial class MainViewModel : ObservableRecipient
         try
         {
             await _localSettingsService.SaveSettingAsync(PreviewFpsSettingsKey, PreviewFps);
+        }
+        catch
+        {
+            // Handle save error if needed
+        }
+    }
+    
+    private async Task SaveIsPreviewingAsync()
+    {
+        try
+        {
+            await _localSettingsService.SaveSettingAsync(IsPreviewingSettingsKey, IsPreviewing);
         }
         catch
         {

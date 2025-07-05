@@ -67,6 +67,13 @@ public class SourceItem : INotifyPropertyChanged
     private string? _webcamDeviceId;
     private string? _websiteUrl;
     
+    // Website-specific properties for enhanced control
+    private double _websiteZoom = 1.0;
+    private int _websiteRefreshInterval = 0; // 0 = no auto-refresh, in seconds
+    private string _websiteUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+    private int _websiteWidth = 1920;
+    private int _websiteHeight = 1080;
+    
     public string? MonitorDeviceId
     {
         get => _monitorDeviceId;
@@ -161,6 +168,36 @@ public class SourceItem : INotifyPropertyChanged
                 OnPropertyChanged(nameof(DisplaySubtitle));
             }
         }
+    }
+    
+    public double WebsiteZoom
+    {
+        get => _websiteZoom;
+        set => SetProperty(ref _websiteZoom, Math.Max(0.25, Math.Min(4.0, value))); // Clamp between 25% and 400%
+    }
+    
+    public int WebsiteRefreshInterval
+    {
+        get => _websiteRefreshInterval;
+        set => SetProperty(ref _websiteRefreshInterval, Math.Max(0, value)); // Minimum 0 (no refresh)
+    }
+    
+    public string WebsiteUserAgent
+    {
+        get => _websiteUserAgent;
+        set => SetProperty(ref _websiteUserAgent, value ?? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    }
+    
+    public int WebsiteWidth
+    {
+        get => _websiteWidth;
+        set => SetProperty(ref _websiteWidth, Math.Max(320, Math.Min(7680, value))); // Clamp between 320px and 7680px (8K)
+    }
+    
+    public int WebsiteHeight
+    {
+        get => _websiteHeight;
+        set => SetProperty(ref _websiteHeight, Math.Max(240, Math.Min(4320, value))); // Clamp between 240px and 4320px (8K)
     }
     
     // DeviceId property for compatibility with new CaptureService
@@ -385,6 +422,13 @@ public class SourceItem : INotifyPropertyChanged
             RegionBounds = this.RegionBounds.HasValue ? new RectInt32(this.RegionBounds.Value.X, this.RegionBounds.Value.Y, this.RegionBounds.Value.Width, this.RegionBounds.Value.Height) : null,
             WebcamDeviceId = this.WebcamDeviceId,
             WebsiteUrl = this.WebsiteUrl,
+            
+            // Copy website-specific properties
+            WebsiteZoom = this.WebsiteZoom,
+            WebsiteRefreshInterval = this.WebsiteRefreshInterval,
+            WebsiteUserAgent = this.WebsiteUserAgent,
+            WebsiteWidth = this.WebsiteWidth,
+            WebsiteHeight = this.WebsiteHeight,
 
             // Copy canvas and visual properties
             CanvasX = this.CanvasX,

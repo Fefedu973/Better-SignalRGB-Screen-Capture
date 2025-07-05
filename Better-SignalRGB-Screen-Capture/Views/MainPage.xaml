@@ -373,6 +373,7 @@
                         FontWeight="SemiBold"
                         Text="MJPEG Stream:" />
                     <HyperlinkButton
+                        Click="StreamingLink_Click"
                         Content="{x:Bind ViewModel.StreamingUrl, Mode=OneWay, FallbackValue='Starting...'}"
                         FontFamily="Consolas"
                         FontSize="11"

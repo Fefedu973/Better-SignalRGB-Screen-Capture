@@ -49,6 +49,14 @@ public class CaptureService : ICaptureService
     {
         try
         {
+            // Website sources are handled differently - they use WebView components for display
+            // and don't need traditional screen capture recording
+            if (source.Type == SourceType.Website)
+            {
+                Debug.WriteLine($"📱 Website source '{source.Name}' uses WebView display - skipping screen capture");
+                return;
+            }
+
             Debug.WriteLine($"🎬 Starting individual recorder for: {source.Name} ({source.Type})");
 
             // Stop existing recorder for this source if it exists
@@ -97,6 +105,13 @@ public class CaptureService : ICaptureService
     {
         try
         {
+            // Website sources don't have traditional recorders
+            if (source.Type == SourceType.Website)
+            {
+                Debug.WriteLine($"📱 Website source '{source.Name}' uses WebView display - no recorder to stop");
+                return;
+            }
+
             Debug.WriteLine($"🛑 Stopping recorder for: {source.Name}");
             
             if (_recorders.TryRemove(source.Id, out var sourceRecorder))
@@ -148,6 +163,12 @@ public class CaptureService : ICaptureService
 
     public bool IsCapturing(SourceItem source)
     {
+        // Website sources are always considered "capturing" since they display via WebView
+        if (source.Type == SourceType.Website)
+        {
+            return true;
+        }
+
         return _recorders.ContainsKey(source.Id) && 
                _recorders.TryGetValue(source.Id, out var recorder) &&
                recorder.Recorder?.Status == RecorderStatus.Recording;
@@ -276,20 +297,13 @@ public class CaptureService : ICaptureService
                 recordingSource.Stretch = StretchMode.None; // Don't stretch - preserve exact proportions
             recordingSource.IsVideoFramePreviewEnabled = true; // Enable frame preview
 
-                // For non-region sources, set output size to canvas size
+                // Don't set OutputSize for individual sources - let them use natural dimensions
+                // Only region sources need custom OutputSize for cropping
                 // (Region sources already have OutputSize set in CreateRegionSources)
-                if (source.Type != SourceType.Region && source.CanvasWidth > 0 && source.CanvasHeight > 0)
-            {
-                recordingSource.OutputSize = new ScreenSize((int)source.CanvasWidth, (int)source.CanvasHeight);
-                    Debug.WriteLine($"📐 Set OutputSize for non-region source: {source.CanvasWidth}x{source.CanvasHeight}");
-                }
             }
 
-            // For single source, apply custom size if draggable source has been resized
-            if (recordingSources.Count == 1 && source.CanvasWidth > 0 && source.CanvasHeight > 0)
-                {
-                recordingSources[0].OutputSize = new ScreenSize((int)source.CanvasWidth, (int)source.CanvasHeight);
-            }
+            // Don't override OutputSize for single sources - let them use natural recording dimensions
+            // Only region sources need custom sizing for multi-monitor compositing
 
             // Create recorder options (similar to TestApp)
             var options = new RecorderOptions
@@ -336,20 +350,34 @@ public class CaptureService : ICaptureService
             // Apply output size based on source type
             if (source.Type == SourceType.Region && source.RegionWidth > 0 && source.RegionHeight > 0)
             {
-                // For regions, use the actual region size for recording output
-                // The canvas size is just for UI display - we want to record at full region resolution
-                var width = source.RegionWidth.Value;
-                var height = source.RegionHeight.Value;
+                // Determine if this is single or multi-monitor region
+                var regionRect = new System.Drawing.Rectangle(
+                    source.RegionX ?? 0, source.RegionY ?? 0,
+                    source.RegionWidth ?? 0, source.RegionHeight ?? 0);
+                var displays = Recorder.GetDisplays();
+                var intersectingDisplays = CoordinateMapper.FindIntersectingDisplays(regionRect, displays);
+                
+                int width, height;
+                if (intersectingDisplays.Count == 1)
+                {
+                    // Single monitor: Use actual region size to avoid zoom issues
+                    width = source.RegionWidth.Value;
+                    height = source.RegionHeight.Value;
+                    Debug.WriteLine($"📐 Single monitor region - output size set to actual region size: {width}x{height}");
+                }
+                else
+                {
+                    // Multi-monitor: Use canvas size to avoid encoder memory issues
+                    width = (int)source.CanvasWidth;
+                    height = (int)source.CanvasHeight;
+                    Debug.WriteLine($"📐 Multi-monitor region - output size set to canvas size (for encoder compatibility): {width}x{height}");
+                    Debug.WriteLine($"📐 Actual region being cropped: {source.RegionWidth}x{source.RegionHeight}");
+                }
                 
                 options.OutputOptions.OutputFrameSize = new ScreenSize(width, height);
-                
-                Debug.WriteLine($"📐 Region output size set to actual region size: {width}x{height}");
             }
-            else if (source.CanvasWidth > 0 && source.CanvasHeight > 0)
-            {
-                // For other sources, use the canvas size
-                options.OutputOptions.OutputFrameSize = new ScreenSize((int)source.CanvasWidth, (int)source.CanvasHeight);
-            }
+            // For non-region sources (monitor, webcam, process), don't set OutputFrameSize
+            // Let ScreenRecorderLib use the natural recording dimensions for best quality
 
             Debug.WriteLine($"📋 Recorder options for {source.Name}:");
             Debug.WriteLine($"   - Type: {source.Type}");
@@ -452,6 +480,13 @@ public class CaptureService : ICaptureService
     {
         try
         {
+            // Only create display sources for monitor/display types
+            if (source.Type != SourceType.Monitor && source.Type != SourceType.Display)
+            {
+                Debug.WriteLine($"❌ CreateDisplaySource called for non-monitor source type: {source.Type}");
+                return null;
+            }
+
             var displays = Recorder.GetDisplays();
             var display = displays.FirstOrDefault(d => 
                 d.DeviceName == source.DeviceId || 
@@ -634,22 +669,15 @@ public class CaptureService : ICaptureService
                     IsBorderRequired = false,
                     SourceRect = mapping.SourceRect,
                     Position = mapping.Position,
-                    // For single monitor regions, don't set OutputSize here - let the main output settings control it
-                    // For multi-monitor regions, set OutputSize to match the cropped area for this monitor
-                    OutputSize = intersectingDisplays.Count > 1 ? new ScreenSize(mapping.SourceRect.Width, mapping.SourceRect.Height) : null
+                    // Set OutputSize to match the actual cropped area for this monitor
+                    // This works with the canvas-sized final output to scale properly
+                    OutputSize = new ScreenSize(mapping.SourceRect.Width, mapping.SourceRect.Height)
                 };
 
                 sources.Add(displaySource);
 
                 Debug.WriteLine($"   ✅ Applied SourceRect: {mapping.SourceRect.Left},{mapping.SourceRect.Top} size {mapping.SourceRect.Width}x{mapping.SourceRect.Height}");
-                if (displaySource.OutputSize != null)
-                {
-                    Debug.WriteLine($"   ✅ Applied OutputSize: {displaySource.OutputSize.Width}x{displaySource.OutputSize.Height}");
-                }
-                else
-                {
-                    Debug.WriteLine($"   ✅ OutputSize: null (controlled by main output settings)");
-                }
+                Debug.WriteLine($"   ✅ Applied OutputSize: {mapping.SourceRect.Width}x{mapping.SourceRect.Height}");
                 if (mapping.Position != null)
                 {
                     Debug.WriteLine($"   ✅ Applied Position: {mapping.Position.Left},{mapping.Position.Top}");

@@ -137,8 +137,96 @@
             x:Name="WebsiteSettings"
             Spacing="8"
             Visibility="Collapsed">
-            <TextBlock FontWeight="SemiBold" Text="Enter a website URL" />
-            <TextBox x:Name="WebsiteUrlBox" PlaceholderText="https://www.example.com" />
+            <TextBlock FontWeight="SemiBold" Text="Website Configuration" />
+            <TextBox x:Name="WebsiteUrlBox" Header="Website URL" PlaceholderText="https://www.example.com" />
+            
+            <!-- Zoom Level -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="Zoom Level" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Slider x:Name="WebsiteZoomSlider" 
+                            Grid.Column="0"
+                            Minimum="0.25" 
+                            Maximum="4.0" 
+                            Value="1.0" 
+                            StepFrequency="0.25"
+                            TickFrequency="0.25"
+                            TickPlacement="Outside"
+                            ValueChanged="WebsiteZoomSlider_ValueChanged" />
+                    <TextBlock x:Name="WebsiteZoomLabel"
+                               Grid.Column="1" 
+                               Text="100%"
+                               VerticalAlignment="Center"
+                               Margin="8,0,0,0"
+                               MinWidth="50" />
+                </Grid>
+            </StackPanel>
+            
+            <!-- Refresh Interval -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="Auto-Refresh Interval (seconds, 0 = disabled)" />
+                <NumberBox x:Name="WebsiteRefreshBox" 
+                           Minimum="0" 
+                           Maximum="3600" 
+                           Value="0"
+                           SpinButtonPlacementMode="Inline" />
+            </StackPanel>
+            
+            <!-- User Agent -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="User Agent" />
+                <ComboBox x:Name="WebsiteUserAgentCombo" 
+                          HorizontalAlignment="Stretch"
+                          SelectionChanged="WebsiteUserAgentCombo_SelectionChanged">
+                    <ComboBoxItem Content="Chrome (Windows)" Tag="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" IsSelected="True" />
+                    <ComboBoxItem Content="Firefox (Windows)" Tag="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0" />
+                    <ComboBoxItem Content="Safari (macOS)" Tag="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15" />
+                    <ComboBoxItem Content="Edge (Windows)" Tag="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0" />
+                    <ComboBoxItem Content="Mobile Chrome" Tag="Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36" />
+                    <ComboBoxItem Content="Custom" Tag="custom" />
+                </ComboBox>
+            </StackPanel>
+            
+            <!-- Custom User Agent (only visible when Custom is selected) -->
+            <TextBox x:Name="WebsiteCustomUserAgentBox" 
+                     Header="Custom User Agent"
+                     Visibility="Collapsed"
+                     PlaceholderText="Enter custom user agent string..." />
+            
+            <!-- Iframe Dimensions -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="Iframe Rendering Size" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <NumberBox x:Name="WebsiteWidthBox" 
+                               Grid.Column="0"
+                               Header="Width"
+                               Minimum="320" 
+                               Maximum="7680" 
+                               Value="1920"
+                               SpinButtonPlacementMode="Inline" />
+                    <TextBlock Grid.Column="1" 
+                               Text="×" 
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               Margin="8,20,8,0" />
+                    <NumberBox x:Name="WebsiteHeightBox" 
+                               Grid.Column="2"
+                               Header="Height"
+                               Minimum="240" 
+                               Maximum="4320" 
+                               Value="1080"
+                               SpinButtonPlacementMode="Inline" />
+                </Grid>
+            </StackPanel>
         </StackPanel>
     </StackPanel>
 </ContentDialog>
