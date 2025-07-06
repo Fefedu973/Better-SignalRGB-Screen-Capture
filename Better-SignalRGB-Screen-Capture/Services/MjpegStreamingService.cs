@@ -68,12 +68,23 @@ public class MjpegStreamingService : IMjpegStreamingService
         }
     }
 
+    public async Task NotifySourceRemovedAsync(Guid sourceId)
+    {
+        await PostCanvasEventAsync($"remove:{sourceId}");
+        Debug.WriteLine($"[Canvas API] Sent remove for {sourceId}");
+    }
+
     private async Task SendFrameToCanvasApiAsync(SourceItem source, byte[] jpegData)
     {
         try
         {
+            var mainViewModel = App.GetService<MainViewModel>();
+            var sources = mainViewModel?.Sources;
+            var sourceIndex = sources?.IndexOf(source) ?? -1;
+            var zIndex = (sources != null && sourceIndex != -1) ? sources.Count - 1 - sourceIndex : 0;
+
             // Generate style string for this source
-            var styleString = BuildStyleString(source);
+            var styleString = BuildStyleString(source, zIndex);
             
             // Convert to base64 and split into chunks
             var base64Data = Convert.ToBase64String(jpegData);
@@ -94,13 +105,13 @@ public class MjpegStreamingService : IMjpegStreamingService
             // Send data chunks
             for (int i = 0; i < chunks.Count; i++)
             {
-                await PostCanvasEventAsync($"data:{i}:{chunks[i]}");
+                await PostCanvasEventAsync($"data:{source.Id}:{i}:{chunks[i]}");
             }
             
             // Send end marker
-            await PostCanvasEventAsync("end");
+            await PostCanvasEventAsync($"end:{source.Id}");
             
-            Debug.WriteLine($"[Canvas API] Sent frame for {source.Name} ({chunks.Count} chunks)");
+            Debug.WriteLine($"[Canvas API] Sent frame for {source.Name} ({chunks.Count} chunks, z-index: {zIndex})");
         }
         catch (Exception ex)
         {
@@ -108,32 +119,74 @@ public class MjpegStreamingService : IMjpegStreamingService
         }
     }
 
-    private static string BuildStyleString(SourceItem source)
+    private static string BuildStyleString(SourceItem source, int zIndex)
     {
         var sb = new StringBuilder();
         
         // Position and size
-        sb.Append($"left:{source.CanvasX}px;");
-        sb.Append($"top:{source.CanvasY}px;");
-        sb.Append($"width:{source.CanvasWidth}px;");
-        sb.Append($"height:{source.CanvasHeight}px;");
+        sb.Append($"left:{source.CanvasX.ToString(CultureInfo.InvariantCulture)}px;");
+        sb.Append($"top:{source.CanvasY.ToString(CultureInfo.InvariantCulture)}px;");
+        sb.Append($"width:{source.CanvasWidth.ToString(CultureInfo.InvariantCulture)}px;");
+        sb.Append($"height:{source.CanvasHeight.ToString(CultureInfo.InvariantCulture)}px;");
         
-        // Opacity
+        // Opacity and Z-Index
         sb.Append($"opacity:{source.Opacity.ToString(CultureInfo.InvariantCulture)};");
+        sb.Append($"z-index:{zIndex};");
         
         // Transform (rotation and mirroring)
         var scaleX = source.IsMirroredHorizontally ? -1 : 1;
         var scaleY = source.IsMirroredVertically ? -1 : 1;
-        sb.Append($"transform:rotate({source.Rotation}deg) scale({scaleX},{scaleY});");
+        sb.Append($"transform:rotate({source.Rotation.ToString(CultureInfo.InvariantCulture)}deg) scale({scaleX},{scaleY});");
         
         // Cropping
         if (source.CropLeftPct > 0 || source.CropTopPct > 0 || source.CropRightPct > 0 || source.CropBottomPct > 0)
         {
-            var clipLeft = source.CropLeftPct * 100;
-            var clipTop = source.CropTopPct * 100;
-            var clipRight = 100 - (source.CropRightPct * 100);
-            var clipBottom = 100 - (source.CropBottomPct * 100);
-            sb.Append($"clip-path:polygon({clipLeft}% {clipTop}%,{clipRight}% {clipTop}%,{clipRight}% {clipBottom}%,{clipLeft}% {clipBottom}%);");
+            var l = source.CropLeftPct * 100;
+            var t = source.CropTopPct * 100;
+            var r = 100 - (source.CropRightPct * 100);
+            var b = 100 - (source.CropBottomPct * 100);
+
+            if (source.CropRotation != 0)
+            {
+                var rad = source.CropRotation * Math.PI / 180.0;
+                var cos = Math.Cos(rad);
+                var sin = Math.Sin(rad);
+
+                var centerX = l + (r - l) / 2.0;
+                var centerY = t + (b - t) / 2.0;
+                
+                var corners = new[]
+                {
+                    new { X = l, Y = t },
+                    new { X = r, Y = t },
+                    new { X = r, Y = b },
+                    new { X = l, Y = b }
+                };
+
+                var rotatedCorners = corners.Select(c =>
+                {
+                    var dx = c.X - centerX;
+                    var dy = c.Y - centerY;
+                    return new
+                    {
+                        X = centerX + dx * cos - dy * sin,
+                        Y = centerY + dx * sin + dy * cos
+                    };
+                }).ToArray();
+                
+                sb.Append("clip-path:polygon(");
+                sb.Append(string.Join(",", rotatedCorners.Select(c => 
+                    $"{c.X.ToString(CultureInfo.InvariantCulture)}% {c.Y.ToString(CultureInfo.InvariantCulture)}%")));
+                sb.Append(");");
+            }
+            else
+            {
+                 sb.Append($"clip-path:polygon(" +
+                          $"{l.ToString(CultureInfo.InvariantCulture)}% {t.ToString(CultureInfo.InvariantCulture)}%," +
+                          $"{r.ToString(CultureInfo.InvariantCulture)}% {t.ToString(CultureInfo.InvariantCulture)}%," +
+                          $"{r.ToString(CultureInfo.InvariantCulture)}% {b.ToString(CultureInfo.InvariantCulture)}%," +
+                          $"{l.ToString(CultureInfo.InvariantCulture)}% {b.ToString(CultureInfo.InvariantCulture)}%);");
+            }
         }
         
         return sb.ToString();

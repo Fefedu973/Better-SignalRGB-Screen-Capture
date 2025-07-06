@@ -104,12 +104,14 @@
                 // Error handling
                 source.element.onerror = function () {
                     errorCount++;
-                    log(`Error loading ${tag} for source ${source.id}`);
+                    log(`Error loading ${tag} for source ${source.id}, hiding element.`);
+                    this.style.display = 'none'; // Hide broken images
                 };
 
                 // Load success
                 source.element.onload = function () {
                     log(`Successfully loaded frame for source ${source.id}`);
+                    this.style.display = 'block'; // Ensure it's visible on success
                 };
 
                 canvas.appendChild(source.element);
@@ -200,17 +202,17 @@
                 return;
             }
 
-            // Handle data: data:index:payload
+            // Handle data: data:sourceId:index:payload
             if (msg.startsWith("data:")) {
-                const firstColon = msg.indexOf(":", 5);
-                if (firstColon === -1) {
+                const parts = msg.split(":");
+                if (parts.length < 4) {
                     log(`Invalid data format: ${msg.substring(0, 50)}...`);
                     errorCount++;
                     return;
                 }
-
-                const index = parseInt(msg.substring(5, firstColon), 10);
-                const payload = msg.substring(firstColon + 1);
+                const sourceId = parts[1];
+                const index = parseInt(parts[2], 10);
+                const payload = parts.slice(3).join(":");
 
                 if (isNaN(index) || !payload) {
                     log(`Invalid chunk data: index=${index}, payload length=${payload.length}`);
@@ -218,29 +220,40 @@
                     return;
                 }
 
-                // Find the source expecting this chunk
-                const targetSource = Array.from(sources.values()).find(s =>
-                    s.expect > 0 && !s.chunks.has(index) && s.chunks.size < s.expect
-                );
-
-                if (targetSource) {
-                    targetSource.chunks.set(index, payload);
+                const source = sources.get(sourceId);
+                if (source) {
+                    source.chunks.set(index, payload);
                 }
 
                 return;
             }
 
-            // Handle end marker
-            if (msg === "end") {
-                // Find source with complete chunk set
-                const completeSource = Array.from(sources.values()).find(s =>
-                    s.expect > 0 && s.chunks.size === s.expect
-                );
+            // Handle end marker: end:sourceId
+            if (msg.startsWith("end:")) {
+                const parts = msg.split(":");
+                const sourceId = parts[1];
+                const source = sources.get(sourceId);
 
-                if (completeSource) {
-                    assembleAndRender(completeSource);
+                if (source) {
+                    assembleAndRender(source);
                 }
 
+                return;
+            }
+
+            // Handle remove event: remove:sourceId
+            if (msg.startsWith("remove:")) {
+                const parts = msg.split(":");
+                const sourceId = parts[1];
+                const source = sources.get(sourceId);
+
+                if (source) {
+                    log(`Removing source: ${sourceId}`);
+                    if (source.element) {
+                        source.element.remove();
+                    }
+                    sources.delete(sourceId);
+                }
                 return;
             }
 

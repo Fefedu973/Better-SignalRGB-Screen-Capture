@@ -347,35 +347,28 @@ public partial class MainViewModel : ObservableRecipient
     [RelayCommand]
     private async Task DeleteSourceAsync(object? parameter)
     {
-        var sourcesToDelete = new List<SourceItem>();
         if (parameter is SourceItem source)
         {
-            sourcesToDelete.Add(source);
+            await DeleteSingleSourceAsync(source);
         }
-        else if (parameter is IEnumerable<SourceItem> sources)
+        else if (SelectedSources.Any())
         {
-            sourcesToDelete.AddRange(sources);
+            var sourcesToDelete = SelectedSources.ToList();
+            foreach (var s in sourcesToDelete)
+            {
+                await DeleteSingleSourceAsync(s);
+            }
         }
-        else
-        {
-            sourcesToDelete.AddRange(SelectedSources);
-        }
-
-        foreach(var s in sourcesToDelete.ToList())
-        {
-            await DeleteSingleSourceAsync(s);
-        }
+        await SaveSourcesWithUndoAsync();
     }
 
     private async Task DeleteSingleSourceAsync(SourceItem source)
     {
         if (Sources.Contains(source))
         {
-            SaveUndoState();
             await _captureService.StopCaptureAsync(source);
-            _compositeFrameService.RemoveSource(source);
             Sources.Remove(source);
-            await SaveSourcesAsync();
+            await _mjpegStreamingService.NotifySourceRemovedAsync(source.Id);
         }
     }
     
