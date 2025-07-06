@@ -37,7 +37,7 @@ public class CaptureService : ICaptureService
         public WriteableBitmap? PreviewBitmap { get; set; }
 
         public SourceRecorder(Recorder recorder, MemoryStream stream, SourceItem source, RecorderOptions options)
-    {
+        {
             Recorder = recorder;
             OutputStream = stream;
             Source = source;
@@ -115,13 +115,13 @@ public class CaptureService : ICaptureService
             Debug.WriteLine($"🛑 Stopping recorder for: {source.Name}");
             
             if (_recorders.TryRemove(source.Id, out var sourceRecorder))
-        {
+            {
                 // Stop the recorder
                 if (sourceRecorder.Recorder?.Status == RecorderStatus.Recording || 
                     sourceRecorder.Recorder?.Status == RecorderStatus.Paused)
                 {
                     sourceRecorder.Recorder.Stop();
-        }
+                }
 
                 // Dispose resources
                 sourceRecorder.Recorder?.Dispose();
@@ -207,47 +207,29 @@ public class CaptureService : ICaptureService
     {
         try
         {
-            var blackBitmap = new WriteableBitmap(320, 200);
-            
-            // Create black frame
-            using var stream = new InMemoryRandomAccessStream();
-            var encoder = BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId, stream).AsTask().Result;
-            
-            encoder.SetPixelData(
-                BitmapPixelFormat.Bgra8,
-                BitmapAlphaMode.Premultiplied,
-                320, 200,
-                96, 96,
-                new byte[320 * 200 * 4]); // All zeros = black
-            
-            encoder.FlushAsync().AsTask().Wait();
-            
-            // Convert to byte array
-            stream.Seek(0);
-            using var reader = new DataReader(stream.GetInputStreamAt(0));
-            reader.LoadAsync((uint)stream.Size).AsTask().Wait();
-            var buffer = new byte[stream.Size];
-            reader.ReadBytes(buffer);
-            
-            return buffer;
+            using var bitmap = new System.Drawing.Bitmap(320, 200, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+            using var graphics = System.Drawing.Graphics.FromImage(bitmap);
+            graphics.Clear(System.Drawing.Color.Black);
+            using var stream = new MemoryStream();
+            var jpegEncoder = System.Drawing.Imaging.ImageCodecInfo.GetImageEncoders().First(codec => codec.FormatID == System.Drawing.Imaging.ImageFormat.Jpeg.Guid);
+            var encoderParams = new System.Drawing.Imaging.EncoderParameters(1);
+            encoderParams.Param[0] = new System.Drawing.Imaging.EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 20L);
+            bitmap.Save(stream, jpegEncoder, encoderParams);
+            return stream.ToArray();
         }
         catch
         {
-            // Return minimal JPEG header as ultimate fallback
-            return new byte[]
-            {
-                0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01, 0x00, 0x48,
+            return new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01, 0x00, 0x48,
                 0x00, 0x48, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43, 0x00, 0x08, 0x06, 0x06, 0x07, 0x06, 0x05, 0x08,
                 0x07, 0x07, 0x07, 0x09, 0x09, 0x08, 0x0A, 0x0C, 0x14, 0x0D, 0x0C, 0x0B, 0x0B, 0x0C, 0x19, 0x12,
                 0x13, 0x0F, 0x14, 0x1D, 0x1A, 0x1F, 0x1E, 0x1D, 0x1A, 0x1C, 0x1C, 0x20, 0x24, 0x2E, 0x27, 0x20,
                 0x22, 0x2C, 0x23, 0x1C, 0x1C, 0x28, 0x37, 0x29, 0x2C, 0x30, 0x31, 0x34, 0x34, 0x34, 0x1F, 0x27,
-                0x39, 0x3D, 0x38, 0x32, 0x3C, 0x2E, 0x33, 0x34, 0x32, 0xFF, 0xC0, 0x00, 0x11, 0x08, 0x00, 0x64,
-                0x00, 0x64, 0x01, 0x01, 0x11, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01, 0xFF, 0xC4, 0x00, 0x15,
-                0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x08, 0xFF, 0xC4, 0x00, 0x14, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x39, 0x3D, 0x38, 0x32, 0x3C, 0x2E, 0x33, 0x34, 0x32, 0xFF, 0xC0, 0x00, 0x11, 0x08, 0x00, 0x01,
+                0x00, 0x01, 0x01, 0x01, 0x11, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01, 0xFF, 0xC4, 0x00, 0x14,
+                0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x08, 0xFF, 0xC4, 0x00, 0x14, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xDA, 0x00, 0x0C, 0x03, 0x01, 0x00, 0x02,
-                0x11, 0x03, 0x11, 0x00, 0x3F, 0x00, 0x00, 0xFF, 0xD9
-            };
+                0x11, 0x03, 0x11, 0x00, 0x3F, 0x00, 0x00, 0xFF, 0xD9 };
         }
     }
 
@@ -255,129 +237,87 @@ public class CaptureService : ICaptureService
     {
         try
         {
-            // Create the recording source(s) based on type
             var recordingSources = new List<RecordingSourceBase>();
-            
             if (source.Type == SourceType.Region)
             {
-                // Region may span multiple monitors, get all sources
                 var regionSources = CreateRegionSources(source);
-                if (regionSources == null || regionSources.Count == 0)
-                {
-                    return null;
-                }
+                if (regionSources == null || regionSources.Count == 0) return null;
                 recordingSources = regionSources;
             }
             else
             {
-                // Single source recording
-            var recordingSource = CreateRecordingSource(source);
-            if (recordingSource == null)
+                var single = CreateRecordingSource(source);
+                if (single == null) return null;
+                recordingSources.Add(single);
+            }
+
+            foreach (var recSrc in recordingSources)
             {
-                return null;
+                if (recSrc is DisplayRecordingSource d) d.IsCursorCaptureEnabled = true;
+                else if (recSrc is WindowRecordingSource w) w.IsCursorCaptureEnabled = true;
+
+                recSrc.IsVideoCaptureEnabled      = true;
+                recSrc.IsVideoFramePreviewEnabled = true;
+
+                if (source.Type != SourceType.Region)
+                {
+                    recSrc.Stretch    = StretchMode.Fill;
+                    recSrc.OutputSize = new ScreenSize((int)source.CanvasWidth, (int)source.CanvasHeight);
                 }
-                recordingSources.Add(recordingSource);
+                else
+                {
+                    recSrc.Stretch = StretchMode.None;
+                }
             }
 
-            // Configure common settings for all sources
-            for (int i = 0; i < recordingSources.Count; i++)
-            {
-                var recordingSource = recordingSources[i];
-                
-            if (recordingSource is DisplayRecordingSource displaySource)
-            {
-                displaySource.IsCursorCaptureEnabled = true;
-            }
-            else if (recordingSource is WindowRecordingSource windowSource)
-            {
-                windowSource.IsCursorCaptureEnabled = true;
-            }
-            
-            recordingSource.IsVideoCaptureEnabled = true; // Video enabled
-                recordingSource.Stretch = StretchMode.Fill; // Scale to fit canvas rectangle size
-            recordingSource.IsVideoFramePreviewEnabled = true; // Enable frame preview
-
-                // Set OutputSize to canvas rectangle size for optimal streaming
-                recordingSource.OutputSize = new ScreenSize((int)source.CanvasWidth, (int)source.CanvasHeight);
-                Debug.WriteLine($"📐 Recording source {source.Name} - OutputSize set to: {source.CanvasWidth}x{source.CanvasHeight} with Fill stretch");
-            }
-
-            // Don't override OutputSize for single sources - let them use natural recording dimensions
-            // Only region sources need custom sizing for multi-monitor compositing
-
-            // Create recorder options (similar to TestApp)
             var options = new RecorderOptions
             {
-                SourceOptions = new SourceOptions
-                {
-                    RecordingSources = recordingSources  // Use all sources for multi-monitor regions
-                },
+                SourceOptions = new SourceOptions { RecordingSources = recordingSources },
                 OutputOptions = new OutputOptions
                 {
-                    RecorderMode = RecorderMode.Video, // Video mode
-                    Stretch = StretchMode.Fill,
-                    IsVideoCaptureEnabled = true,
-                    IsVideoFramePreviewEnabled = true // Let default (full-res) preview size apply
+                    RecorderMode             = RecorderMode.Video,
+                    Stretch                  = StretchMode.Fill,
+                    IsVideoCaptureEnabled    = true,
+                    IsVideoFramePreviewEnabled = true
                 },
                 VideoEncoderOptions = new VideoEncoderOptions
                 {
                     Encoder = new H264VideoEncoder
                     {
-                        BitrateMode = H264BitrateControlMode.Quality,
-                        EncoderProfile = H264Profile.Baseline // Baseline for better performance
+                        BitrateMode    = H264BitrateControlMode.Quality,
+                        EncoderProfile = H264Profile.Baseline
                     },
-                    Framerate = _frameRate,
-                    Quality = 35, // Reduced quality for better performance (was 45)
-                    IsHardwareEncodingEnabled = true, // Hardware encoding
-                    IsLowLatencyEnabled = true, // Low latency for live preview
-                    IsThrottlingDisabled = true, // Disable throttling for maximum speed
-                    IsFixedFramerate = false // Variable framerate for performance
+                    Framerate              = _frameRate,
+                    Quality                = 35,
+                    IsHardwareEncodingEnabled = true,
+                    IsLowLatencyEnabled       = true,
+                    IsThrottlingDisabled      = true,
+                    IsFixedFramerate          = false
                 },
-                AudioOptions = new AudioOptions
-                {
-                    IsAudioEnabled = false // No audio as requested
-                },
-                MouseOptions = new MouseOptions
-                {
-                    IsMousePointerEnabled = source.Type != SourceType.Webcam // Show mouse except webcam
-                },
-                LogOptions = new LogOptions
-                {
-                    IsLogEnabled = false // Disable logging for performance
-                }
+                AudioOptions = new AudioOptions { IsAudioEnabled = false },
+                MouseOptions = new MouseOptions { IsMousePointerEnabled = source.Type != SourceType.Webcam },
+                LogOptions   = new LogOptions   { IsLogEnabled = false }
             };
 
-            // Apply output size based on source type
             if (source.Type == SourceType.Region && source.RegionWidth > 0 && source.RegionHeight > 0)
             {
-                // Determine if this is single or multi-monitor region
-                var regionRect = new System.Drawing.Rectangle(
-                    source.RegionX ?? 0, source.RegionY ?? 0,
-                    source.RegionWidth ?? 0, source.RegionHeight ?? 0);
+                var regionRect = new System.Drawing.Rectangle(source.RegionX ?? 0, source.RegionY ?? 0,
+                                                               source.RegionWidth ?? 0, source.RegionHeight ?? 0);
                 var displays = Recorder.GetDisplays();
-                var intersectingDisplays = CoordinateMapper.FindIntersectingDisplays(regionRect, displays);
-                
+                var intersects = CoordinateMapper.FindIntersectingDisplays(regionRect, displays);
                 int width, height;
-                if (intersectingDisplays.Count == 1)
+                if (intersects.Count == 1)
                 {
-                    // Single monitor: Use actual region size to avoid zoom issues
-                    width = source.RegionWidth.Value;
+                    width  = source.RegionWidth.Value;
                     height = source.RegionHeight.Value;
-                    Debug.WriteLine($"📐 Single monitor region - output size set to actual region size: {width}x{height}");
                 }
                 else
                 {
-                    // Multi-monitor: Use canvas size to avoid encoder memory issues
-                    width = (int)source.CanvasWidth;
+                    width  = (int)source.CanvasWidth;
                     height = (int)source.CanvasHeight;
-                    Debug.WriteLine($"📐 Multi-monitor region - output size set to canvas size (for encoder compatibility): {width}x{height}");
-                    Debug.WriteLine($"📐 Actual region being cropped: {source.RegionWidth}x{source.RegionHeight}");
                 }
-                
                 options.OutputOptions.OutputFrameSize = new ScreenSize(width, height);
             }
-            // Don't set OutputFrameSize for any sources - let them use natural recording dimensions
-            // Instead, set OutputSize on individual recording sources to scale them down
 
             Debug.WriteLine($"📋 Recorder options for {source.Name}:");
             Debug.WriteLine($"   - Type: {source.Type}");
@@ -385,9 +325,9 @@ public class CaptureService : ICaptureService
             if (recordingSources.Count == 1)
             {
                 var recordingSource = recordingSources[0];
-            Debug.WriteLine($"   - Output size: {recordingSource.OutputSize?.Width ?? 0}x{recordingSource.OutputSize?.Height ?? 0}");
-            Debug.WriteLine($"   - Cursor: {(recordingSource is DisplayRecordingSource d ? d.IsCursorCaptureEnabled : recordingSource is WindowRecordingSource w ? w.IsCursorCaptureEnabled : false)}");
-            Debug.WriteLine($"   - API: {(recordingSource is DisplayRecordingSource disp ? disp.RecorderApi.ToString() : "N/A")}");
+                Debug.WriteLine($"   - Output size: {recordingSource.OutputSize?.Width ?? 0}x{recordingSource.OutputSize?.Height ?? 0}");
+                Debug.WriteLine($"   - Cursor: {(recordingSource is DisplayRecordingSource d ? d.IsCursorCaptureEnabled : recordingSource is WindowRecordingSource w ? w.IsCursorCaptureEnabled : false)}");
+                Debug.WriteLine($"   - API: {(recordingSource is DisplayRecordingSource disp ? disp.RecorderApi.ToString() : "N/A")}");
             }
             else
             {
@@ -434,9 +374,9 @@ public class CaptureService : ICaptureService
     }
 
     private void UpdateSourceCanvasProperties(SourceItem source, RecordingSourceBase recordingSource)
+    {
+        try
         {
-            try
-            {
             // Only set size during initial creation (when size is default)
             if (source.CanvasWidth <= 100 && source.CanvasHeight <= 80)
             {
@@ -468,10 +408,10 @@ public class CaptureService : ICaptureService
                     Debug.WriteLine($"📐 Source {source.Name} initial size set to: {source.CanvasWidth}x{source.CanvasHeight} " +
                                   $"(original: {sourceWidth}x{sourceHeight}, scale: {scale:F3})");
                 }
-                }
             }
-            catch (Exception ex)
-            {
+        }
+        catch (Exception ex)
+        {
             Debug.WriteLine($"❌ Failed to update canvas properties for {source.Name}: {ex.Message}");
         }
     }
@@ -663,9 +603,9 @@ public class CaptureService : ICaptureService
                 Debug.WriteLine($"📐 Creating recording source for display: {mapping.Display.FriendlyName}");
 
                 var displaySource = new DisplayRecordingSource(mapping.Display)
-            {
-                RecorderApi = RecorderApi.WindowsGraphicsCapture,
-                IsCursorCaptureEnabled = true,
+                {
+                    RecorderApi = RecorderApi.WindowsGraphicsCapture,
+                    IsCursorCaptureEnabled = true,
                     IsBorderRequired = false,
                     SourceRect = mapping.SourceRect,
                     Position = mapping.Position,
@@ -718,8 +658,6 @@ public class CaptureService : ICaptureService
             return null;
         }
     }
-
-
 
     private void OnFrameRecorded(Guid sourceId, FrameRecordedEventArgs e)
     {
@@ -905,7 +843,7 @@ public class CaptureService : ICaptureService
     }
 
     private void OnStatusChanged(Guid sourceId, RecordingStatusEventArgs e)
-        {
+    {
         Debug.WriteLine($"📊 Status changed for source {sourceId}: {e.Status}");
     }
 
@@ -913,7 +851,7 @@ public class CaptureService : ICaptureService
     public static List<RecordableDisplay> GetAvailableDisplays()
     {
         return Recorder.GetDisplays().ToList();
-        }
+    }
 
     public static List<RecordableWindow> GetAvailableWindows()
     {
@@ -936,8 +874,4 @@ public class CaptureService : ICaptureService
     
     [DllImport("Microsoft.UI.Xaml.dll")]
     private static extern IntPtr WindowNative_GetWindowHandle(IntPtr pThis);
-
-
-
-
 } 

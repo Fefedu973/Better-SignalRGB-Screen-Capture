@@ -146,8 +146,10 @@ public class MjpegStreamingService : IMjpegStreamingService
             var r = 100 - (source.CropRightPct * 100);
             var b = 100 - (source.CropBottomPct * 100);
 
-            if (source.CropRotation != 0)
+            if (source.CropRotation != 0 && source.CanvasWidth > 0 && source.CanvasHeight > 0)
             {
+                // Aspect ratio correction for rotation on non-square elements
+                var aspect = source.CanvasWidth / source.CanvasHeight;
                 var rad = source.CropRotation * Math.PI / 180.0;
                 var cos = Math.Cos(rad);
                 var sin = Math.Sin(rad);
@@ -167,11 +169,12 @@ public class MjpegStreamingService : IMjpegStreamingService
                 {
                     var dx = c.X - centerX;
                     var dy = c.Y - centerY;
-                    return new
-                    {
-                        X = centerX + dx * cos - dy * sin,
-                        Y = centerY + dx * sin + dy * cos
-                    };
+                    
+                    // Apply aspect ratio correction to prevent distortion
+                    var xRot = centerX + dx * cos - dy * aspect * sin;
+                    var yRot = centerY + dx / aspect * sin + dy * cos;
+
+                    return new { X = xRot, Y = yRot };
                 }).ToArray();
                 
                 sb.Append("clip-path:polygon(");
