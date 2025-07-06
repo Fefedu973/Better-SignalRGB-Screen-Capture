@@ -24,7 +24,7 @@ public class CaptureService : ICaptureService
     // One recorder per source - like running multiple TestApp instances
     private readonly ConcurrentDictionary<Guid, SourceRecorder> _recorders = new();
     private readonly ConcurrentDictionary<Guid, byte[]> _lastFrameData = new();
-    private int _frameRate = 10;
+    private int _frameRate = 15; // Increased from 10 for smoother streaming
 
     public event EventHandler<SourceFrameEventArgs>? FrameAvailable;
 
@@ -192,22 +192,22 @@ public class CaptureService : ICaptureService
 
     public byte[]? GetMjpegFrame()
     {
-        // Return the first available frame, or a black 800x600 frame if none available
+        // Return the first available frame, or a black 320x200 frame if none available
         var firstFrame = _lastFrameData.Values.FirstOrDefault();
         if (firstFrame != null)
         {
             return firstFrame;
         }
 
-        // Generate a black 800x600 JPEG frame as fallback
-        return CreateBlackFrame800x600();
+        // Generate a black 320x200 JPEG frame as fallback
+        return CreateBlackFrame320x200();
     }
 
-    private byte[] CreateBlackFrame800x600()
+    private byte[] CreateBlackFrame320x200()
     {
         try
         {
-            var blackBitmap = new WriteableBitmap(800, 600);
+            var blackBitmap = new WriteableBitmap(320, 200);
             
             // Create black frame
             using var stream = new InMemoryRandomAccessStream();
@@ -216,9 +216,9 @@ public class CaptureService : ICaptureService
             encoder.SetPixelData(
                 BitmapPixelFormat.Bgra8,
                 BitmapAlphaMode.Premultiplied,
-                800, 600,
+                320, 200,
                 96, 96,
-                new byte[800 * 600 * 4]); // All zeros = black
+                new byte[320 * 200 * 4]); // All zeros = black
             
             encoder.FlushAsync().AsTask().Wait();
             
@@ -294,12 +294,12 @@ public class CaptureService : ICaptureService
             }
             
             recordingSource.IsVideoCaptureEnabled = true; // Video enabled
-                recordingSource.Stretch = StretchMode.None; // Don't stretch - preserve exact proportions
+                recordingSource.Stretch = StretchMode.Fill; // Scale to fit canvas rectangle size
             recordingSource.IsVideoFramePreviewEnabled = true; // Enable frame preview
 
-                // Don't set OutputSize for individual sources - let them use natural dimensions
-                // Only region sources need custom OutputSize for cropping
-                // (Region sources already have OutputSize set in CreateRegionSources)
+                // Set OutputSize to canvas rectangle size for optimal streaming
+                recordingSource.OutputSize = new ScreenSize((int)source.CanvasWidth, (int)source.CanvasHeight);
+                Debug.WriteLine($"📐 Recording source {source.Name} - OutputSize set to: {source.CanvasWidth}x{source.CanvasHeight} with Fill stretch");
             }
 
             // Don't override OutputSize for single sources - let them use natural recording dimensions
@@ -327,10 +327,10 @@ public class CaptureService : ICaptureService
                         EncoderProfile = H264Profile.Baseline // Baseline for better performance
                     },
                     Framerate = _frameRate,
-                    Quality = 60, // Lower quality for better performance
+                    Quality = 35, // Reduced quality for better performance (was 45)
                     IsHardwareEncodingEnabled = true, // Hardware encoding
                     IsLowLatencyEnabled = true, // Low latency for live preview
-                    IsThrottlingDisabled = false, // Keep throttling enabled
+                    IsThrottlingDisabled = true, // Disable throttling for maximum speed
                     IsFixedFramerate = false // Variable framerate for performance
                 },
                 AudioOptions = new AudioOptions
@@ -376,8 +376,8 @@ public class CaptureService : ICaptureService
                 
                 options.OutputOptions.OutputFrameSize = new ScreenSize(width, height);
             }
-            // For non-region sources (monitor, webcam, process), don't set OutputFrameSize
-            // Let ScreenRecorderLib use the natural recording dimensions for best quality
+            // Don't set OutputFrameSize for any sources - let them use natural recording dimensions
+            // Instead, set OutputSize on individual recording sources to scale them down
 
             Debug.WriteLine($"📋 Recorder options for {source.Name}:");
             Debug.WriteLine($"   - Type: {source.Type}");
@@ -451,9 +451,9 @@ public class CaptureService : ICaptureService
                     var sourceHeight = sourceCoord.Coordinates.Height;
                     
                     // Calculate scale factor to fit within canvas bounds accounting for actual padding
-                    // Canvas is 800x600, padding is about 20px on each side, so usable area is 760x560
-                    var maxCanvasWidth = 760.0; // Account for padding
-                    var maxCanvasHeight = 560.0; // Account for padding
+                    // Canvas is 320x200, padding is about 8px on each side, so usable area is 304x184
+                    var maxCanvasWidth = 304.0; // Account for padding
+                    var maxCanvasHeight = 184.0; // Account for padding
                     var scaleX = maxCanvasWidth / sourceWidth;
                     var scaleY = maxCanvasHeight / sourceHeight;
                     var scale = Math.Min(scaleX, scaleY); // Maintain aspect ratio

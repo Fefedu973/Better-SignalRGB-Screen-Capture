@@ -10,9 +10,10 @@ public interface IMjpegStreamingService
     Task StartStreamingAsync(int port = 8080);
     Task StopStreamingAsync();
     
-    void UpdateFrame(byte[] jpegData);
     void UpdateSourceFrame(Guid sourceId, byte[] jpegData);
     
     bool IsStreaming { get; }
     string? StreamingUrl { get; }
+    
+    //void EnableSignalRgbApi(bool enabled);
 } 

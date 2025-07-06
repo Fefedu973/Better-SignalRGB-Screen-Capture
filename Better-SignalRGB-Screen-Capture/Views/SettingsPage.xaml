@@ -50,6 +50,22 @@
                 </StackPanel>
             </StackPanel>
 
+            <StackPanel Margin="{StaticResource SmallTopBottomMargin}">
+                <TextBlock Text="Startup and Tray" Style="{ThemeResource SubtitleTextBlockStyle}"/>
+                <ToggleSwitch Header="Start application when Windows starts" IsOn="{x:Bind ViewModel.StartOnBoot, Mode=TwoWay}"/>
+                <ToggleSwitch Header="Launch minimized to system tray" IsOn="{x:Bind ViewModel.BootInTray, Mode=TwoWay}"/>
+                <ToggleSwitch Header="Auto-start recording on launch" IsOn="{x:Bind ViewModel.AutoStartRecordingOnBoot, Mode=TwoWay}"/>
+                <ToggleSwitch Header="Wait for sources to become available before recording" IsOn="{x:Bind ViewModel.WaitForSourceAvailability, Mode=TwoWay}"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                    <TextBlock Text="API/Canvas Port:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <NumberBox Width="100" Minimum="1" Maximum="65535" Value="{x:Bind ViewModel.StreamingPort, Mode=TwoWay}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                    <TextBlock Text="HTTPS Port:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <NumberBox Width="100" Minimum="1" Maximum="65535" Value="{x:Bind ViewModel.HttpsPort, Mode=TwoWay}"/>
+                </StackPanel>
+            </StackPanel>
+
             <TextBlock x:Uid="Settings_About" Style="{ThemeResource SubtitleTextBlockStyle}" />
 
             <StackPanel Margin="{StaticResource XSmallTopMargin}">

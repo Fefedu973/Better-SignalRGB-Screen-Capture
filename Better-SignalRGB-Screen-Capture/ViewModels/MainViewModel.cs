@@ -17,9 +17,13 @@ public partial class MainViewModel : ObservableRecipient
     private readonly ICaptureService _captureService;
     private readonly IMjpegStreamingService _mjpegStreamingService;
     private readonly ICompositeFrameService _compositeFrameService;
+    private readonly IKestrelApiService _kestrelApiService;
     private const string SourcesSettingsKey = "SavedSources";
     private const string PreviewFpsSettingsKey = "PreviewFps";
     private const string IsPreviewingSettingsKey = "IsPreviewing";
+    private const string WaitForSourceAvailabilityKey = "WaitForSourceAvailability";
+    private const string StreamingPortKey = "StreamingPort";
+    private const string HttpsPortKey = "HttpsPort";
 
     private List<SourceItem> _copiedSources = new();
     private readonly UndoRedoManager _undoRedoManager = new();
@@ -245,16 +249,29 @@ public partial class MainViewModel : ObservableRecipient
         }
     }
 
-    public MainViewModel(ILocalSettingsService localSettingsService, ICaptureService captureService, IMjpegStreamingService mjpegStreamingService, ICompositeFrameService compositeFrameService)
+    [ObservableProperty]
+    private bool _waitForSourceAvailability = true;
+
+    private System.Threading.CancellationTokenSource? _availabilityCts;
+
+    partial void OnWaitForSourceAvailabilityChanged(bool value)
+    {
+        // Persist change
+        _ = _localSettingsService.SaveSettingAsync(WaitForSourceAvailabilityKey, value);
+    }
+
+    public MainViewModel(ILocalSettingsService localSettingsService, ICaptureService captureService, IMjpegStreamingService mjpegStreamingService, ICompositeFrameService compositeFrameService, IKestrelApiService kestrelApiService)
     {
         _localSettingsService = localSettingsService;
         _captureService = captureService;
         _mjpegStreamingService = mjpegStreamingService;
+        _kestrelApiService = kestrelApiService;
         _compositeFrameService = compositeFrameService;
         
         // Subscribe to events
         _captureService.FrameAvailable += OnFrameAvailable;
         _mjpegStreamingService.StreamingUrlChanged += OnStreamingUrlChanged;
+        _kestrelApiService.StreamingUrlChanged += OnKestrelStreamingUrlChanged;
         
         // Listen to Sources collection changes to attach/detach property change listeners
         Sources.CollectionChanged += Sources_CollectionChanged;
@@ -263,7 +280,7 @@ public partial class MainViewModel : ObservableRecipient
         _ = LoadSettingsAsync();
         
         // Initialize composite frame service with canvas size
-        _compositeFrameService.SetCanvasSize(800, 600);
+        _compositeFrameService.SetCanvasSize(320, 200);
         
         // Don't auto-start streaming on boot - wait for user to start recording
 
@@ -278,6 +295,9 @@ public partial class MainViewModel : ObservableRecipient
             OnPropertyChanged(nameof(CanUndo));
             OnPropertyChanged(nameof(CanRedo));
         };
+
+        // ensure additional setting load
+        _ = LoadAdditionalSettingsAsync();
     }
     
     partial void OnPreviewFpsChanged(int value)
@@ -441,9 +461,9 @@ public partial class MainViewModel : ObservableRecipient
 
         if (!sourcesToCenter.Any()) return;
 
-        // Canvas size is 800x600
-        const double canvasWidth = 800;
-        const double canvasHeight = 600;
+                                // Canvas size is 320x200
+            const double canvasWidth = 320;
+            const double canvasHeight = 200;
         var canvasCenter = new Point(canvasWidth / 2.0, canvasHeight / 2.0);
 
         if (sourcesToCenter.Count == 1)
@@ -652,7 +672,7 @@ public partial class MainViewModel : ObservableRecipient
             {
                 var testSource = s.Clone();
                 testSource.CanvasWidth = (int)value;
-                if (FitsInCanvas(testSource, 800, 600))
+                if (FitsInCanvas(testSource, 320, 200))
                 {
                     s.CanvasWidth = (int)value;
                 }
@@ -673,7 +693,7 @@ public partial class MainViewModel : ObservableRecipient
             {
                 var testSource = s.Clone();
                 testSource.CanvasHeight = (int)value;
-                if (FitsInCanvas(testSource, 800, 600))
+                if (FitsInCanvas(testSource, 320, 200))
                 {
                     s.CanvasHeight = (int)value;
                 }
@@ -694,7 +714,7 @@ public partial class MainViewModel : ObservableRecipient
             {
                 var testSource = s.Clone();
                 testSource.CanvasX = (int)value;
-                if (FitsInCanvas(testSource, 800, 600))
+                if (FitsInCanvas(testSource, 320, 200))
                 {
                     s.CanvasX = (int)value;
                 }
@@ -715,7 +735,7 @@ public partial class MainViewModel : ObservableRecipient
             {
                 var testSource = s.Clone();
                 testSource.CanvasY = (int)value;
-                if (FitsInCanvas(testSource, 800, 600))
+                if (FitsInCanvas(testSource, 320, 200))
                 {
                     s.CanvasY = (int)value;
                 }
@@ -1078,7 +1098,7 @@ public partial class MainViewModel : ObservableRecipient
         testSource.CanvasHeight = h;
         testSource.Rotation = rotationDeg;
         
-        return FitsInCanvas(testSource, 800, 600); // Assuming 800x600 canvas
+        return FitsInCanvas(testSource, 320, 200); // Assuming 320x200 canvas
     }
 
     public int SelectedSourceRotation
@@ -1093,7 +1113,7 @@ public partial class MainViewModel : ObservableRecipient
             {
                 var testSource = s.Clone();
                 testSource.Rotation = value;
-                if (FitsInCanvas(testSource, 800, 600))
+                if (FitsInCanvas(testSource, 320, 200))
                 {
                     s.Rotation = value;
                 }
@@ -1400,6 +1420,14 @@ public partial class MainViewModel : ObservableRecipient
         StreamingUrl = string.IsNullOrEmpty(url) ? null : url;
     }
     
+    private void OnKestrelStreamingUrlChanged(object? sender, string url)
+    {
+        if (!string.IsNullOrEmpty(url))
+        {
+            StreamingUrl = url; // Override with HTTPS URL when available
+        }
+    }
+    
     [RelayCommand]
     private async Task ToggleRecordingAsync()
     {
@@ -1408,10 +1436,12 @@ public partial class MainViewModel : ObservableRecipient
             // Stop recording
             await StopAllCapturesAsync();
             await _mjpegStreamingService.StopStreamingAsync();
+            await _kestrelApiService.StopAsync();
             IsRecording = false;
             IsPaused = false;
             CanPause = false;
             StreamingUrl = null;
+            _availabilityCts?.Cancel();
         }
         else
         {
@@ -1421,9 +1451,17 @@ public partial class MainViewModel : ObservableRecipient
         {
             await StartAllCapturesAsync();
                 await _mjpegStreamingService.StartStreamingAsync(PreviewFps);
+                var httpsPort = await GetHttpsPortAsync();
+                await _kestrelApiService.StartAsync(httpsPort);
             IsRecording = true;
                 CanPause = true;
                 NeedsRefresh = false; // Clear refresh flag when starting
+                if (WaitForSourceAvailability)
+                {
+                    _availabilityCts?.Cancel();
+                    _availabilityCts = new System.Threading.CancellationTokenSource();
+                    _ = EnsureSourcesLoop(_availabilityCts.Token);
+                }
             }
             finally
             {
@@ -1773,5 +1811,35 @@ public partial class MainViewModel : ObservableRecipient
                r1.X + r1.Width > r2.X && 
                r1.Y < r2.Y + r2.Height && 
                r1.Y + r1.Height > r2.Y;
+    }
+
+    private async Task EnsureSourcesLoop(System.Threading.CancellationToken token)
+    {
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                foreach (var source in Sources)
+                {
+                    if (!_captureService.IsCapturing(source))
+                    {
+                        await _captureService.StartCaptureAsync(source);
+                    }
+                }
+                await Task.Delay(5000, token);
+            }
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private async Task LoadAdditionalSettingsAsync()
+    {
+        var waitSetting = await _localSettingsService.ReadSettingAsync<bool?>(WaitForSourceAvailabilityKey);
+        if (waitSetting.HasValue) WaitForSourceAvailability = waitSetting.Value;
+    }
+
+    private async Task<int> GetHttpsPortAsync()
+    {
+        return await _localSettingsService.ReadSettingAsync<int?>(HttpsPortKey) ?? 8443;
     }
 }

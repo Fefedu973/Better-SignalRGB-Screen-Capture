@@ -96,7 +96,7 @@ public class CompositeFrameService : ICompositeFrameService
             using var outputStream = new MemoryStream();
             var jpegEncoder = GetJpegEncoder();
             var encoderParams = new EncoderParameters(1);
-            encoderParams.Param[0] = new EncoderParameter(Encoder.Quality, 85L); // High quality
+            encoderParams.Param[0] = new EncoderParameter(Encoder.Quality, 40L); // Very aggressive compression for streaming
 
             compositeBitmap.Save(outputStream, jpegEncoder, encoderParams);
             var compositeBytes = outputStream.ToArray();

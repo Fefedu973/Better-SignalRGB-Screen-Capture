@@ -1,13 +1,17 @@
 using System;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Better_SignalRGB_Screen_Capture.Contracts.Services;
 using Better_SignalRGB_Screen_Capture.ViewModels;
+using Better_SignalRGB_Screen_Capture.Models;
+using System.Diagnostics;
 
 namespace Better_SignalRGB_Screen_Capture.Services;
 
@@ -20,6 +24,19 @@ public class MjpegStreamingService : IMjpegStreamingService
     private readonly object _frameLock = new();
     private int _port;
     private readonly ICaptureService _captureService;
+
+    // Canvas API Constants
+    private const string CanvasApiUrl = "http://localhost:16034/canvas/event";
+    private const string SenderTag = "BetterSignalRGBScreenCapture";
+    private const int ChunkSize = 6144; // 6KB chunks for optimal performance
+    private const int FpsLimit = 15; // 15 FPS per source to prevent overwhelming SignalRGB
+    
+    // Canvas API Infrastructure
+    private static readonly HttpClient _httpClient = new()
+    {
+        Timeout = TimeSpan.FromSeconds(4)
+    };
+    private readonly ConcurrentDictionary<Guid, long> _lastSentTicks = new(); // Rate limiting per source
 
     public event EventHandler<string>? StreamingUrlChanged;
 
@@ -34,10 +51,109 @@ public class MjpegStreamingService : IMjpegStreamingService
 
     private void OnFrameAvailable(object? sender, SourceFrameEventArgs e)
     {
-        // Update the current frame with the latest data
-        if (e.FrameData != null)
+        // Store the frame data for the specific source
+        if (e.FrameData != null && e.Source?.Id != null)
         {
-            UpdateFrame(e.FrameData);
+            UpdateSourceFrame(e.Source.Id, e.FrameData);
+            
+            // Send to Canvas API with rate limiting
+            var nowTicks = DateTime.UtcNow.Ticks;
+            var lastSent = _lastSentTicks.GetOrAdd(e.Source.Id, 0);
+            
+            if (nowTicks - lastSent >= TimeSpan.TicksPerSecond / FpsLimit)
+            {
+                _lastSentTicks[e.Source.Id] = nowTicks;
+                _ = Task.Run(() => SendFrameToCanvasApiAsync(e.Source, e.FrameData));
+            }
+        }
+    }
+
+    private async Task SendFrameToCanvasApiAsync(SourceItem source, byte[] jpegData)
+    {
+        try
+        {
+            // Generate style string for this source
+            var styleString = BuildStyleString(source);
+            
+            // Convert to base64 and split into chunks
+            var base64Data = Convert.ToBase64String(jpegData);
+            var chunks = new List<string>();
+            
+            for (int i = 0; i < base64Data.Length; i += ChunkSize)
+            {
+                var chunkSize = Math.Min(ChunkSize, base64Data.Length - i);
+                chunks.Add(base64Data.Substring(i, chunkSize));
+            }
+            
+            var fileName = $"{source.Id}.jpg";
+            
+            // Send header with style information
+            var header = $"header:{fileName}:image/jpeg:{chunks.Count}:{styleString}";
+            await PostCanvasEventAsync(header);
+            
+            // Send data chunks
+            for (int i = 0; i < chunks.Count; i++)
+            {
+                await PostCanvasEventAsync($"data:{i}:{chunks[i]}");
+            }
+            
+            // Send end marker
+            await PostCanvasEventAsync("end");
+            
+            Debug.WriteLine($"[Canvas API] Sent frame for {source.Name} ({chunks.Count} chunks)");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Canvas API] Error sending frame for {source.Name}: {ex.Message}");
+        }
+    }
+
+    private static string BuildStyleString(SourceItem source)
+    {
+        var sb = new StringBuilder();
+        
+        // Position and size
+        sb.Append($"left:{source.CanvasX}px;");
+        sb.Append($"top:{source.CanvasY}px;");
+        sb.Append($"width:{source.CanvasWidth}px;");
+        sb.Append($"height:{source.CanvasHeight}px;");
+        
+        // Opacity
+        sb.Append($"opacity:{source.Opacity.ToString(CultureInfo.InvariantCulture)};");
+        
+        // Transform (rotation and mirroring)
+        var scaleX = source.IsMirroredHorizontally ? -1 : 1;
+        var scaleY = source.IsMirroredVertically ? -1 : 1;
+        sb.Append($"transform:rotate({source.Rotation}deg) scale({scaleX},{scaleY});");
+        
+        // Cropping
+        if (source.CropLeftPct > 0 || source.CropTopPct > 0 || source.CropRightPct > 0 || source.CropBottomPct > 0)
+        {
+            var clipLeft = source.CropLeftPct * 100;
+            var clipTop = source.CropTopPct * 100;
+            var clipRight = 100 - (source.CropRightPct * 100);
+            var clipBottom = 100 - (source.CropBottomPct * 100);
+            sb.Append($"clip-path:polygon({clipLeft}% {clipTop}%,{clipRight}% {clipTop}%,{clipRight}% {clipBottom}%,{clipLeft}% {clipBottom}%);");
+        }
+        
+        return sb.ToString();
+    }
+
+    private static async Task PostCanvasEventAsync(string eventData)
+    {
+        try
+        {
+            var url = $"{CanvasApiUrl}?sender={Uri.EscapeDataString(SenderTag)}&event={Uri.EscapeDataString(eventData)}";
+            var response = await _httpClient.PostAsync(url, new StringContent(string.Empty));
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                Debug.WriteLine($"[Canvas API] HTTP error: {response.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Canvas API] Network error: {ex.Message}");
         }
     }
 
@@ -95,6 +211,7 @@ public class MjpegStreamingService : IMjpegStreamingService
         }
         _sourceClientStreams.Clear();
         _sourceFrames.Clear();
+        _lastSentTicks.Clear();
 
         _httpListener?.Close();
         _httpListener = null;
@@ -107,11 +224,7 @@ public class MjpegStreamingService : IMjpegStreamingService
         await Task.CompletedTask;
     }
 
-    public void UpdateFrame(byte[] jpegData)
-    {
-        // This method is deprecated in favor of UpdateSourceFrame
-        // Keep for backward compatibility but no longer used
-    }
+
 
     public void UpdateSourceFrame(Guid sourceId, byte[] jpegData)
     {
@@ -120,8 +233,8 @@ public class MjpegStreamingService : IMjpegStreamingService
             _sourceFrames[sourceId] = jpegData;
         }
 
-        // Send frame to all connected clients for this source
-        _ = Task.Run(() => BroadcastSourceFrame(sourceId, jpegData));
+        // Removed BroadcastSourceFrame call to prevent double-writing corruption
+        // The HandleSourceStreamAsync loop will pick up the new frame automatically
     }
 
     private async Task HandleRequestsAsync(CancellationToken cancellationToken)
@@ -206,8 +319,8 @@ public class MjpegStreamingService : IMjpegStreamingService
         
         try
         {
-            // Set MJPEG headers
-            response.ContentType = "multipart/x-mixed-replace; boundary=--mjpegboundary";
+            // Set MJPEG headers (Python script compatible format)
+            response.ContentType = "multipart/x-mixed-replace; boundary=\"mjpegboundary\"";
             response.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate");
             response.Headers.Add("Pragma", "no-cache");
             response.Headers.Add("Expires", "0");
@@ -222,11 +335,35 @@ public class MjpegStreamingService : IMjpegStreamingService
             }
             _sourceClientStreams[sourceId].Add(outputStream);
 
-            // Send initial boundary
-            var boundary = Encoding.UTF8.GetBytes("\r\n--mjpegboundary\r\n");
-            await outputStream.WriteAsync(boundary, 0, boundary.Length, cancellationToken);
+            // Proper MJPEG format: boundary before headers, not after data
+            var boundaryBytes = Encoding.UTF8.GetBytes("--mjpegboundary\r\n");
 
-            // Keep connection alive and send frames
+            // Send an initial frame immediately to prevent the Python script from hanging
+            byte[]? initialFrame;
+            lock (_frameLock)
+            {
+                _sourceFrames.TryGetValue(sourceId, out initialFrame);
+            }
+            
+            // Fallback to capture service if no frame in cache yet
+            if (initialFrame == null)
+            {
+                initialFrame = _captureService.GetMjpegFrame(sourceId);
+            }
+            
+            // Final fallback to black frame if nothing is available
+            if (initialFrame == null)
+            {
+                initialFrame = CreateBlackFrame320x200();
+            }
+            
+            if (initialFrame != null)
+            {
+                await WriteJpegChunk(outputStream, boundaryBytes, initialFrame, cancellationToken);
+            }
+
+            // Keep connection alive and send frames only when they change
+            byte[]? lastSentFrame = null;
             while (!cancellationToken.IsCancellationRequested && outputStream.CanWrite)
             {
                 byte[]? frameData;
@@ -235,19 +372,13 @@ public class MjpegStreamingService : IMjpegStreamingService
                     _sourceFrames.TryGetValue(sourceId, out frameData);
                 }
 
-                if (frameData != null)
+                // Only send frame if it's different from the last one sent
+                if (frameData != null && !ReferenceEquals(frameData, lastSentFrame))
                 {
                     try
                     {
-                        // Send frame headers
-                        var headers = Encoding.UTF8.GetBytes(
-                            $"Content-Type: image/jpeg\r\n" +
-                            $"Content-Length: {frameData.Length}\r\n\r\n");
-                        
-                        await outputStream.WriteAsync(headers, 0, headers.Length, cancellationToken);
-                        await outputStream.WriteAsync(frameData, 0, frameData.Length, cancellationToken);
-                        await outputStream.WriteAsync(boundary, 0, boundary.Length, cancellationToken);
-                        await outputStream.FlushAsync(cancellationToken);
+                        await WriteJpegChunk(outputStream, boundaryBytes, frameData, cancellationToken);
+                        lastSentFrame = frameData;
                     }
                     catch
                     {
@@ -255,32 +386,9 @@ public class MjpegStreamingService : IMjpegStreamingService
                         break;
                     }
                 }
-                else
-                {
-                    // Get a frame from the capture service for this specific source
-                    var mjpegFrame = _captureService.GetMjpegFrame(sourceId);
-                    if (mjpegFrame != null)
-                    {
-                        try
-                        {
-                            var headers = Encoding.UTF8.GetBytes(
-                                $"Content-Type: image/jpeg\r\n" +
-                                $"Content-Length: {mjpegFrame.Length}\r\n\r\n");
-                            
-                            await outputStream.WriteAsync(headers, 0, headers.Length, cancellationToken);
-                            await outputStream.WriteAsync(mjpegFrame, 0, mjpegFrame.Length, cancellationToken);
-                            await outputStream.WriteAsync(boundary, 0, boundary.Length, cancellationToken);
-                            await outputStream.FlushAsync(cancellationToken);
-                        }
-                        catch
-                        {
-                            break;
-                        }
-                    }
-                }
 
-                // Wait a bit before sending next frame
-                await Task.Delay(33, cancellationToken); // ~30 FPS
+                // Wait before checking for next frame - optimized for minimal latency
+                await Task.Delay(16, cancellationToken); // ~60 FPS for lower latency
             }
         }
         catch (Exception)
@@ -297,18 +405,18 @@ public class MjpegStreamingService : IMjpegStreamingService
         }
     }
 
-    private byte[]? CreateBlackFrame800x600()
+    private byte[]? CreateBlackFrame320x200()
     {
         try
         {
-            using var bitmap = new System.Drawing.Bitmap(800, 600, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+            using var bitmap = new System.Drawing.Bitmap(320, 200, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
             using var graphics = System.Drawing.Graphics.FromImage(bitmap);
             graphics.Clear(System.Drawing.Color.Black);
             
             using var stream = new MemoryStream();
             var jpegEncoder = GetJpegEncoder();
             var encoderParams = new System.Drawing.Imaging.EncoderParameters(1);
-            encoderParams.Param[0] = new System.Drawing.Imaging.EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 85L);
+            encoderParams.Param[0] = new System.Drawing.Imaging.EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 20L); // Very aggressive compression for streaming
             
             bitmap.Save(stream, jpegEncoder, encoderParams);
             return stream.ToArray();
@@ -448,8 +556,8 @@ public class MjpegStreamingService : IMjpegStreamingService
         }}
         .canvas {{ 
             position: relative; 
-            width: 800px; 
-            height: 600px; 
+            width: 320px; 
+            height: 200px; 
             background: #222; 
             margin: 0 auto;
             border: 2px solid #444;
@@ -483,7 +591,7 @@ public class MjpegStreamingService : IMjpegStreamingService
 {sourcesHtml}
     </div>
     <div class='info'>
-        <p>Canvas: 800x600px | Sources: {sources.Count}</p>
+        <p>Canvas: 320x200px | Sources: {sources.Count}</p>
         <p>Refresh page to update layout</p>
     </div>
     <script>
@@ -697,49 +805,25 @@ public class MjpegStreamingService : IMjpegStreamingService
         }
     }
 
-    private async Task BroadcastSourceFrame(Guid sourceId, byte[] frameData)
-    {
-        if (!_sourceClientStreams.TryGetValue(sourceId, out var clientStreams))
-            return;
 
-        var boundary = Encoding.UTF8.GetBytes("\r\n--mjpegboundary\r\n");
+
+    private async Task WriteJpegChunk(Stream outputStream, byte[] boundaryBytes, byte[] frameData, CancellationToken cancellationToken)
+    {
+        // Send boundary first
+        await outputStream.WriteAsync(boundaryBytes, 0, boundaryBytes.Length, cancellationToken);
+        
+        // Then headers
         var headers = Encoding.UTF8.GetBytes(
             $"Content-Type: image/jpeg\r\n" +
             $"Content-Length: {frameData.Length}\r\n\r\n");
-
-        var streamsToRemove = new List<Stream>();
-
-        foreach (var stream in clientStreams)
-        {
-            try
-            {
-                if (stream.CanWrite)
-                {
-                    await stream.WriteAsync(headers, 0, headers.Length);
-                    await stream.WriteAsync(frameData, 0, frameData.Length);
-                    await stream.WriteAsync(boundary, 0, boundary.Length);
-                    await stream.FlushAsync();
-                }
-                else
-                {
-                    streamsToRemove.Add(stream);
-                }
-            }
-            catch
-            {
-                // Stream is broken, mark for removal
-                streamsToRemove.Add(stream);
-            }
-        }
-
-        // Remove broken streams
-        foreach (var stream in streamsToRemove)
-        {
-            try
-            {
-                stream.Close();
-            }
-            catch { /* Ignore */ }
-        }
+        
+        await outputStream.WriteAsync(headers, 0, headers.Length, cancellationToken);
+        
+        // Then JPEG data
+        await outputStream.WriteAsync(frameData, 0, frameData.Length, cancellationToken);
+        
+        // End with CRLF before next boundary
+        await outputStream.WriteAsync(Encoding.UTF8.GetBytes("\r\n"), 0, 2, cancellationToken);
+        await outputStream.FlushAsync(cancellationToken);
     }
 } 

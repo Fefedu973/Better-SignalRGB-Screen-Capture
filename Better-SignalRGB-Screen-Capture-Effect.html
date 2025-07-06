@@ -1,0 +1,278 @@
+<!-- Better SignalRGB Screen Capture - Multi-Source Canvas Effect -->
+
+<head>
+    <title>Better SignalRGB Screen Capture - Multi-Source Canvas</title>
+    <meta name="description" content="Multi-source screen capture canvas with per-source styling support" />
+    <meta name="publisher" content="Better SignalRGB Screen Capture" />
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            overflow: hidden;
+        }
+
+        #canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .source-element {
+            position: absolute;
+            display: block;
+            max-width: none;
+            max-height: none;
+            transform-origin: center center;
+        }
+
+        .source-element video {
+            width: 100%;
+            height: 100%;
+            object-fit: fill;
+        }
+
+        .source-element img {
+            width: 100%;
+            height: 100%;
+            object-fit: fill;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="canvas"></div>
+</body>
+
+<script>
+    (() => {
+        "use strict";
+
+        // Constants
+        const SENDER = "BetterSignalRGBScreenCapture";
+        const canvas = document.getElementById("canvas");
+
+        // Source management
+        const sources = new Map();
+        let frameCount = 0;
+        let errorCount = 0;
+
+        // Debug logging
+        function log(message) {
+            console.log(`[${new Date().toLocaleTimeString()}] ${message}`);
+        }
+
+        // Get or create source state
+        function getSource(id) {
+            if (!sources.has(id)) {
+                sources.set(id, {
+                    id: id,
+                    expect: 0,
+                    mime: "",
+                    chunks: new Map(),
+                    style: "",
+                    element: null,
+                    lastUpdate: Date.now()
+                });
+            }
+            return sources.get(id);
+        }
+
+        // Create or update DOM element for source
+        function ensureElement(source) {
+            const tag = source.mime.startsWith("video/") ? "video" : "img";
+
+            if (!source.element || source.element.tagName.toLowerCase() !== tag) {
+                // Remove old element if exists
+                if (source.element) {
+                    source.element.remove();
+                }
+
+                // Create new element
+                source.element = document.createElement(tag);
+                source.element.className = "source-element";
+                source.element.dataset.sourceId = source.id;
+
+                if (tag === "video") {
+                    source.element.autoplay = true;
+                    source.element.loop = true;
+                    source.element.muted = true;
+                }
+
+                // Error handling
+                source.element.onerror = function () {
+                    errorCount++;
+                    log(`Error loading ${tag} for source ${source.id}`);
+                };
+
+                // Load success
+                source.element.onload = function () {
+                    log(`Successfully loaded frame for source ${source.id}`);
+                };
+
+                canvas.appendChild(source.element);
+            }
+
+            return source.element;
+        }
+
+        // Assemble and render frame
+        function assembleAndRender(source) {
+            if (!source.expect || source.chunks.size < source.expect) {
+                return false;
+            }
+
+            // Assemble base64 data in correct order
+            const orderedChunks = [];
+            for (let i = 0; i < source.expect; i++) {
+                const chunk = source.chunks.get(i);
+                if (!chunk) {
+                    log(`Missing chunk ${i} for source ${source.id}`);
+                    return false;
+                }
+                orderedChunks.push(chunk);
+            }
+
+            const base64Data = orderedChunks.join("");
+
+            // Validate base64 data
+            if (base64Data.length % 4 !== 0) {
+                log(`Invalid base64 data length for source ${source.id}: ${base64Data.length}`);
+                errorCount++;
+                return false;
+            }
+
+            // Create data URI
+            const dataUri = `data:${source.mime};base64,${base64Data}`;
+
+            // Ensure element exists
+            const element = ensureElement(source);
+
+            // Update element with new frame and style
+            element.src = dataUri;
+            element.style.cssText = source.style;
+
+            // Update stats
+            frameCount++;
+            source.lastUpdate = Date.now();
+
+            // Clean up for next frame
+            source.chunks.clear();
+            source.expect = 0;
+
+            return true;
+        }
+
+        // Canvas API event handler
+        window.onCanvasApiEvent = function (event) {
+            if (event.sender !== SENDER) {
+                return; // Ignore events from other senders
+            }
+
+            // Decode URL-encoded event data
+            const msg = decodeURIComponent(event.event);
+
+            // Handle header: header:filename:mime:chunkCount:style
+            if (msg.startsWith("header:")) {
+                const parts = msg.split(":");
+                if (parts.length < 5) {
+                    log(`Invalid header format: ${msg}`);
+                    errorCount++;
+                    return;
+                }
+
+                const filename = parts[1];
+                const mime = parts[2];
+                const chunkCount = parseInt(parts[3], 10);
+                const style = parts.slice(4).join(":"); // Rejoin in case style contains colons
+
+                // Extract source ID from filename (should be GUID.jpg)
+                const sourceId = filename.split(".")[0];
+
+                const source = getSource(sourceId);
+                source.mime = mime;
+                source.expect = chunkCount;
+                source.style = style;
+                source.chunks.clear();
+
+                return;
+            }
+
+            // Handle data: data:index:payload
+            if (msg.startsWith("data:")) {
+                const firstColon = msg.indexOf(":", 5);
+                if (firstColon === -1) {
+                    log(`Invalid data format: ${msg.substring(0, 50)}...`);
+                    errorCount++;
+                    return;
+                }
+
+                const index = parseInt(msg.substring(5, firstColon), 10);
+                const payload = msg.substring(firstColon + 1);
+
+                if (isNaN(index) || !payload) {
+                    log(`Invalid chunk data: index=${index}, payload length=${payload.length}`);
+                    errorCount++;
+                    return;
+                }
+
+                // Find the source expecting this chunk
+                const targetSource = Array.from(sources.values()).find(s =>
+                    s.expect > 0 && !s.chunks.has(index) && s.chunks.size < s.expect
+                );
+
+                if (targetSource) {
+                    targetSource.chunks.set(index, payload);
+                }
+
+                return;
+            }
+
+            // Handle end marker
+            if (msg === "end") {
+                // Find source with complete chunk set
+                const completeSource = Array.from(sources.values()).find(s =>
+                    s.expect > 0 && s.chunks.size === s.expect
+                );
+
+                if (completeSource) {
+                    assembleAndRender(completeSource);
+                }
+
+                return;
+            }
+
+            // Unknown event type
+            log(`Unknown event type: ${msg.substring(0, 50)}...`);
+        };
+
+        // Periodic cleanup for stale sources
+        setInterval(() => {
+            const now = Date.now();
+            const staleTimeout = 30000; // 30 seconds
+
+            for (const [id, source] of sources.entries()) {
+                if (now - source.lastUpdate > staleTimeout) {
+                    log(`Removing stale source: ${id}`);
+                    if (source.element) {
+                        source.element.remove();
+                    }
+                    sources.delete(id);
+                }
+            }
+        }, 10000); // Check every 10 seconds
+
+        // Stats logging
+        setInterval(() => {
+            if (frameCount > 0) {
+                log(`Stats: ${frameCount} frames, ${errorCount} errors, ${sources.size} active sources`);
+            }
+        }, 30000); // Log every 30 seconds
+
+        // Initialize
+        log(`Multi-source Canvas effect initialized (sender: ${SENDER})`);
+        log(`Ready to receive frames from Better SignalRGB Screen Capture`);
+    })();
+</script>

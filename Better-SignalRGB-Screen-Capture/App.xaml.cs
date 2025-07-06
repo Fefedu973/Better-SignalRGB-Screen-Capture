@@ -72,6 +72,7 @@ public partial class App : Application
             // Capture and streaming services
             services.AddSingleton<ICaptureService, CaptureService>();
             services.AddSingleton<IMjpegStreamingService, MjpegStreamingService>();
+            services.AddSingleton<IKestrelApiService, KestrelApiService>();
             services.AddSingleton<ICompositeFrameService, CompositeFrameService>();
 
             // Core Services
@@ -91,15 +92,21 @@ public partial class App : Application
             services.AddTransient<ListDetailsPage>();
             services.AddTransient<WebViewViewModel>();
             services.AddTransient<WebViewPage>();
-            services.AddTransient<MainViewModel>();
+            services.AddSingleton<MainViewModel>();
             services.AddTransient<MainPage>();
             services.AddTransient<ShellPage>();
             services.AddTransient<ShellViewModel>();
+
+            // Tray icon
+            services.AddSingleton<TrayIconService>();
 
             // Configuration
             services.Configure<LocalSettingsOptions>(context.Configuration.GetSection(nameof(LocalSettingsOptions)));
         }).
         Build();
+
+        // Initialize tray icon service so the TaskbarIcon is created immediately
+        _ = GetService<TrayIconService>();
 
         App.GetService<IAppNotificationService>().Initialize();
 
@@ -119,5 +126,20 @@ public partial class App : Application
         App.GetService<IAppNotificationService>().Show(string.Format("AppNotificationSamplePayload".GetLocalized(), AppContext.BaseDirectory));
 
         await App.GetService<IActivationService>().ActivateAsync(args);
+
+        // If user prefers to start in tray, hide the main window after activation
+        var localSettings = GetService<ILocalSettingsService>();
+        var startInTray = await localSettings.ReadSettingAsync<bool?>("BootInTray");
+        if (startInTray == true)
+        {
+            App.MainWindow.Hide();
+        }
+
+        var autoRecord = await localSettings.ReadSettingAsync<bool?>("AutoStartRecordingOnBoot");
+        if (autoRecord == true)
+        {
+            var vm = GetService<MainViewModel>();
+            _ = vm.ToggleRecordingCommand.ExecuteAsync(null);
+        }
     }
 }

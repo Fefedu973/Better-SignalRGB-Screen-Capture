@@ -70,7 +70,8 @@
             </Setter>
         </Style>
         <Style x:Key="RecordingToggleButtonStyle" TargetType="ToggleButton">
-            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Foreground" Value="{ThemeResource ButtonForeground}" />
+            <Setter Property="Background" Value="{ThemeResource ButtonBackground}" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="CornerRadius" Value="4" />
@@ -81,7 +82,7 @@
                             <Border
                                 x:Name="ContentPresenter"
                                 Padding="{TemplateBinding Padding}"
-                                Background="#CC3333"
+                                Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="{TemplateBinding CornerRadius}">
@@ -101,8 +102,7 @@
                                             <ColorAnimation
                                                 Storyboard.TargetName="ContentPresenter"
                                                 Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                To="#E54C4C"
-                                                Duration="0:0:0.1" />
+                                                To="{ThemeResource ButtonBackgroundPointerOver}" Duration="0:0:0.1" />
                                         </Storyboard>
                                     </VisualState>
                                     <VisualState x:Name="Pressed">
@@ -110,8 +110,7 @@
                                             <ColorAnimation
                                                 Storyboard.TargetName="ContentPresenter"
                                                 Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                To="#B22222"
-                                                Duration="0:0:0.1" />
+                                                To="{ThemeResource ButtonBackgroundPressed}" Duration="0:0:0.1" />
                                         </Storyboard>
                                     </VisualState>
                                     <VisualState x:Name="Disabled">
@@ -141,20 +140,12 @@
                                     </VisualState>
                                     <VisualState x:Name="CheckedPointerOver">
                                         <Storyboard>
-                                            <ColorAnimation
-                                                Storyboard.TargetName="ContentPresenter"
-                                                Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                To="#C04040"
-                                                Duration="0:0:0.1" />
+                                            <ColorAnimation Storyboard.TargetName="ContentPresenter" Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)" To="#C04040" Duration="0:0:0.1" />
                                         </Storyboard>
                                     </VisualState>
                                     <VisualState x:Name="CheckedPressed">
                                         <Storyboard>
-                                            <ColorAnimation
-                                                Storyboard.TargetName="ContentPresenter"
-                                                Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                To="#6B0000"
-                                                Duration="0:0:0.1" />
+                                            <ColorAnimation Storyboard.TargetName="ContentPresenter" Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)" To="#6B0000" Duration="0:0:0.1" />
                                         </Storyboard>
                                     </VisualState>
                                 </VisualStateGroup>
@@ -409,8 +400,8 @@
                             <!--  Layout Canvas  -->
                             <Canvas
                                 x:Name="SourceCanvas"
-                                Width="800"
-                                Height="600"
+                                Width="320"
+                                Height="200"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 PointerMoved="SourceCanvas_PointerMoved"
                                 PointerPressed="SourceCanvas_PointerPressed"
@@ -432,8 +423,8 @@
                             <!--  Live Preview Canvas  -->
                             <Canvas
                                 x:Name="PreviewCanvas"
-                                Width="800"
-                                Height="600"
+                                Width="320"
+                                Height="200"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 Visibility="Collapsed">
                                 <!--  Live preview elements will be added here programmatically  -->
