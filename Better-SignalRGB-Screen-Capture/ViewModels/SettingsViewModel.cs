@@ -8,7 +8,8 @@ using Microsoft.Win32;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-
+using System.Net.Http;
+using System.Text.Json;
 using Microsoft.UI.Xaml;
 
 using Windows.ApplicationModel;
@@ -51,6 +52,12 @@ public partial class SettingsViewModel : ObservableRecipient
     [ObservableProperty]
     private int _httpsPort = 8443;
 
+    [ObservableProperty]
+    private string _authorAvatar = "https://avatars.githubusercontent.com/Fefedu973";
+
+    [ObservableProperty]
+    private int _starCount;
+
     partial void OnStartOnBootChanged(bool value) => SaveSettingAsync(StartOnBootKey, value);
     partial void OnBootInTrayChanged(bool value) => SaveSettingAsync(BootInTrayKey, value);
     partial void OnAutoStartRecordingOnBootChanged(bool value) => SaveSettingAsync(AutoRecordKey, value);
@@ -82,6 +89,7 @@ public partial class SettingsViewModel : ObservableRecipient
 
         // Load persisted values
         _ = LoadSettingsAsync();
+        _ = LoadGitHubStatsAsync();
 
         SwitchThemeCommand = new RelayCommand<ElementTheme>(async (param) =>
         {
@@ -109,6 +117,26 @@ public partial class SettingsViewModel : ObservableRecipient
         }
 
         return $"{"AppDisplayName".GetLocalized()} - {version.Major}.{version.Minor}.{version.Build}.{version.Revision}";
+    }
+
+    private async Task LoadGitHubStatsAsync()
+    {
+        try
+        {
+            using var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("User-Agent", "Better-SignalRGB-Screen-Capture");
+            var response = await client.GetAsync("https://api.github.com/repos/Fefedu973/Better-SignalRGB-Screen-Capture");
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                var repoInfo = JsonDocument.Parse(json).RootElement;
+                if (repoInfo.TryGetProperty("stargazers_count", out var stars))
+                {
+                    StarCount = stars.GetInt32();
+                }
+            }
+        }
+        catch { /* Silently fail, we'll just show 0 stars */ }
     }
 
     private async Task LoadSettingsAsync()

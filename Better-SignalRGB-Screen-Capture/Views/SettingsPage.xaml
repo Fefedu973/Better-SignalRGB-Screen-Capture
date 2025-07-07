@@ -75,7 +75,28 @@
                     x:Uid="Settings_AboutDescription"
                     Margin="{StaticResource XSmallTopMargin}"
                     Style="{ThemeResource BodyTextBlockStyle}" />
-                <HyperlinkButton x:Uid="SettingsPage_PrivacyTermsLink" Margin="{StaticResource SettingsPageHyperlinkButtonMargin}" />
+
+                <HyperlinkButton NavigateUri="https://github.com/Fefedu973/Better-SignalRGB-Screen-Capture" Margin="{StaticResource SettingsPageHyperlinkButtonMargin}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE942;" />
+                        <TextBlock x:Uid="Settings_GitHubLink_Text" />
+                        <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE734;" />
+                        <TextBlock Text="{x:Bind ViewModel.StarCount, Mode=OneWay}" />
+                    </StackPanel>
+                </HyperlinkButton>
+
+                <TextBlock x:Uid="Settings_Contributors" Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,20,0,0"/>
+
+                <HyperlinkButton NavigateUri="https://github.com/Fefedu973" Margin="0,10,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Ellipse Width="40" Height="40">
+                            <Ellipse.Fill>
+                                <ImageBrush ImageSource="{x:Bind ViewModel.AuthorAvatar, Mode=OneWay}" />
+                            </Ellipse.Fill>
+                        </Ellipse>
+                        <TextBlock Text="fefe_du_973" VerticalAlignment="Center" />
+                    </StackPanel>
+                </HyperlinkButton>
             </StackPanel>
         </StackPanel>
     </Grid>
