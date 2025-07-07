@@ -1,17 +1,13 @@
 using System;
 using System.Collections.Concurrent;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Better_SignalRGB_Screen_Capture.Contracts.Services;
 using Better_SignalRGB_Screen_Capture.ViewModels;
-using Better_SignalRGB_Screen_Capture.Models;
-using System.Diagnostics;
 
 namespace Better_SignalRGB_Screen_Capture.Services;
 
@@ -24,19 +20,6 @@ public class MjpegStreamingService : IMjpegStreamingService
     private readonly object _frameLock = new();
     private int _port;
     private readonly ICaptureService _captureService;
-
-    // Canvas API Constants
-    private const string CanvasApiUrl = "http://localhost:16034/canvas/event";
-    private const string SenderTag = "BetterSignalRGBScreenCapture";
-    private const int ChunkSize = 6144; // 6KB chunks for optimal performance
-    private const int FpsLimit = 15; // 15 FPS per source to prevent overwhelming SignalRGB
-    
-    // Canvas API Infrastructure
-    private static readonly HttpClient _httpClient = new()
-    {
-        Timeout = TimeSpan.FromSeconds(4)
-    };
-    private readonly ConcurrentDictionary<Guid, long> _lastSentTicks = new(); // Rate limiting per source
 
     public event EventHandler<string>? StreamingUrlChanged;
 
@@ -55,161 +38,6 @@ public class MjpegStreamingService : IMjpegStreamingService
         if (e.FrameData != null && e.Source?.Id != null)
         {
             UpdateSourceFrame(e.Source.Id, e.FrameData);
-            
-            // Send to Canvas API with rate limiting
-            var nowTicks = DateTime.UtcNow.Ticks;
-            var lastSent = _lastSentTicks.GetOrAdd(e.Source.Id, 0);
-            
-            if (nowTicks - lastSent >= TimeSpan.TicksPerSecond / FpsLimit)
-            {
-                _lastSentTicks[e.Source.Id] = nowTicks;
-                _ = Task.Run(() => SendFrameToCanvasApiAsync(e.Source, e.FrameData));
-            }
-        }
-    }
-
-    public async Task NotifySourceRemovedAsync(Guid sourceId)
-    {
-        await PostCanvasEventAsync($"remove:{sourceId}");
-        Debug.WriteLine($"[Canvas API] Sent remove for {sourceId}");
-    }
-
-    private async Task SendFrameToCanvasApiAsync(SourceItem source, byte[] jpegData)
-    {
-        try
-        {
-            var mainViewModel = App.GetService<MainViewModel>();
-            var sources = mainViewModel?.Sources;
-            var sourceIndex = sources?.IndexOf(source) ?? -1;
-            var zIndex = (sources != null && sourceIndex != -1) ? sources.Count - 1 - sourceIndex : 0;
-
-            // Generate style string for this source
-            var styleString = BuildStyleString(source, zIndex);
-            
-            // Convert to base64 and split into chunks
-            var base64Data = Convert.ToBase64String(jpegData);
-            var chunks = new List<string>();
-            
-            for (int i = 0; i < base64Data.Length; i += ChunkSize)
-            {
-                var chunkSize = Math.Min(ChunkSize, base64Data.Length - i);
-                chunks.Add(base64Data.Substring(i, chunkSize));
-            }
-            
-            var fileName = $"{source.Id}.jpg";
-            
-            // Send header with style information
-            var header = $"header:{fileName}:image/jpeg:{chunks.Count}:{styleString}";
-            await PostCanvasEventAsync(header);
-            
-            // Send data chunks
-            for (int i = 0; i < chunks.Count; i++)
-            {
-                await PostCanvasEventAsync($"data:{source.Id}:{i}:{chunks[i]}");
-            }
-            
-            // Send end marker
-            await PostCanvasEventAsync($"end:{source.Id}");
-            
-            Debug.WriteLine($"[Canvas API] Sent frame for {source.Name} ({chunks.Count} chunks, z-index: {zIndex})");
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[Canvas API] Error sending frame for {source.Name}: {ex.Message}");
-        }
-    }
-
-    private static string BuildStyleString(SourceItem source, int zIndex)
-    {
-        var sb = new StringBuilder();
-        
-        // Position and size
-        sb.Append($"left:{source.CanvasX.ToString(CultureInfo.InvariantCulture)}px;");
-        sb.Append($"top:{source.CanvasY.ToString(CultureInfo.InvariantCulture)}px;");
-        sb.Append($"width:{source.CanvasWidth.ToString(CultureInfo.InvariantCulture)}px;");
-        sb.Append($"height:{source.CanvasHeight.ToString(CultureInfo.InvariantCulture)}px;");
-        
-        // Opacity and Z-Index
-        sb.Append($"opacity:{source.Opacity.ToString(CultureInfo.InvariantCulture)};");
-        sb.Append($"z-index:{zIndex};");
-        
-        // Transform (rotation and mirroring)
-        var scaleX = source.IsMirroredHorizontally ? -1 : 1;
-        var scaleY = source.IsMirroredVertically ? -1 : 1;
-        sb.Append($"transform:rotate({source.Rotation.ToString(CultureInfo.InvariantCulture)}deg) scale({scaleX},{scaleY});");
-        
-        // Cropping
-        if (source.CropLeftPct > 0 || source.CropTopPct > 0 || source.CropRightPct > 0 || source.CropBottomPct > 0)
-        {
-            var l = source.CropLeftPct * 100;
-            var t = source.CropTopPct * 100;
-            var r = 100 - (source.CropRightPct * 100);
-            var b = 100 - (source.CropBottomPct * 100);
-
-            if (source.CropRotation != 0 && source.CanvasWidth > 0 && source.CanvasHeight > 0)
-            {
-                // Aspect ratio correction for rotation on non-square elements
-                var aspect = source.CanvasWidth / source.CanvasHeight;
-                var rad = source.CropRotation * Math.PI / 180.0;
-                var cos = Math.Cos(rad);
-                var sin = Math.Sin(rad);
-
-                var centerX = l + (r - l) / 2.0;
-                var centerY = t + (b - t) / 2.0;
-                
-                var corners = new[]
-                {
-                    new { X = l, Y = t },
-                    new { X = r, Y = t },
-                    new { X = r, Y = b },
-                    new { X = l, Y = b }
-                };
-
-                var rotatedCorners = corners.Select(c =>
-                {
-                    var dx = c.X - centerX;
-                    var dy = c.Y - centerY;
-                    
-                    // Apply aspect ratio correction to prevent distortion
-                    var xRot = centerX + dx * cos - dy * aspect * sin;
-                    var yRot = centerY + dx / aspect * sin + dy * cos;
-
-                    return new { X = xRot, Y = yRot };
-                }).ToArray();
-                
-                sb.Append("clip-path:polygon(");
-                sb.Append(string.Join(",", rotatedCorners.Select(c => 
-                    $"{c.X.ToString(CultureInfo.InvariantCulture)}% {c.Y.ToString(CultureInfo.InvariantCulture)}%")));
-                sb.Append(");");
-            }
-            else
-            {
-                 sb.Append($"clip-path:polygon(" +
-                          $"{l.ToString(CultureInfo.InvariantCulture)}% {t.ToString(CultureInfo.InvariantCulture)}%," +
-                          $"{r.ToString(CultureInfo.InvariantCulture)}% {t.ToString(CultureInfo.InvariantCulture)}%," +
-                          $"{r.ToString(CultureInfo.InvariantCulture)}% {b.ToString(CultureInfo.InvariantCulture)}%," +
-                          $"{l.ToString(CultureInfo.InvariantCulture)}% {b.ToString(CultureInfo.InvariantCulture)}%);");
-            }
-        }
-        
-        return sb.ToString();
-    }
-
-    private static async Task PostCanvasEventAsync(string eventData)
-    {
-        try
-        {
-            var url = $"{CanvasApiUrl}?sender={Uri.EscapeDataString(SenderTag)}&event={Uri.EscapeDataString(eventData)}";
-            var response = await _httpClient.PostAsync(url, new StringContent(string.Empty));
-            
-            if (!response.IsSuccessStatusCode)
-            {
-                Debug.WriteLine($"[Canvas API] HTTP error: {response.StatusCode}");
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[Canvas API] Network error: {ex.Message}");
         }
     }
 
@@ -267,7 +95,6 @@ public class MjpegStreamingService : IMjpegStreamingService
         }
         _sourceClientStreams.Clear();
         _sourceFrames.Clear();
-        _lastSentTicks.Clear();
 
         _httpListener?.Close();
         _httpListener = null;

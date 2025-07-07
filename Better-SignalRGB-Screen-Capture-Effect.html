@@ -28,12 +28,14 @@
             transform-origin: center center;
         }
 
-        .source-element video {
+        .crop-wrapper {
+            position: relative;
             width: 100%;
             height: 100%;
-            object-fit: fill;
+            overflow: hidden;
         }
 
+        .source-element video,
         .source-element img {
             width: 100%;
             height: 100%;
@@ -72,7 +74,8 @@
                     expect: 0,
                     mime: "",
                     chunks: new Map(),
-                    style: "",
+                    outerStyle: "",
+                    cropStyle: "",
                     element: null,
                     lastUpdate: Date.now()
                 });
@@ -84,36 +87,44 @@
         function ensureElement(source) {
             const tag = source.mime.startsWith("video/") ? "video" : "img";
 
-            if (!source.element || source.element.tagName.toLowerCase() !== tag) {
+            if (!source.element || source.element.tagName.toLowerCase() !== "div") {
                 // Remove old element if exists
                 if (source.element) {
                     source.element.remove();
                 }
 
-                // Create new element
-                source.element = document.createElement(tag);
+                // Create container div
+                source.element = document.createElement("div");
                 source.element.className = "source-element";
                 source.element.dataset.sourceId = source.id;
 
+                // Create crop wrapper
+                const cropWrapper = document.createElement("div");
+                cropWrapper.className = "crop-wrapper";
+
+                // Create media element
+                const mediaElement = document.createElement(tag);
                 if (tag === "video") {
-                    source.element.autoplay = true;
-                    source.element.loop = true;
-                    source.element.muted = true;
+                    mediaElement.autoplay = true;
+                    mediaElement.loop = true;
+                    mediaElement.muted = true;
                 }
 
                 // Error handling
-                source.element.onerror = function () {
+                mediaElement.onerror = function () {
                     errorCount++;
                     log(`Error loading ${tag} for source ${source.id}, hiding element.`);
-                    this.style.display = 'none'; // Hide broken images
+                    this.style.display = 'none';
                 };
 
                 // Load success
-                source.element.onload = function () {
+                mediaElement.onload = function () {
                     log(`Successfully loaded frame for source ${source.id}`);
-                    this.style.display = 'block'; // Ensure it's visible on success
+                    this.style.display = 'block';
                 };
 
+                cropWrapper.appendChild(mediaElement);
+                source.element.appendChild(cropWrapper);
                 canvas.appendChild(source.element);
             }
 
@@ -152,9 +163,18 @@
             // Ensure element exists
             const element = ensureElement(source);
 
-            // Update element with new frame and style
-            element.src = dataUri;
-            element.style.cssText = source.style;
+            // Update element styles
+            element.style.cssText = source.outerStyle;
+            const cropWrapper = element.querySelector('.crop-wrapper');
+            if (cropWrapper) {
+                cropWrapper.style.cssText = source.cropStyle;
+            }
+
+            // Update media element
+            const mediaElement = element.querySelector('img, video');
+            if (mediaElement) {
+                mediaElement.src = dataUri;
+            }
 
             // Update stats
             frameCount++;
@@ -188,7 +208,7 @@
                 const filename = parts[1];
                 const mime = parts[2];
                 const chunkCount = parseInt(parts[3], 10);
-                const style = parts.slice(4).join(":"); // Rejoin in case style contains colons
+                const styles = parts.slice(4).join(":"); // Rejoin in case style contains colons
 
                 // Extract source ID from filename (should be GUID.jpg)
                 const sourceId = filename.split(".")[0];
@@ -196,7 +216,11 @@
                 const source = getSource(sourceId);
                 source.mime = mime;
                 source.expect = chunkCount;
-                source.style = style;
+
+                // Split styles into outer and crop styles
+                const [outerStyle, cropStyle] = styles.split("|");
+                source.outerStyle = outerStyle.substring(6); // Remove "outer:"
+                source.cropStyle = cropStyle.substring(5);   // Remove "crop:"
                 source.chunks.clear();
 
                 return;

@@ -235,15 +235,22 @@ public sealed partial class DraggableSourceItem : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        // Unsubscribe from frame updates
+        if (Source != null)
+        {
+            var mainViewModel = App.GetService<MainViewModel>();
+            mainViewModel?.UnregisterDraggableSourceControl(Source);
+        }
+
+        if (_websiteRefreshTimer != null)
+        {
+            _websiteRefreshTimer.Stop();
+            _websiteRefreshTimer = null;
+        }
+
         if (_captureService != null)
         {
             _captureService.FrameAvailable -= OnFrameAvailable;
         }
-        
-        // Stop website refresh timer
-        _websiteRefreshTimer?.Stop();
-        _websiteRefreshTimer = null;
     }
 
     private static void OnSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -1959,16 +1966,14 @@ public sealed partial class DraggableSourceItem : UserControl
     {
         if (Source != null)
         {
+            var mainViewModel = App.GetService<MainViewModel>();
+            mainViewModel?.RegisterDraggableSourceControl(Source, this);
+            
             UpdateDisplay(Source);
-
-            // Defer the position refresh to ensure the control has been measured and arranged
-            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-            {
-                if (Source != null) RefreshPosition();
-            });
+            UpdatePosition();
+            UpdateCropShading();
+            SetupWebsiteRefreshTimer();
         }
-        
-        UpdateShadeClip();
     }
 
     private void OnSizeChanged(object sender, SizeChangedEventArgs e)
@@ -2065,6 +2070,50 @@ private void UpdateShadeClip()
         catch (Exception ex)
         {
             Debug.WriteLine($"SetPageZoom error: {ex.Message}");
+        }
+    }
+
+    public async Task<byte[]?> CaptureWebViewFrameAsync()
+    {
+        if (WebsitePreview?.CoreWebView2 == null) return null;
+
+        try
+        {
+            using var ms = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+            await WebsitePreview.CoreWebView2.CapturePreviewAsync(
+                Microsoft.Web.WebView2.Core.CoreWebView2CapturePreviewImageFormat.Png, ms);
+
+            // Convert to JPEG for consistency with other sources
+            ms.Seek(0);
+            var decoder = await Windows.Graphics.Imaging.BitmapDecoder.CreateAsync(ms);
+            
+            using var jpeg = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+            var encoder = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(
+                Windows.Graphics.Imaging.BitmapEncoder.JpegEncoderId, jpeg);
+                
+            var pixels = await decoder.GetPixelDataAsync();
+            encoder.SetPixelData(
+                decoder.BitmapPixelFormat,
+                decoder.BitmapAlphaMode,
+                decoder.PixelWidth,
+                decoder.PixelHeight,
+                decoder.DpiX,
+                decoder.DpiY,
+                pixels.DetachPixelData());
+                
+            await encoder.FlushAsync();
+            
+            jpeg.Seek(0);
+            var buffer = new byte[jpeg.Size];
+            await jpeg.ReadAsync(buffer.AsBuffer(), (uint)jpeg.Size,
+                Windows.Storage.Streams.InputStreamOptions.None);
+                
+            return buffer;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error capturing WebView frame: {ex.Message}");
+            return null;
         }
     }
 } 

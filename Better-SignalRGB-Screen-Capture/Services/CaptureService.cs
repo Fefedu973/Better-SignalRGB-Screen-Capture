@@ -11,6 +11,8 @@ using System.Threading.Tasks;
 using Better_SignalRGB_Screen_Capture.Contracts.Services;
 using Better_SignalRGB_Screen_Capture.Helpers;
 using Better_SignalRGB_Screen_Capture.Models;
+using Better_SignalRGB_Screen_Capture.ViewModels;
+using Better_SignalRGB_Screen_Capture.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media.Imaging;
 using ScreenRecorderLib;
@@ -24,6 +26,7 @@ public class CaptureService : ICaptureService
     // One recorder per source - like running multiple TestApp instances
     private readonly ConcurrentDictionary<Guid, SourceRecorder> _recorders = new();
     private readonly ConcurrentDictionary<Guid, byte[]> _lastFrameData = new();
+    private readonly ConcurrentDictionary<Guid, Microsoft.UI.Dispatching.DispatcherQueueTimer> _websiteTimers = new();
     private int _frameRate = 15; // Increased from 10 for smoother streaming
 
     public event EventHandler<SourceFrameEventArgs>? FrameAvailable;
@@ -47,30 +50,27 @@ public class CaptureService : ICaptureService
 
     public async Task StartCaptureAsync(SourceItem source)
     {
+        if (source == null || IsCapturing(source))
+            return;
+
+        if (source.Type == Models.SourceType.Website)
+        {
+            await StartWebsiteCaptureAsync(source);
+            return;
+        }
+
+        var options = CreateRecorderOptions(source);
+        if (options == null)
+            return;
+
         try
         {
-            // Website sources are handled differently - they use WebView components for display
-            // and don't need traditional screen capture recording
-            if (source.Type == SourceType.Website)
-            {
-                Debug.WriteLine($"📱 Website source '{source.Name}' uses WebView display - skipping screen capture");
-                return;
-            }
-
             Debug.WriteLine($"🎬 Starting individual recorder for: {source.Name} ({source.Type})");
 
             // Stop existing recorder for this source if it exists
             if (_recorders.ContainsKey(source.Id))
             {
                 await StopCaptureAsync(source);
-            }
-
-            // Create recorder options for this specific source (like TestApp does)
-            var options = CreateRecorderOptions(source);
-            if (options == null)
-            {
-                Debug.WriteLine($"❌ Failed to create recorder options for {source.Name}");
-                return;
             }
 
             // Create memory stream for output
@@ -101,17 +101,61 @@ public class CaptureService : ICaptureService
         }
     }
 
+    private async Task StartWebsiteCaptureAsync(SourceItem source)
+    {
+        if (string.IsNullOrEmpty(source.WebsiteUrl))
+            return;
+
+        var mainViewModel = App.GetService<MainViewModel>();
+        var draggableSource = mainViewModel?.Sources
+            .Select(s => mainViewModel.GetDraggableSourceControl(s))
+            .FirstOrDefault(d => d?.Source?.Id == source.Id);
+
+        if (draggableSource == null)
+            return;
+
+        // Create a timer to capture frames at the specified frame rate
+        var timer = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread()
+            .CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(1000.0 / _frameRate);
+        
+        timer.Tick += async (s, e) =>
+        {
+            try
+            {
+                var frameData = await draggableSource.CaptureWebViewFrameAsync();
+                if (frameData != null)
+                {
+                    _lastFrameData[source.Id] = frameData;
+                    FrameAvailable?.Invoke(this, new SourceFrameEventArgs(source, null) { FrameData = frameData });
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error capturing website frame: {ex.Message}");
+            }
+        };
+
+        _websiteTimers[source.Id] = timer;
+        timer.Start();
+    }
+
     public async Task StopCaptureAsync(SourceItem source)
     {
+        if (source == null)
+            return;
+
+        if (source.Type == Models.SourceType.Website)
+        {
+            if (_websiteTimers.TryRemove(source.Id, out var timer))
+            {
+                timer.Stop();
+            }
+            return;
+        }
+
         try
         {
-            // Website sources don't have traditional recorders
-            if (source.Type == SourceType.Website)
-            {
-                Debug.WriteLine($"📱 Website source '{source.Name}' uses WebView display - no recorder to stop");
-                return;
-            }
-
             Debug.WriteLine($"🛑 Stopping recorder for: {source.Name}");
             
             if (_recorders.TryRemove(source.Id, out var sourceRecorder))
@@ -143,6 +187,13 @@ public class CaptureService : ICaptureService
 
     public async Task StopAllCapturesAsync()
     {
+        // Stop website timers
+        foreach (var timer in _websiteTimers.Values)
+        {
+            timer.Stop();
+        }
+        _websiteTimers.Clear();
+
         Debug.WriteLine($"🛑 Stopping all {_recorders.Count} recorders");
         
         var tasks = _recorders.Keys.Select(async sourceId =>
@@ -163,15 +214,15 @@ public class CaptureService : ICaptureService
 
     public bool IsCapturing(SourceItem source)
     {
-        // Website sources are always considered "capturing" since they display via WebView
-        if (source.Type == SourceType.Website)
+        if (source == null)
+            return false;
+
+        if (source.Type == Models.SourceType.Website)
         {
-            return true;
+            return _websiteTimers.ContainsKey(source.Id);
         }
 
-        return _recorders.ContainsKey(source.Id) && 
-               _recorders.TryGetValue(source.Id, out var recorder) &&
-               recorder.Recorder?.Status == RecorderStatus.Recording;
+        return _recorders.ContainsKey(source.Id);
     }
 
     public Task SetFrameRate(int fps)

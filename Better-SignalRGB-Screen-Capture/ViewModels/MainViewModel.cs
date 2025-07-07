@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Better_SignalRGB_Screen_Capture.Models;
 using Better_SignalRGB_Screen_Capture.Contracts.Services;
 using Windows.Foundation;
+using System.Collections.Generic;
 
 namespace Better_SignalRGB_Screen_Capture.ViewModels;
 
@@ -260,6 +261,30 @@ public partial class MainViewModel : ObservableRecipient
         _ = _localSettingsService.SaveSettingAsync(WaitForSourceAvailabilityKey, value);
     }
 
+    private readonly Dictionary<SourceItem, Views.DraggableSourceItem> _sourceControls = new();
+
+    public Views.DraggableSourceItem? GetDraggableSourceControl(SourceItem source)
+    {
+        if (source == null) return null;
+        return _sourceControls.TryGetValue(source, out var control) ? control : null;
+    }
+
+    public void RegisterDraggableSourceControl(SourceItem source, Views.DraggableSourceItem control)
+    {
+        if (source != null && control != null)
+        {
+            _sourceControls[source] = control;
+        }
+    }
+
+    public void UnregisterDraggableSourceControl(SourceItem source)
+    {
+        if (source != null)
+        {
+            _sourceControls.Remove(source);
+        }
+    }
+
     public MainViewModel(ILocalSettingsService localSettingsService, ICaptureService captureService, IMjpegStreamingService mjpegStreamingService, ICompositeFrameService compositeFrameService, IKestrelApiService kestrelApiService)
     {
         _localSettingsService = localSettingsService;
@@ -355,9 +380,9 @@ public partial class MainViewModel : ObservableRecipient
         {
             var sourcesToDelete = SelectedSources.ToList();
             foreach (var s in sourcesToDelete)
-            {
-                await DeleteSingleSourceAsync(s);
-            }
+        {
+            await DeleteSingleSourceAsync(s);
+        }
         }
         await SaveSourcesWithUndoAsync();
     }
@@ -1836,3 +1861,4 @@ public partial class MainViewModel : ObservableRecipient
         return await _localSettingsService.ReadSettingAsync<int?>(HttpsPortKey) ?? 8443;
     }
 }
+
