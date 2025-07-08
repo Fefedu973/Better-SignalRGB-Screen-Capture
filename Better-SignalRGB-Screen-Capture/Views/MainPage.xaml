@@ -15,7 +15,23 @@
         <converters:ObjectToVisibilityConverter x:Key="ObjectToVisibilityConverter" />
         <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converters:BooleanToStringConverter x:Key="BooleanToStringConverter" />
+        <converters:BooleanToDoubleConverter x:Key="BooleanToDoubleConverter" />
         <converters:StringToUriConverter x:Key="StringToUriConverter" />
+        <converters:StringToIconConverter x:Key="StringToIconConverter" />
+        <Storyboard x:Name="CollapseAnimation">
+            <DoubleAnimation Storyboard.TargetName="RightPanelBorder" Storyboard.TargetProperty="Width" To="48" Duration="0:0:0.3" EnableDependentAnimation="True">
+                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseInOut"/></DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="PropertiesScrollViewer" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.15" />
+            <DoubleAnimation Storyboard.TargetName="RightPanelTitle" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.15" />
+        </Storyboard>
+        <Storyboard x:Name="ExpandAnimation">
+            <DoubleAnimation Storyboard.TargetName="RightPanelBorder" Storyboard.TargetProperty="Width" To="280" Duration="0:0:0.3" EnableDependentAnimation="True">
+                <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseInOut"/></DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="PropertiesScrollViewer" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.15" BeginTime="0:0:0.15"/>
+            <DoubleAnimation Storyboard.TargetName="RightPanelTitle" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.15" BeginTime="0:0:0.15"/>
+        </Storyboard>
         <Style x:Key="CollapseToggleButtonStyle" TargetType="ToggleButton">
             <Setter Property="Background" Value="{ThemeResource SystemAccentColor}" />
             <Setter Property="Foreground" Value="White" />
@@ -99,18 +115,16 @@
                                     <VisualState x:Name="Normal" />
                                     <VisualState x:Name="PointerOver">
                                         <Storyboard>
-                                            <ColorAnimation
-                                                Storyboard.TargetName="ContentPresenter"
-                                                Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                To="{ThemeResource ButtonBackgroundPointerOver}" Duration="0:0:0.1" />
+                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ContentPresenter" Storyboard.TargetProperty="Background">
+                                                <DiscreteObjectKeyFrame KeyTime="0" Value="{ThemeResource ButtonBackgroundPointerOver}" />
+                                            </ObjectAnimationUsingKeyFrames>
                                         </Storyboard>
                                     </VisualState>
                                     <VisualState x:Name="Pressed">
                                         <Storyboard>
-                                            <ColorAnimation
-                                                Storyboard.TargetName="ContentPresenter"
-                                                Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                To="{ThemeResource ButtonBackgroundPressed}" Duration="0:0:0.1" />
+                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ContentPresenter" Storyboard.TargetProperty="Background">
+                                                <DiscreteObjectKeyFrame KeyTime="0" Value="{ThemeResource ButtonBackgroundPressed}" />
+                                            </ObjectAnimationUsingKeyFrames>
                                         </Storyboard>
                                     </VisualState>
                                     <VisualState x:Name="Disabled">
@@ -171,7 +185,7 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="320" />
             <ColumnDefinition Width="*" />
-            <ColumnDefinition x:Name="RightPanelColumn" Width="280" />
+            <ColumnDefinition x:Name="RightPanelColumn" Width="Auto" />
         </Grid.ColumnDefinitions>
 
         <!--  Left Panel - Source List  -->
@@ -204,35 +218,45 @@
                             <TextBlock>Add Source</TextBlock>
                         </StackPanel>
                     </Button>
-                    <ToggleButton
-                        Command="{x:Bind ViewModel.ToggleRecordingCommand}"
-                        IsChecked="{x:Bind ViewModel.IsRecording, Mode=OneWay}"
-                        Style="{StaticResource RecordingToggleButtonStyle}">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon Glyph="{x:Bind ViewModel.IsRecording, Mode=OneWay, Converter={StaticResource BooleanToStringConverter}, ConverterParameter='&#xE71A;|&#xE7C8;'}" />
-                            <TextBlock Text="{x:Bind ViewModel.IsRecording, Mode=OneWay, Converter={StaticResource BooleanToStringConverter}, ConverterParameter='Stop Recording|Start Recording'}" />
+                    <Grid ColumnSpacing="{x:Bind ViewModel.IsRecording, Mode=OneWay, Converter={StaticResource BooleanToDoubleConverter}, ConverterParameter='8|0'}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ToggleButton
+                            Grid.Column="0"
+                            Command="{x:Bind ViewModel.ToggleRecordingCommand}"
+                            IsChecked="{x:Bind ViewModel.IsRecording, Mode=OneWay}"
+                            Style="{StaticResource RecordingToggleButtonStyle}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="{x:Bind ViewModel.IsRecording, Mode=OneWay, Converter={StaticResource BooleanToStringConverter}, ConverterParameter='&#xE71A;|&#xE7C8;'}" />
+                                <TextBlock Text="{x:Bind ViewModel.IsRecording, Mode=OneWay, Converter={StaticResource BooleanToStringConverter}, ConverterParameter='Stop Recording|Start Recording'}" />
+                            </StackPanel>
+                        </ToggleButton>
+
+                        <StackPanel
+                            Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            VerticalAlignment="Stretch"
+                            Visibility="{x:Bind ViewModel.IsRecording, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Button
+                                Command="{x:Bind ViewModel.TogglePauseCommand}"
+                                IsEnabled="{x:Bind ViewModel.IsRecording, Mode=OneWay}"
+                                ToolTipService.ToolTip="{x:Bind ViewModel.IsPaused, Mode=OneWay, Converter={StaticResource BooleanToStringConverter}, ConverterParameter='Resume|Pause'}"
+                                Visibility="{x:Bind ViewModel.IsRecording, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <FontIcon Glyph="{x:Bind ViewModel.IsPaused, Mode=OneWay, Converter={StaticResource BooleanToStringConverter}, ConverterParameter='&#xE768;|&#xE769;'}" />
+                            </Button>
+                            <Button
+                                Command="{x:Bind ViewModel.RefreshStreamCommand}"
+                                Style="{StaticResource AccentButtonStyle}"
+                                ToolTipService.ToolTip="Refresh Recording"
+                                Visibility="{x:Bind ViewModel.NeedsRefresh, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <FontIcon Glyph="&#xE72C;" />
+                            </Button>
                         </StackPanel>
-                    </ToggleButton>
-                    <Button
-                        HorizontalAlignment="Stretch"
-                        Command="{x:Bind ViewModel.TogglePauseCommand}"
-                        IsEnabled="{x:Bind ViewModel.CanPause, Mode=OneWay}"
-                        Visibility="{x:Bind ViewModel.IsRecording, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon Glyph="{x:Bind ViewModel.IsPaused, Mode=OneWay, Converter={StaticResource BooleanToStringConverter}, ConverterParameter='&#xE768;|&#xE769;'}" />
-                            <TextBlock Text="{x:Bind ViewModel.IsPaused, Mode=OneWay, Converter={StaticResource BooleanToStringConverter}, ConverterParameter='Resume|Pause'}" />
-                        </StackPanel>
-                    </Button>
-                    <Button
-                        HorizontalAlignment="Stretch"
-                        Command="{x:Bind ViewModel.RefreshStreamCommand}"
-                        Visibility="{x:Bind ViewModel.NeedsRefresh, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}"
-                        Style="{StaticResource AccentButtonStyle}">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon Glyph="&#xE72C;" />
-                            <TextBlock>Refresh Recording</TextBlock>
-                        </StackPanel>
-                    </Button>
+                    </Grid>
                 </StackPanel>
 
                 <!--  Sources List  -->
@@ -255,69 +279,69 @@
                                     BorderThickness="1"
                                     CornerRadius="4">
                                     <Grid>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
 
-                                        <!--  Source Name/Type  -->
-                                        <TextBlock
-                                            Grid.Row="0"
-                                            Grid.Column="0"
-                                            FontWeight="SemiBold"
-                                            Text="{x:Bind DisplayName}"
-                                            TextTrimming="CharacterEllipsis" />
+                                        <FontIcon 
+                                            Grid.Column="0" 
+                                            VerticalAlignment="Center" 
+                                            Margin="0,0,12,0" 
+                                            FontFamily="{StaticResource SymbolThemeFontFamily}" 
+                                            Glyph="&#xE76F;" 
+                                            Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                            ToolTipService.ToolTip="Drag to reorder"/>
 
-                                        <!--  Type Badge  -->
-                                        <Border
-                                            Grid.Row="0"
-                                            Grid.Column="1"
-                                            Padding="6,2"
-                                            Background="{ThemeResource AccentFillColorSecondaryBrush}"
-                                            CornerRadius="8">
+                                        <Grid Grid.Column="1">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <!--  Source Name/Type  -->
                                             <TextBlock
-                                                FontSize="10"
-                                                Foreground="{ThemeResource TextFillColorInverse}"
-                                                Text="{x:Bind Type}" />
-                                        </Border>
+                                                Grid.Row="0"
+                                                Grid.Column="0"
+                                                FontWeight="SemiBold"
+                                                Text="{x:Bind DisplayName}"
+                                                TextTrimming="CharacterEllipsis" />
 
-                                        <!--  Details  -->
-                                        <TextBlock
-                                            Grid.Row="1"
-                                            Grid.ColumnSpan="2"
-                                            Margin="0,4,0,0"
-                                            FontSize="12"
-                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                            TextTrimming="CharacterEllipsis">
-                                            <Run Text="Position:" />
-                                            <Run Text="{x:Bind CanvasX, Mode=OneWay}" />
-                                            <Run Text="," />
-                                            <Run Text="{x:Bind CanvasY, Mode=OneWay}" />
-                                            <Run Text=" Size:" />
-                                            <Run Text="{x:Bind CanvasWidth, Mode=OneWay}" />
-                                            <Run Text="x" />
-                                            <Run Text="{x:Bind CanvasHeight, Mode=OneWay}" />
-                                        </TextBlock>
+                                            <!--  Type Badge  -->
+                                            <Border
+                                                Grid.Row="0"
+                                                Grid.Column="1"
+                                                Padding="6,2"
+                                                Background="{ThemeResource AccentFillColorSecondaryBrush}"
+                                                CornerRadius="8">
+                                                                                <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                         FontSize="10"
+                                         Foreground="{ThemeResource TextFillColorInverse}"
+                                         Glyph="{x:Bind Type, Converter={StaticResource StringToIconConverter}}" />
+                                            </Border>
 
-                                        <!--  Action Buttons  -->
-                                        <StackPanel
-                                            Grid.Row="2"
-                                            Grid.ColumnSpan="2"
-                                            Margin="0,8,0,0"
-                                            Orientation="Horizontal"
-                                            Spacing="8">
-                                            <Button
-                                                Padding="8,4"
-                                                Click="DeleteSource_Click"
-                                                Content="Delete"
+                                            <!--  Details  -->
+                                            <TextBlock
+                                                Grid.Row="1"
+                                                Grid.ColumnSpan="2"
+                                                Margin="0,4,0,0"
                                                 FontSize="12"
-                                                Tag="{x:Bind}" />
-                                        </StackPanel>
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                TextTrimming="CharacterEllipsis">
+                                                <Run Text="Position:" />
+                                                <Run Text="{x:Bind CanvasX, Mode=OneWay}" />
+                                                <Run Text="," />
+                                                <Run Text="{x:Bind CanvasY, Mode=OneWay}" />
+                                                <Run Text=" Size:" />
+                                                <Run Text="{x:Bind CanvasWidth, Mode=OneWay}" />
+                                                <Run Text="x" />
+                                                <Run Text="{x:Bind CanvasHeight, Mode=OneWay}" />
+                                            </TextBlock>
+                                        </Grid>
                                     </Grid>
                                 </Border>
                             </DataTemplate>
@@ -357,19 +381,6 @@
                         <TextBlock Text="Redo" />
                     </StackPanel>
                 </Button>
-                <StackPanel Orientation="Vertical" Spacing="4">
-                    <TextBlock
-                        Margin="12,0,0,0"
-                        FontSize="12"
-                        FontWeight="SemiBold"
-                        Text="MJPEG Stream:" />
-                    <HyperlinkButton
-                        Click="StreamingLink_Click"
-                        Content="{x:Bind ViewModel.StreamingUrl, Mode=OneWay, FallbackValue='Starting...'}"
-                        FontFamily="Consolas"
-                        FontSize="11"
-                        NavigateUri="{x:Bind ViewModel.StreamingUrl, Converter={StaticResource StringToUriConverter}}" />
-                </StackPanel>
             </StackPanel>
 
             <!--  Canvas Container  -->
@@ -391,12 +402,16 @@
                         HorizontalScrollMode="Enabled"
                         IsScrollInertiaEnabled="True"
                         IsZoomInertiaEnabled="True"
-                        MaxZoomFactor="4"
+                        MaxZoomFactor="10"
                         MinZoomFactor="0.1"
                         VerticalScrollBarVisibility="Auto"
                         VerticalScrollMode="Enabled"
+                        ViewChanged="CanvasScrollViewer_ViewChanged"
                         ZoomMode="Enabled">
-                        <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Grid 
+                            HorizontalAlignment="Center" 
+                            VerticalAlignment="Center"
+                            Padding="40">
                             <!--  Layout Canvas  -->
                             <Canvas
                                 x:Name="SourceCanvas"
@@ -439,6 +454,8 @@
 
         <!--  Right Panel - Properties  -->
         <Border
+            x:Name="RightPanelBorder"
+            Width="280"
             Grid.Column="2"
             Background="{ThemeResource LayerFillColorDefaultBrush}"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -999,11 +1016,11 @@
                                     x:Name="ZoomSlider"
                                     Grid.Column="0"
                                     IsThumbToolTipEnabled="True"
-                                    Maximum="4.0"
+                                    Maximum="10.0"
                                     Minimum="0.1"
                                     SnapsTo="StepValues"
-                                    StepFrequency="0.1"
-                                    TickFrequency="0.5"
+                                    StepFrequency="0.25"
+                                    TickFrequency="1"
                                     TickPlacement="BottomRight"
                                     ValueChanged="ZoomSlider_ValueChanged"
                                     Value="1.0" />

@@ -7,7 +7,12 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Better_SignalRGB_Screen_Capture.Contracts.Services;
+using Better_SignalRGB_Screen_Capture.Models;
 using Better_SignalRGB_Screen_Capture.ViewModels;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Globalization;
+using System.Diagnostics;
 
 namespace Better_SignalRGB_Screen_Capture.Services;
 
@@ -20,6 +25,19 @@ public class MjpegStreamingService : IMjpegStreamingService
     private readonly object _frameLock = new();
     private int _port;
     private readonly ICaptureService _captureService;
+
+    // Canvas API Constants
+    private const string CanvasApiUrl = "http://localhost:16034/canvas/event";
+    private const string SenderTag = "BetterSignalRGBScreenCapture";
+    private const int ChunkSize = 6144; // 6KB chunks for optimal performance
+    private const int FpsLimit = 15; // 15 FPS per source to prevent overwhelming SignalRGB
+
+    // Canvas API Infrastructure
+    private static readonly HttpClient _httpClient = new()
+    {
+        Timeout = TimeSpan.FromSeconds(4)
+    };
+    private readonly ConcurrentDictionary<Guid, long> _lastSentTicks = new(); // Rate limiting per source
 
     public event EventHandler<string>? StreamingUrlChanged;
 
@@ -34,11 +52,167 @@ public class MjpegStreamingService : IMjpegStreamingService
 
     private void OnFrameAvailable(object? sender, SourceFrameEventArgs e)
     {
-        // Store the frame data for the specific source
+        // Store the frame data for the specific source and send Canvas API style information
         if (e.FrameData != null && e.Source?.Id != null)
         {
             UpdateSourceFrame(e.Source.Id, e.FrameData);
+            // Send to Canvas API with rate limiting
+            var nowTicks = DateTime.UtcNow.Ticks;
+            var lastSent = _lastSentTicks.GetOrAdd(e.Source.Id, 0);
+            if (nowTicks - lastSent >= TimeSpan.TicksPerSecond / FpsLimit)
+            {
+                _lastSentTicks[e.Source.Id] = nowTicks;
+                _ = Task.Run(() => SendFrameToCanvasApiAsync(e.Source, e.FrameData));
+            }
         }
+    }
+
+    private async Task SendFrameToCanvasApiAsync(SourceItem source, byte[] jpegData)
+    {
+        try
+        {
+            var mainViewModel = App.GetService<MainViewModel>();
+            var sources = mainViewModel?.Sources;
+            var sourceIndex = sources?.IndexOf(source) ?? -1;
+            var zIndex = (sources != null && sourceIndex != -1) ? sources.Count - 1 - sourceIndex : 0;
+            
+            // Build separated styles for proper crop rectangle handling
+            var outerStyle = BuildOuterStyleString(source, zIndex);
+            var cropStyle = BuildCropStyleString(source);
+            var combinedStyle = $"outer:{outerStyle}|crop:{cropStyle}";
+            
+            // Convert to base64 and split into chunks
+            var base64Data = Convert.ToBase64String(jpegData);
+            var chunks = new List<string>();
+            for (int i = 0; i < base64Data.Length; i += ChunkSize)
+            {
+                var chunkSize = Math.Min(ChunkSize, base64Data.Length - i);
+                chunks.Add(base64Data.Substring(i, chunkSize));
+            }
+            var fileName = $"{source.Id}.jpg";
+            // Send header with separated style information
+            var header = $"header:{fileName}:image/jpeg:{chunks.Count}:{combinedStyle}";
+            await PostCanvasEventAsync(header);
+            // Send data chunks
+            for (int i = 0; i < chunks.Count; i++)
+            {
+                await PostCanvasEventAsync($"data:{source.Id}:{i}:{chunks[i]}");
+            }
+            // Send end marker
+            await PostCanvasEventAsync($"end:{source.Id}");
+            Debug.WriteLine($"[Canvas API] Sent frame for {source.Name} ({chunks.Count} chunks, z-index: {zIndex})");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Canvas API] Error sending frame for {source.Name}: {ex.Message}");
+        }
+    }
+
+    private static async Task PostCanvasEventAsync(string eventData)
+    {
+        try
+        {
+            var url = $"{CanvasApiUrl}?sender={Uri.EscapeDataString(SenderTag)}&event={Uri.EscapeDataString(eventData)}";
+            var response = await _httpClient.PostAsync(url, new StringContent(string.Empty));
+            if (!response.IsSuccessStatusCode)
+            {
+                Debug.WriteLine($"[Canvas API] HTTP error: {response.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Canvas API] Network error: {ex.Message}");
+        }
+    }
+
+    private string BuildOuterStyleString(SourceItem source, int zIndex = 0)
+    {
+        var styles = new List<string>();
+        
+        // Position and size (always applied to outer element)
+        styles.Add($"position: absolute");
+        styles.Add($"left: {source.CanvasX}px");
+        styles.Add($"top: {source.CanvasY}px");
+        styles.Add($"width: {source.CanvasWidth}px");
+        styles.Add($"height: {source.CanvasHeight}px");
+        styles.Add($"opacity: {source.Opacity.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        styles.Add($"z-index: {zIndex}");
+        styles.Add($"transform-origin: center center");
+        
+        // Build transform (rotation + mirroring, but NO crop)
+        var transformParts = new List<string>();
+        
+        // Rotation
+        if (source.Rotation != 0)
+        {
+            transformParts.Add($"rotate({source.Rotation}deg)");
+        }
+        
+        // Mirroring
+        if (source.IsMirroredHorizontally || source.IsMirroredVertically)
+        {
+            var scaleX = source.IsMirroredHorizontally ? -1 : 1;
+            var scaleY = source.IsMirroredVertically ? -1 : 1;
+            transformParts.Add($"scale({scaleX}, {scaleY})");
+        }
+        
+        if (transformParts.Count > 0)
+        {
+            styles.Add($"transform: {string.Join(" ", transformParts)}");
+        }
+        
+        return string.Join("; ", styles);
+    }
+
+    private string BuildCropStyleString(SourceItem source)
+    {
+        // ── base styles ────────────────────────────────────────────────────────────
+        var styles = new List<string>
+        {
+            "position: relative",
+            "width: 100%",
+            "height: 100%",
+            "overflow: hidden"
+        };
+
+        // ── rectangular crop (always inset) ───────────────────────────────────────
+        double leftPct   = source.CropLeftPct   * 100.0;
+        double topPct    = source.CropTopPct    * 100.0;
+        double rightPct  = source.CropRightPct  * 100.0;
+        double bottomPct = source.CropBottomPct * 100.0;
+
+        styles.Add(
+            $"clip-path: inset({topPct.ToString(CultureInfo.InvariantCulture)}% " +
+                           $"{rightPct.ToString(CultureInfo.InvariantCulture)}% " +
+                           $"{bottomPct.ToString(CultureInfo.InvariantCulture)}% " +
+                           $"{leftPct.ToString(CultureInfo.InvariantCulture)}%)");
+
+        // ── optional rotation with aspect-ratio preserving scale ──────────────────
+        double rotation = source.CropRotation % 360;
+        if (rotation != 0)
+        {
+            double w = 100.0 - leftPct - rightPct;   // crop width  (% of element)
+            double h = 100.0 - topPct  - bottomPct;  // crop height (% of element)
+
+            double rad = Math.Abs(rotation) * Math.PI / 180.0;
+            double cos = Math.Cos(rad);
+            double sin = Math.Sin(rad);
+
+            // Bounding box after rotation
+            double bboxW = w * cos + h * sin;
+            double bboxH = w * sin + h * cos;
+
+            // Scale so that the bounding box matches the original size again
+            double scaleX = w / bboxW;
+            double scaleY = h / bboxH;
+
+            styles.Add(
+                $"transform: rotate({rotation.ToString(CultureInfo.InvariantCulture)}deg) " +
+                $"scale({scaleX.ToString(CultureInfo.InvariantCulture)}, {scaleY.ToString(CultureInfo.InvariantCulture)})");
+            styles.Add("transform-origin: center center");
+        }
+
+        return string.Join("; ", styles);
     }
 
     public async Task StartStreamingAsync(int port = 8080)
@@ -95,6 +269,7 @@ public class MjpegStreamingService : IMjpegStreamingService
         }
         _sourceClientStreams.Clear();
         _sourceFrames.Clear();
+         _lastSentTicks.Clear();
 
         _httpListener?.Close();
         _httpListener = null;
@@ -501,17 +676,32 @@ public class MjpegStreamingService : IMjpegStreamingService
             if (props.cropLeft > 0 || props.cropTop > 0 || props.cropRight > 0 || props.cropBottom > 0) {{
                 const clipLeft = props.cropLeft * 100;
                 const clipTop = props.cropTop * 100;
-                const clipRight = 100 - (props.cropRight * 100);
-                const clipBottom = 100 - (props.cropBottom * 100);
+                const clipRight = props.cropRight * 100;
+                const clipBottom = props.cropBottom * 100;
                 
-                // Create inner element for crop rotation if needed
+                // Apply rectangular inset clipping (always)
+                elem.style.clipPath = `inset(${{clipTop}}% ${{clipRight}}% ${{clipBottom}}% ${{clipLeft}}%)`;
+                
+                // Handle rotation with compensating scale
+                const rot = props.cropRotation || 0;
                 const img = elem.querySelector('img, iframe');
-                if (props.cropRotation && props.cropRotation !== 0) {{
-                    // Apply crop with rotation
-                    const cropCenterX = clipLeft + (clipRight - clipLeft) / 2;
-                    const cropCenterY = clipTop + (clipBottom - clipTop) / 2;
+                
+                if (rot % 360 !== 0 && img) {{
+                    // Calculate compensating scale (same as C#)
+                    const w = 100 - (props.cropLeft + props.cropRight) * 100;
+                    const h = 100 - (props.cropTop + props.cropBottom) * 100;
                     
-                    // Create a wrapper for the crop if it doesn't exist
+                    const rad = Math.abs(rot) * Math.PI / 180;
+                    const cos = Math.cos(rad);
+                    const sin = Math.sin(rad);
+                    
+                    const bboxW = w * cos + h * sin;
+                    const bboxH = w * sin + h * cos;
+                    
+                    const scaleX = w / bboxW;
+                    const scaleY = h / bboxH;
+                    
+                    // Create wrapper for the crop transformation
                     let cropWrapper = elem.querySelector('.crop-wrapper');
                     if (!cropWrapper) {{
                         cropWrapper = document.createElement('div');
@@ -524,31 +714,18 @@ public class MjpegStreamingService : IMjpegStreamingService
                         cropWrapper.appendChild(img);
                     }}
                     
-                    // Apply rotated clip path
-                    const rad = props.cropRotation * Math.PI / 180;
-                    const cos = Math.cos(rad);
-                    const sin = Math.sin(rad);
+                    // Apply rotation and compensating scale to wrapper
+                    cropWrapper.style.transform = `rotate(${{rot}}deg) scale(${{scaleX}}, ${{scaleY}})`;
+                    cropWrapper.style.transformOrigin = 'center center';
                     
-                    // Transform the four corners of the clip rectangle
-                    const corners = [
-                        {{x: clipLeft, y: clipTop}},
-                        {{x: clipRight, y: clipTop}},
-                        {{x: clipRight, y: clipBottom}},
-                        {{x: clipLeft, y: clipBottom}}
-                    ];
-                    
-                    const rotatedCorners = corners.map(corner => {{
-                        const dx = corner.x - cropCenterX;
-                        const dy = corner.y - cropCenterY;
-                        return {{
-                            x: cropCenterX + dx * cos - dy * sin,
-                            y: cropCenterY + dx * sin + dy * cos
-                        }};
-                    }});
-                    
-                    elem.style.clipPath = `polygon(${{rotatedCorners[0].x}}% ${{rotatedCorners[0].y}}%, ${{rotatedCorners[1].x}}% ${{rotatedCorners[1].y}}%, ${{rotatedCorners[2].x}}% ${{rotatedCorners[2].y}}%, ${{rotatedCorners[3].x}}% ${{rotatedCorners[3].y}}%)`;
-                }} else {{
-                    elem.style.clipPath = `polygon(${{clipLeft}}% ${{clipTop}}%, ${{clipRight}}% ${{clipTop}}%, ${{clipRight}}% ${{clipBottom}}%, ${{clipLeft}}% ${{clipBottom}}%)`;
+                    // Counter-transform the media to keep it upright and unscaled
+                    img.style.transform = `rotate(${{-rot}}deg) scale(${{1/scaleX}}, ${{1/scaleY}})`;
+                    img.style.transformOrigin = 'center center';
+                    img.style.position = 'absolute';
+                    img.style.top = '0';
+                    img.style.left = '0';
+                    img.style.width = '100%';
+                    img.style.height = '100%';
                 }}
             }}
         }}
@@ -708,5 +885,41 @@ public class MjpegStreamingService : IMjpegStreamingService
         // End with CRLF before next boundary
         await outputStream.WriteAsync(Encoding.UTF8.GetBytes("\r\n"), 0, 2, cancellationToken);
         await outputStream.FlushAsync(cancellationToken);
+    }
+
+    public async Task NotifySourceRemovedAsync(Guid sourceId)
+    {
+        try
+        {
+            // Send Canvas API remove event
+            await PostCanvasEventAsync($"remove:{sourceId}");
+            Debug.WriteLine($"[Canvas API] Sent remove for {sourceId}");
+            
+            // Clean up local storage
+            lock (_frameLock)
+            {
+                _sourceFrames.TryRemove(sourceId, out _);
+            }
+            
+            // Remove from rate limiting
+            _lastSentTicks.TryRemove(sourceId, out _);
+            
+            // Close any streams for this source
+            if (_sourceClientStreams.TryRemove(sourceId, out var streams))
+            {
+                foreach (var stream in streams)
+                {
+                    try
+                    {
+                        stream.Close();
+                    }
+                    catch { /* Ignore cleanup errors */ }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Canvas API] Error notifying source removal: {ex.Message}");
+        }
     }
 } 

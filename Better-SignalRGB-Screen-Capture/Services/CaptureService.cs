@@ -106,38 +106,88 @@ public class CaptureService : ICaptureService
         if (string.IsNullOrEmpty(source.WebsiteUrl))
             return;
 
+        // Find the DraggableSourceItem control for this source
         var mainViewModel = App.GetService<MainViewModel>();
-        var draggableSource = mainViewModel?.Sources
-            .Select(s => mainViewModel.GetDraggableSourceControl(s))
-            .FirstOrDefault(d => d?.Source?.Id == source.Id);
-
-        if (draggableSource == null)
+        if (mainViewModel == null)
             return;
 
-        // Create a timer to capture frames at the specified frame rate
-        var timer = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread()
-            .CreateTimer();
-        timer.Interval = TimeSpan.FromMilliseconds(1000.0 / _frameRate);
+        // Find the DraggableSourceItem control by searching the MainPage's canvas
+        DraggableSourceItem? draggableSource = null;
+        var tcs = new TaskCompletionSource<bool>();
         
-        timer.Tick += async (s, e) =>
+        App.MainWindow.DispatcherQueue.TryEnqueue(() =>
         {
             try
             {
-                var frameData = await draggableSource.CaptureWebViewFrameAsync();
-                if (frameData != null)
-                {
-                    _lastFrameData[source.Id] = frameData;
-                    FrameAvailable?.Invoke(this, new SourceFrameEventArgs(source, null) { FrameData = frameData });
-                }
+                // Get the DraggableSourceItem through MainViewModel
+                draggableSource = mainViewModel.GetDraggableSourceItem(source.Id);
+                tcs.SetResult(true);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error capturing website frame: {ex.Message}");
+                Debug.WriteLine($"Error finding DraggableSourceItem: {ex.Message}");
+                tcs.SetException(ex);
             }
-        };
+        });
+        
+        await tcs.Task;
 
-        _websiteTimers[source.Id] = timer;
-        timer.Start();
+        if (draggableSource == null)
+        {
+            Debug.WriteLine($"Could not find DraggableSourceItem for website source: {source.Name}");
+            return;
+        }
+
+        // Create timer on UI thread since we need to access WebView
+        Microsoft.UI.Dispatching.DispatcherQueueTimer? timer = null;
+        var timerTcs = new TaskCompletionSource<bool>();
+        
+        App.MainWindow.DispatcherQueue.TryEnqueue(() =>
+        {
+            try
+            {
+                timer = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().CreateTimer();
+                timer.Interval = TimeSpan.FromMilliseconds(1000.0 / _frameRate);
+                
+                timer.Tick += async (s, e) =>
+                {
+                    try
+                    {
+                        var frameData = await draggableSource.CaptureWebViewFrameAsync();
+                        if (frameData != null)
+                        {
+                            _lastFrameData[source.Id] = frameData;
+                            FrameAvailable?.Invoke(this, new SourceFrameEventArgs(source, null) { FrameData = frameData });
+                            Debug.WriteLine($"📱 Website frame captured: {source.Name} ({frameData.Length} bytes)");
+                        }
+                        else
+                        {
+                            Debug.WriteLine($"❌ No frame data from website: {source.Name}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"❌ Error capturing website frame for {source.Name}: {ex.Message}");
+                    }
+                };
+                
+                timer.Start();
+                timerTcs.SetResult(true);
+                Debug.WriteLine($"✅ Website capture timer started for {source.Name} at {_frameRate} FPS");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"❌ Error creating website timer: {ex.Message}");
+                timerTcs.SetException(ex);
+            }
+        });
+        
+        await timerTcs.Task;
+        
+        if (timer != null)
+        {
+            _websiteTimers[source.Id] = timer;
+        }
     }
 
     public async Task StopCaptureAsync(SourceItem source)
@@ -919,6 +969,8 @@ public class CaptureService : ICaptureService
     {
         return Recorder.GetSupportedVideoCaptureFormatsForDevice(deviceName).ToList();
     }
+
+
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);

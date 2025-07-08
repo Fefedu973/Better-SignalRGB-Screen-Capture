@@ -10,6 +10,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media.Animation;
 using Windows.Foundation;
 using Windows.System;
 using Microsoft.UI.Xaml.Media;
@@ -720,22 +721,42 @@ public sealed partial class MainPage : Page, INavigationAware
     {
         if (CanvasScrollViewer != null && SourceCanvas.Width > 0 && SourceCanvas.Height > 0)
         {
+            // Calculate zoom based on the canvas size without padding
             var zoomX = CanvasScrollViewer.ViewportWidth / SourceCanvas.Width;
             var zoomY = CanvasScrollViewer.ViewportHeight / SourceCanvas.Height;
             var targetZoom = Math.Min(zoomX, zoomY);
             
-            // Calculate scroll position to center the canvas in the viewport
-            var scaledCanvasWidth = SourceCanvas.Width * targetZoom;
-            var scaledCanvasHeight = SourceCanvas.Height * targetZoom;
+            // Ensure we don't exceed the ScrollViewer's zoom limits
+            targetZoom = Math.Min(targetZoom, CanvasScrollViewer.MaxZoomFactor);
+            targetZoom = Math.Max(targetZoom, CanvasScrollViewer.MinZoomFactor);
             
-            var scrollX = (scaledCanvasWidth - CanvasScrollViewer.ViewportWidth) / 2;
-            var scrollY = (scaledCanvasHeight - CanvasScrollViewer.ViewportHeight) / 2;
+            // Get the padding (assuming uniform padding of 40)
+            const double padding = 40;
             
-            // Let the Grid centering handle small zoom levels automatically
-            // Only adjust scroll position if content is larger than viewport
-            if (scaledCanvasWidth <= CanvasScrollViewer.ViewportWidth) scrollX = 0;
-            if (scaledCanvasHeight <= CanvasScrollViewer.ViewportHeight) scrollY = 0;
+            // Calculate the total content size including padding
+            var totalWidth = SourceCanvas.Width + (padding * 2);
+            var totalHeight = SourceCanvas.Height + (padding * 2);
             
+            // Calculate the scaled sizes
+            var scaledTotalWidth = totalWidth * targetZoom;
+            var scaledTotalHeight = totalHeight * targetZoom;
+            var scaledPadding = padding * targetZoom;
+            
+            // Calculate scroll position to center everything
+            var scrollX = (scaledTotalWidth - CanvasScrollViewer.ViewportWidth) / 2;
+            var scrollY = (scaledTotalHeight - CanvasScrollViewer.ViewportHeight) / 2;
+            
+            // If the scaled content is smaller than the viewport, adjust to show full padding
+            if (scaledTotalWidth <= CanvasScrollViewer.ViewportWidth)
+            {
+                scrollX = 0; // Let the Grid's HorizontalAlignment=Center handle it
+            }
+            if (scaledTotalHeight <= CanvasScrollViewer.ViewportHeight)
+            {
+                scrollY = 0; // Let the Grid's VerticalAlignment=Center handle it
+            }
+            
+            // Apply the zoom and scroll
             CanvasScrollViewer.ChangeView(scrollX, scrollY, (float)targetZoom);
         }
     }
@@ -957,25 +978,35 @@ public sealed partial class MainPage : Page, INavigationAware
 
     private void CollapseButton_Click(object sender, RoutedEventArgs e)
     {
-        var isCollapsed = RightPanelColumn.Width.Value == 48;
+        var isCollapsed = RightPanelBorder.Width < 100; // Use a range to be safe with double precision
 
         if (isCollapsed)
         {
             // Expand
-            RightPanelColumn.Width = new GridLength(280);
-            RightPanelTitle.Visibility = Visibility.Visible;
             PropertiesScrollViewer.Visibility = Visibility.Visible;
-            CollapseIcon.Glyph = "\uE89F"; // Close Pane
+            RightPanelTitle.Visibility = Visibility.Visible;
+            ExpandAnimation.Begin();
+            CollapseIcon.Glyph = "\uE89F";
             ToolTipService.SetToolTip(CollapseButton, "Hide Properties");
         }
         else
         {
             // Collapse
-            RightPanelColumn.Width = new GridLength(48);
-            RightPanelTitle.Visibility = Visibility.Collapsed;
-            PropertiesScrollViewer.Visibility = Visibility.Collapsed;
-            CollapseIcon.Glyph = "\uE8A0"; // Open Pane
+            CollapseAnimation.Completed += CollapseAnimation_Completed;
+            CollapseAnimation.Begin();
+            CollapseIcon.Glyph = "\uE8A0";
             ToolTipService.SetToolTip(CollapseButton, "Show Properties");
+        }
+    }
+
+    private void CollapseAnimation_Completed(object? sender, object e)
+    {
+        PropertiesScrollViewer.Visibility = Visibility.Collapsed;
+        RightPanelTitle.Visibility = Visibility.Collapsed;
+
+        if (sender is Storyboard sb)
+        {
+            sb.Completed -= CollapseAnimation_Completed;
         }
     }
 

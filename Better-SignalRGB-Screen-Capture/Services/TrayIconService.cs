@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml.Controls.Primitives;
 
 namespace Better_SignalRGB_Screen_Capture.Services;
 
@@ -20,41 +21,48 @@ public class TrayIconService : IDisposable
     private readonly MainViewModel _mainVm;
     private readonly ILocalSettingsService _localSettings;
 
-    private readonly MenuFlyoutItem _startStopItem;
+    private MenuFlyoutItem? _startStopItem;
 
     public TrayIconService(MainViewModel mainVm, ILocalSettingsService localSettings)
     {
         _mainVm = mainVm;
         _localSettings = localSettings;
 
-        // Build context-menu items
-        _startStopItem = new MenuFlyoutItem { Text = "Start Recording" };
-        _startStopItem.Click += (_, __) => ToggleRecordingFromTray();
-
-        var settingsItem = new MenuFlyoutItem { Text = "Settings" };
-        settingsItem.Click += (_, __) => ShowSettingsPage();
-
-        var showItem = new MenuFlyoutItem { Text = "Show" };
-        showItem.Click += (_, __) => ShowMainWindow();
-
-        var exitItem = new MenuFlyoutItem { Text = "Exit" };
-        exitItem.Click += (_, __) => ExitApplication();
-
-        var flyout = new MenuFlyout();
-        flyout.Items.Add(_startStopItem);
-        flyout.Items.Add(new MenuFlyoutSeparator());
-        flyout.Items.Add(settingsItem);
-        flyout.Items.Add(showItem);
-        flyout.Items.Add(exitItem);
-
         // Create the tray icon
         _trayIcon = new TaskbarIcon
         {
             ToolTipText = "Better SignalRGB Screen Capture",
             IconSource = new BitmapImage(new Uri("ms-appx:///Assets/WindowIcon.ico")),
-            ContextFlyout = flyout
         };
 
+        // Build context menu on the UI thread
+        ExecuteOnUI(() =>
+        {
+            _startStopItem = new MenuFlyoutItem { Text = "Start Recording", Icon = new FontIcon { Glyph = "\uE7C8" } };
+            _startStopItem.Click += (_, __) => ToggleRecordingFromTray();
+
+            var settingsItem = new MenuFlyoutItem { Text = "Settings", Icon = new FontIcon { Glyph = "\uE713" } };
+            settingsItem.Click += (_, __) => ShowSettingsPage();
+
+            var showItem = new MenuFlyoutItem { Text = "Show", Icon = new FontIcon { Glyph = "\uE740" } };
+            showItem.Click += (_, __) => ShowMainWindow();
+
+            var exitItem = new MenuFlyoutItem { Text = "Exit", Icon = new FontIcon { Glyph = "\uE7E8" } };
+            exitItem.Click += (_, __) => ExitApplication();
+
+            var flyout = new MenuFlyout();
+
+            flyout.Items.Add(_startStopItem);
+            flyout.Items.Add(new MenuFlyoutSeparator());
+            flyout.Items.Add(settingsItem);
+            flyout.Items.Add(showItem);
+            flyout.Items.Add(exitItem);
+
+            _trayIcon.ContextFlyout = flyout;
+
+            _startStopItem.IsEnabled = !_mainVm.IsRecordingLoading;
+        });
+        
         // Ensure the icon is created
         _trayIcon.ForceCreate();
 
@@ -94,16 +102,31 @@ public class TrayIconService : IDisposable
     private void UpdateRecordingMenuText()
     {
         ExecuteOnUI(() => {
-            _startStopItem.Text = _mainVm.IsRecording ? "Stop Recording" : "Start Recording";
+            if (_startStopItem == null) return;
+            var icon = (FontIcon)_startStopItem.Icon;
+            if (_mainVm.IsRecording)
+            {
+                _startStopItem.Text = "Stop Recording";
+                icon.Glyph = "\uE71A";
+            }
+            else
+            {
+                _startStopItem.Text = "Start Recording";
+                icon.Glyph = "\uE7C8";
+            }
             _startStopItem.IsEnabled = !_mainVm.IsRecordingLoading;
         });
     }
 
     private void ToggleRecordingFromTray()
     {
-        ExecuteOnUI(async () => {
-            if (_mainVm.IsRecordingLoading) return;
-            await _mainVm.ToggleRecordingCommand.ExecuteAsync(null);
+        // always run the command on the main window's dispatcher
+        App.MainWindow.DispatcherQueue.TryEnqueue(async () =>
+        {
+            if (!_mainVm.IsRecordingLoading)
+            {
+                await _mainVm.ToggleRecordingCommand.ExecuteAsync(null);
+            }
         });
     }
 

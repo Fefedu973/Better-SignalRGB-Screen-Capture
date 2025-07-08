@@ -12,6 +12,7 @@
     
     <UserControl.Resources>
         <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <converters:StringToIconConverter x:Key="StringToIconConverter" />
     </UserControl.Resources>
 
     <Grid
@@ -23,6 +24,7 @@
             <RotateTransform x:Name="RotateTransform" />
         </Grid.RenderTransform>
 
+
         <!-- Border without flip transform - provides background and styling -->
         <Border
             x:Name="ItemBorder"
@@ -32,27 +34,31 @@
             CornerRadius="{StaticResource ControlCornerRadius}" />
 
         <!-- Live preview frame (mirrors the same flip transforms applied to content) -->
-        <Image x:Name="PreviewImage"
-               Stretch="UniformToFill"
-               IsHitTestVisible="False"
-               RenderTransformOrigin="0.5,0.5"
-               Visibility="{x:Bind Source.IsLivePreviewEnabled, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
-            <Image.RenderTransform>
+        <Border x:Name="PreviewBorder"
+                CornerRadius="{StaticResource ControlCornerRadius}"
+                IsHitTestVisible="False"
+                RenderTransformOrigin="0.5,0.5"
+                Visibility="{x:Bind Source.IsLivePreviewEnabled, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Border.RenderTransform>
                 <ScaleTransform ScaleX="{x:Bind Source.IsMirroredHorizontally, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" 
                                ScaleY="{x:Bind Source.IsMirroredVertically, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}"/>
-            </Image.RenderTransform>
-        </Image>
+            </Border.RenderTransform>
+            <Image x:Name="PreviewImage"
+                   Stretch="UniformToFill" />
+        </Border>
 
         <!-- WebView for website sources -->
-        <WebView2 x:Name="WebsitePreview"
-                  IsHitTestVisible="False"
-                  RenderTransformOrigin="0.5,0.5"
-                  Visibility="Collapsed">
-            <WebView2.RenderTransform>
+        <Border x:Name="WebsiteBorder"
+                CornerRadius="{StaticResource ControlCornerRadius}"
+                IsHitTestVisible="False"
+                RenderTransformOrigin="0.5,0.5"
+                Visibility="Collapsed">
+            <Border.RenderTransform>
                 <ScaleTransform ScaleX="{x:Bind Source.IsMirroredHorizontally, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" 
                                ScaleY="{x:Bind Source.IsMirroredVertically, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}"/>
-            </WebView2.RenderTransform>
-        </WebView2>
+            </Border.RenderTransform>
+            <WebView2 x:Name="WebsitePreview" />
+        </Border>
 
         <!-- Content container with flip transform -->
         <Border
@@ -74,14 +80,15 @@
                     Style="{ThemeResource CaptionTextBlockStyle}"
                     Text="Source Name"
                     TextTrimming="CharacterEllipsis" />
-                <TextBlock
-                    x:Name="TypeText"
+                <FontIcon
+                    x:Name="TypeIcon"
                     Grid.Row="1"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
-                    FontWeight="SemiBold"
-                    Style="{ThemeResource BodyTextBlockStyle}"
-                    Text="Source Type" />
+                    FontFamily="{StaticResource SymbolThemeFontFamily}"
+                    FontSize="24"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Glyph="{x:Bind Source.Type, Converter={StaticResource StringToIconConverter}}" />
             </Grid>
         </Border>
         

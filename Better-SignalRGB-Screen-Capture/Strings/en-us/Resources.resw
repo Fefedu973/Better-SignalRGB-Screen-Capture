@@ -97,7 +97,7 @@
             <xsd:complexType>
               <xsd:sequence>
                 <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
-              </sequence>
+              </xsd:sequence>
               <xsd:attribute name="name" type="xsd:string" use="required" />
             </xsd:complexType>
           </xsd:element>
@@ -160,13 +160,13 @@
     <value>&lt;toast launch="action=ToastClick"&gt;
   &lt;visual&gt;
     &lt;binding template="ToastGeneric"&gt;
-      &lt;text&gt;App Notification&lt;/text&gt;
-      &lt;text&gt;&lt;/text&gt;
-      &lt;image placement="appLogoOverride" hint-crop="circle" src="{0}Assets/WindowIcon.ico"/&gt;
+      &lt;text&gt;Better SignalRGB Screen Capture started successfully&lt;/text&gt;
+      &lt;text&gt;Click the button below to access the app&lt;/text&gt;
+      &lt;image placement="appLogoOverride" src="{0}Assets/WindowIcon.ico"/&gt;
     &lt;/binding&gt;
   &lt;/visual&gt;
   &lt;actions&gt;
-    &lt;action content="Settings" arguments="action=Settings"/&gt;
+    &lt;action content="Open App" arguments="action=OpenApp"/&gt;
   &lt;/actions&gt;
 &lt;/toast&gt;</value>
   </data>

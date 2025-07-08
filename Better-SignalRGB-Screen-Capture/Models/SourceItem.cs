@@ -73,6 +73,7 @@ public class SourceItem : INotifyPropertyChanged
     private string _websiteUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
     private int _websiteWidth = 1920;
     private int _websiteHeight = 1080;
+    private string? _websiteNavigationState;
     
     public string? MonitorDeviceId
     {
@@ -198,6 +199,12 @@ public class SourceItem : INotifyPropertyChanged
     {
         get => _websiteHeight;
         set => SetProperty(ref _websiteHeight, Math.Max(240, Math.Min(4320, value))); // Clamp between 240px and 4320px (8K)
+    }
+    
+    public string? WebsiteNavigationState
+    {
+        get => _websiteNavigationState;
+        set => SetProperty(ref _websiteNavigationState, value);
     }
     
     // DeviceId property for compatibility with new CaptureService
@@ -429,6 +436,7 @@ public class SourceItem : INotifyPropertyChanged
             WebsiteUserAgent = this.WebsiteUserAgent,
             WebsiteWidth = this.WebsiteWidth,
             WebsiteHeight = this.WebsiteHeight,
+            WebsiteNavigationState = this.WebsiteNavigationState,
 
             // Copy canvas and visual properties
             CanvasX = this.CanvasX,

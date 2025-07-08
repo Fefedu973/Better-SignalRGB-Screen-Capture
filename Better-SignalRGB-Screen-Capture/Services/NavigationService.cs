@@ -4,7 +4,7 @@ using Better_SignalRGB_Screen_Capture.Contracts.Services;
 using Better_SignalRGB_Screen_Capture.Contracts.ViewModels;
 using Better_SignalRGB_Screen_Capture.Helpers;
 
-using CommunityToolkit.WinUI.UI.Animations;
+using CommunityToolkit.WinUI.Animations;
 
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;

@@ -1,6 +1,15 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <PropertyGroup />
+  <PropertyGroup>
+    <Source>C:\Users\ferre\Downloads\bettersignalrgbscreencapture4.png</Source>
+    <SmallTileSource>C:\Users\ferre\Downloads\bettersignalrgbscreencapture4.png</SmallTileSource>
+    <MediumTileSource>C:\Users\ferre\Downloads\bettersignalrgbscreencapture4.png</MediumTileSource>
+    <WideTileSource>C:\Users\ferre\Downloads\bettersignalrgbscreencapture4.png</WideTileSource>
+    <LargeTileSource>C:\Users\ferre\Downloads\bettersignalrgbscreencapture4.png</LargeTileSource>
+    <AppIconSource>C:\Users\ferre\Downloads\bettersignalrgbscreencapture4.png</AppIconSource>
+    <SplashScreenSource>C:\Users\ferre\Downloads\bettersignalrgbscreencapture4.png</SplashScreenSource>
+    <PackageLogoSource>C:\Users\ferre\Downloads\bettersignalrgbscreencapture4.png</PackageLogoSource>
+  </PropertyGroup>
   <ItemGroup>
     <Page Update="Views\AddSourceDialog.xaml">
       <SubType>Designer</SubType>

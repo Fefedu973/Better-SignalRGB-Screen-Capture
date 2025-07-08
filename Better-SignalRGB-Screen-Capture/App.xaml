@@ -33,6 +33,11 @@
                 <Setter Property="CornerRadius" Value="4"/>
                 <Setter Property="Padding" Value="0"/>
             </Style>
+
+            <!-- Fix for narrow tray menu on first open -->
+            <Style TargetType="MenuFlyoutPresenter">
+                <Setter Property="MinWidth" Value="180"/>
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

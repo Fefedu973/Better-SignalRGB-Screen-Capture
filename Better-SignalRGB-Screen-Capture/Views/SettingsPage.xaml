@@ -2,102 +2,322 @@
     x:Class="Better_SignalRGB_Screen_Capture.Views.SettingsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:helpers="using:Better_SignalRGB_Screen_Capture.Helpers"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:Better_SignalRGB_Screen_Capture.Models"
+    xmlns:ui="using:CommunityToolkit.WinUI"
     xmlns:xaml="using:Microsoft.UI.Xaml"
     mc:Ignorable="d">
     <Page.Resources>
         <helpers:EnumToBooleanConverter x:Key="EnumToBooleanConverter" />
+        <x:String x:Key="GitHubIconPath">M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z</x:String>
+        <x:Double x:Key="SettingsCardSpacing">4</x:Double>
+        <Style
+            x:Key="SettingsSectionHeaderTextBlockStyle"
+            BasedOn="{StaticResource BodyStrongTextBlockStyle}"
+            TargetType="TextBlock">
+            <Setter Property="Margin" Value="1,30,0,6" />
+        </Style>
     </Page.Resources>
-    <Grid>
-        <StackPanel x:Name="ContentArea">
-            <TextBlock x:Uid="Settings_Personalization" Style="{ThemeResource SubtitleTextBlockStyle}" />
-            <StackPanel Margin="{StaticResource SmallTopBottomMargin}">
-                <TextBlock x:Uid="Settings_Theme" />
+    <ScrollViewer>
+        <StackPanel x:Name="ContentArea" Spacing="{StaticResource SettingsCardSpacing}">
+            <StackPanel.ChildrenTransitions>
+                <EntranceThemeTransition FromVerticalOffset="50" />
+                <RepositionThemeTransition IsStaggeringEnabled="False" />
+            </StackPanel.ChildrenTransitions>
+            <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" Text="Personalization" />
+            <controls:SettingsCard Header="Theme" HeaderIcon="{ui:FontIcon Glyph=&#xE771;}">
+                <ComboBox ItemsSource="{x:Bind ViewModel.Themes}" SelectedItem="{x:Bind ViewModel.ElementTheme, Mode=TwoWay}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="xaml:ElementTheme">
+                            <TextBlock Text="{x:Bind}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </controls:SettingsCard>
 
-                <StackPanel Margin="{StaticResource XSmallTopMargin}">
-                    <RadioButton
-                        x:Uid="Settings_Theme_Light"
-                        Command="{x:Bind ViewModel.SwitchThemeCommand}"
-                        FontSize="15"
-                        GroupName="AppTheme"
-                        IsChecked="{x:Bind ViewModel.ElementTheme, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Light, Mode=OneWay}">
-                        <RadioButton.CommandParameter>
-                            <xaml:ElementTheme>Light</xaml:ElementTheme>
-                        </RadioButton.CommandParameter>
-                    </RadioButton>
-                    <RadioButton
-                        x:Uid="Settings_Theme_Dark"
-                        Command="{x:Bind ViewModel.SwitchThemeCommand}"
-                        FontSize="15"
-                        GroupName="AppTheme"
-                        IsChecked="{x:Bind ViewModel.ElementTheme, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Dark, Mode=OneWay}">
-                        <RadioButton.CommandParameter>
-                            <xaml:ElementTheme>Dark</xaml:ElementTheme>
-                        </RadioButton.CommandParameter>
-                    </RadioButton>
-                    <RadioButton
-                        x:Uid="Settings_Theme_Default"
-                        Command="{x:Bind ViewModel.SwitchThemeCommand}"
-                        FontSize="15"
-                        GroupName="AppTheme"
-                        IsChecked="{x:Bind ViewModel.ElementTheme, Converter={StaticResource EnumToBooleanConverter}, ConverterParameter=Default, Mode=OneWay}">
-                        <RadioButton.CommandParameter>
-                            <xaml:ElementTheme>Default</xaml:ElementTheme>
-                        </RadioButton.CommandParameter>
-                    </RadioButton>
-                </StackPanel>
-            </StackPanel>
+            <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" Text="Startup and Tray" />
+            <controls:SettingsExpander Header="Startup Behavior" HeaderIcon="{ui:FontIcon Glyph=&#xEC48;}">
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard Header="Start application when Windows starts">
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.StartOnBoot, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Launch minimized to system tray">
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.BootInTray, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Auto-start recording on launch">
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.AutoStartRecordingOnBoot, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Wait for sources to become available before recording">
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.WaitForSourceAvailability, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
 
-            <StackPanel Margin="{StaticResource SmallTopBottomMargin}">
-                <TextBlock Text="Startup and Tray" Style="{ThemeResource SubtitleTextBlockStyle}"/>
-                <ToggleSwitch Header="Start application when Windows starts" IsOn="{x:Bind ViewModel.StartOnBoot, Mode=TwoWay}"/>
-                <ToggleSwitch Header="Launch minimized to system tray" IsOn="{x:Bind ViewModel.BootInTray, Mode=TwoWay}"/>
-                <ToggleSwitch Header="Auto-start recording on launch" IsOn="{x:Bind ViewModel.AutoStartRecordingOnBoot, Mode=TwoWay}"/>
-                <ToggleSwitch Header="Wait for sources to become available before recording" IsOn="{x:Bind ViewModel.WaitForSourceAvailability, Mode=TwoWay}"/>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                    <TextBlock Text="API/Canvas Port:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <NumberBox Width="100" Minimum="1" Maximum="65535" Value="{x:Bind ViewModel.StreamingPort, Mode=TwoWay}"/>
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                    <TextBlock Text="HTTPS Port:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <NumberBox Width="100" Minimum="1" Maximum="65535" Value="{x:Bind ViewModel.HttpsPort, Mode=TwoWay}"/>
-                </StackPanel>
-            </StackPanel>
+            <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" Text="Advanced" />
 
-            <TextBlock x:Uid="Settings_About" Style="{ThemeResource SubtitleTextBlockStyle}" />
+            <controls:SettingsCard Header="API/Canvas Port" HeaderIcon="{ui:FontIcon Glyph=&#xE93E;}">
+                <NumberBox
+                    Width="100"
+                    Maximum="65535"
+                    Minimum="1"
+                    Value="{x:Bind ViewModel.StreamingPort, Mode=TwoWay}" />
+            </controls:SettingsCard>
+            <controls:SettingsCard Header="HTTPS Port" HeaderIcon="{ui:FontIcon Glyph=&#xE72E;}">
+                <NumberBox
+                    Width="100"
+                    Maximum="65535"
+                    Minimum="1"
+                    Value="{x:Bind ViewModel.HttpsPort, Mode=TwoWay}" />
+            </controls:SettingsCard>
 
-            <StackPanel Margin="{StaticResource XSmallTopMargin}">
-                <TextBlock Style="{ThemeResource BodyTextBlockStyle}" Text="{x:Bind ViewModel.VersionDescription, Mode=OneWay}" />
 
+            <TextBlock x:Uid="Settings_About" Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" />
+
+            <controls:SettingsExpander
+                Description="© 2025. All rights reserved."
+                Header="Better SignalRGB Screen Capture"
+                HeaderIcon="{ui:BitmapIcon Source=/Assets/StoreLogo.scale-400.png}">
                 <TextBlock
-                    x:Uid="Settings_AboutDescription"
-                    Margin="{StaticResource XSmallTopMargin}"
-                    Style="{ThemeResource BodyTextBlockStyle}" />
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    IsTextSelectionEnabled="True"
+                    Text="{x:Bind ViewModel.VersionDescription, Mode=OneWay}" />
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard>
+                        <controls:SettingsCard.Header>
+                            <TextBlock
+                                x:Uid="Settings_AboutDescription"
+                                Style="{ThemeResource BodyTextBlockStyle}"
+                                TextWrapping="Wrap" />
+                        </controls:SettingsCard.Header>
+                        <Button Command="{x:Bind ViewModel.CheckForUpdateCommand}" Content="Check for Updates" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Repository">
+                        <HyperlinkButton NavigateUri="https://github.com/Fefedu973/Better-SignalRGB-Screen-Capture">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Viewbox Height="18">
+                                    <PathIcon Data="{StaticResource GitHubIconPath}" />
+                                </Viewbox>
+                                <TextBlock x:Uid="Settings_GitHubLink_Text" VerticalAlignment="Center" />
+                                <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE735;" />
+                                <TextBlock VerticalAlignment="Center" Text="{x:Bind ViewModel.StarCount, Mode=OneWay}" />
+                            </StackPanel>
+                        </HyperlinkButton>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard ContentAlignment="Left">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <HyperlinkButton Content="Report an issue" NavigateUri="https://github.com/Fefedu973/Better-SignalRGB-Screen-Capture/issues/new/choose" />
+                            <HyperlinkButton Content="Microsoft Store Page" NavigateUri="ms-windows-store://pdp/?productid=9P2VZ42BF2M2" />
+                            <HyperlinkButton Content="Rate and Review on Microsoft Store" NavigateUri="ms-windows-store://review/?productid=9P2VZ42BF2M2" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Author">
+                        <HyperlinkButton NavigateUri="https://github.com/Fefedu973">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Ellipse Width="40" Height="40">
+                                    <Ellipse.Fill>
+                                        <ImageBrush ImageSource="{x:Bind ViewModel.AuthorAvatar, Mode=OneWay}" />
+                                    </Ellipse.Fill>
+                                </Ellipse>
+                                <TextBlock VerticalAlignment="Center" Text="fefe_du_973" />
+                            </StackPanel>
+                        </HyperlinkButton>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Contributors">
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.Contributors}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="8" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:GitHubContributor">
+                                    <HyperlinkButton Padding="0" NavigateUri="{x:Bind HtmlUrl}">
+                                        <ToolTipService.ToolTip>
+                                            <ToolTip Content="{x:Bind Login}" />
+                                        </ToolTipService.ToolTip>
+                                        <Ellipse Width="32" Height="32">
+                                            <Ellipse.Fill>
+                                                <ImageBrush ImageSource="{x:Bind AvatarUrl}" />
+                                            </Ellipse.Fill>
+                                        </Ellipse>
+                                    </HyperlinkButton>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard HorizontalContentAlignment="Stretch" ContentAlignment="Vertical">
+                        <controls:SettingsCard.Header>
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                Style="{ThemeResource SubtitleTextBlockStyle}"
+                                Text="Third-Party Licenses" />
+                        </controls:SettingsCard.Header>
+                        <StackPanel
+                            HorizontalAlignment="Stretch"
+                            Orientation="Vertical"
+                            Spacing="8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Text="CommunityToolkit.Mvvm" />
+                                <HyperlinkButton
+                                    Grid.Column="1"
+                                    Content="MIT License"
+                                    NavigateUri="https://licenses.nuget.org/MIT" />
+                            </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Text="CommunityToolkit.WinUI.Animations" />
+                                <HyperlinkButton
+                                    Grid.Column="1"
+                                    Content="MIT License"
+                                    NavigateUri="https://licenses.nuget.org/MIT" />
+                            </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Text="CommunityToolkit.WinUI.Controls.SettingsControls" />
+                                <HyperlinkButton
+                                    Grid.Column="1"
+                                    Content="MIT License"
+                                    NavigateUri="https://licenses.nuget.org/MIT" />
+                            </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Text="H.NotifyIcon.WinUI" />
+                                <HyperlinkButton
+                                    Grid.Column="1"
+                                    Content="MIT License"
+                                    NavigateUri="https://licenses.nuget.org/MIT" />
+                            </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Text="Microsoft.Graphics.Win2D" />
+                                <HyperlinkButton
+                                    Grid.Column="1"
+                                    Content="MIT License"
+                                    NavigateUri="https://licenses.nuget.org/MIT" />
+                            </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Text="Microsoft.WindowsAppSDK" />
+                                <HyperlinkButton
+                                    Grid.Column="1"
+                                    Content="Microsoft License"
+                                    NavigateUri="https://www.nuget.org/packages/Microsoft.WindowsAppSDK/1.4.230822000/license" />
+                            </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Text="Microsoft.Xaml.Behaviors.WinUI.Managed" />
+                                <HyperlinkButton
+                                    Grid.Column="1"
+                                    Content="MIT License"
+                                    NavigateUri="https://licenses.nuget.org/MIT" />
+                            </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Text="ScreenRecorderLib" />
+                                <HyperlinkButton
+                                    Grid.Column="1"
+                                    Content="MIT License"
+                                    NavigateUri="https://licenses.nuget.org/MIT" />
+                            </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Text="System.Drawing.Common" />
+                                <HyperlinkButton
+                                    Grid.Column="1"
+                                    Content="MIT License"
+                                    NavigateUri="https://licenses.nuget.org/MIT" />
+                            </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Text="WinUIEx" />
+                                <HyperlinkButton
+                                    Grid.Column="1"
+                                    Content="MIT License"
+                                    NavigateUri="https://licenses.nuget.org/MIT" />
+                            </Grid>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Text="Microsoft.AspNetCore.App" />
+                                <HyperlinkButton
+                                    Grid.Column="1"
+                                    Content="MIT License"
+                                    NavigateUri="https://licenses.nuget.org/MIT" />
+                            </Grid>
+                        </StackPanel>
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
 
-                <HyperlinkButton NavigateUri="https://github.com/Fefedu973/Better-SignalRGB-Screen-Capture" Margin="{StaticResource SettingsPageHyperlinkButtonMargin}">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE942;" />
-                        <TextBlock x:Uid="Settings_GitHubLink_Text" />
-                        <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE734;" />
-                        <TextBlock Text="{x:Bind ViewModel.StarCount, Mode=OneWay}" />
-                    </StackPanel>
-                </HyperlinkButton>
-
-                <TextBlock x:Uid="Settings_Contributors" Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,20,0,0"/>
-
-                <HyperlinkButton NavigateUri="https://github.com/Fefedu973" Margin="0,10,0,0">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <Ellipse Width="40" Height="40">
-                            <Ellipse.Fill>
-                                <ImageBrush ImageSource="{x:Bind ViewModel.AuthorAvatar, Mode=OneWay}" />
-                            </Ellipse.Fill>
-                        </Ellipse>
-                        <TextBlock Text="fefe_du_973" VerticalAlignment="Center" />
-                    </StackPanel>
-                </HyperlinkButton>
-            </StackPanel>
         </StackPanel>
-    </Grid>
+    </ScrollViewer>
 </Page>

@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 
 using Better_SignalRGB_Screen_Capture.Contracts.ViewModels;
 using Better_SignalRGB_Screen_Capture.Core.Contracts.Services;

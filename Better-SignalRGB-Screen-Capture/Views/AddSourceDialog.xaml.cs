@@ -59,12 +59,15 @@ public sealed partial class AddSourceDialog : ContentDialog
     public string WebsiteUserAgent { get; private set; } = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
     public int WebsiteWidth { get; private set; } = 1920;
     public int WebsiteHeight { get; private set; } = 1080;
+    public string? WebsiteNavigationState { get; private set; } // New property for state persistence
 
     public SourceType SelectedSourceType { get; private set; }
 
     // Private fields
     private List<ProcessInfo> _processes = new();
     private readonly record struct DisplayInfo(string Id, string Name);
+    private bool _isWebViewInitialized = false;
+    private string? _pendingUrl = null;
 
     // Public property to access the friendly name
     public string? FriendlyName => NameBox?.Text?.Trim();
@@ -952,6 +955,12 @@ public sealed partial class AddSourceDialog : ContentDialog
             
             WebsiteWidth = (int)(WebsiteWidthBox?.Value ?? 1920);
             WebsiteHeight = (int)(WebsiteHeightBox?.Value ?? 1080);
+            
+            // Capture navigation state for website sources
+            _ = Task.Run(async () =>
+            {
+                WebsiteNavigationState = await GetNavigationStateAsync();
+            });
         }
     }
     
@@ -1115,6 +1124,12 @@ public sealed partial class AddSourceDialog : ContentDialog
                 {
                     WebsiteHeightBox.Value = source.WebsiteHeight;
                 }
+                
+                // Restore navigation state if available
+                if (!string.IsNullOrEmpty(source.WebsiteNavigationState))
+                {
+                    _ = RestoreNavigationStateAsync(source.WebsiteNavigationState);
+                }
                 break;
         }
         
@@ -1191,6 +1206,12 @@ public sealed partial class AddSourceDialog : ContentDialog
         {
             WebsiteZoomLabel.Text = $"{(int)(e.NewValue * 100)}%";
         }
+        
+        // Apply zoom to preview if loaded
+        if (_isWebViewInitialized && WebsitePreview.CoreWebView2 != null)
+        {
+            _ = ApplyZoomToPreviewAsync(e.NewValue);
+        }
     }
 
     private void WebsiteUserAgentCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1201,6 +1222,201 @@ public sealed partial class AddSourceDialog : ContentDialog
             {
                 WebsiteCustomUserAgentBox.Visibility = item.Tag?.ToString() == "custom" ? Visibility.Visible : Visibility.Collapsed;
             }
+        }
+    }
+    
+    // New WebView functionality
+    private void WebsiteUrlBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (WebsitePreviewSection != null)
+        {
+            // Show/hide preview section based on whether URL is entered
+            bool hasUrl = !string.IsNullOrWhiteSpace(WebsiteUrlBox.Text);
+            WebsitePreviewSection.Visibility = hasUrl ? Visibility.Visible : Visibility.Collapsed;
+            
+            if (LoadWebsiteButton != null)
+            {
+                LoadWebsiteButton.IsEnabled = hasUrl && Uri.TryCreate(WebsiteUrlBox.Text.Trim(), UriKind.Absolute, out var uri) && 
+                                             (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+            }
+        }
+    }
+    
+    private async void LoadWebsiteButton_Click(object sender, RoutedEventArgs e)
+    {
+        var url = WebsiteUrlBox.Text?.Trim();
+        if (string.IsNullOrEmpty(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri) || 
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            return;
+        }
+        
+        try
+        {
+            WebsiteLoadingRing.Visibility = Visibility.Visible;
+            LoadWebsiteButton.IsEnabled = false;
+            
+            // Initialize WebView2 if not already done
+            if (!_isWebViewInitialized)
+            {
+                await WebsitePreview.EnsureCoreWebView2Async();
+                
+                // Apply user agent before navigation
+                var selectedUserAgent = GetSelectedUserAgent();
+                if (!string.IsNullOrEmpty(selectedUserAgent))
+                {
+                    WebsitePreview.CoreWebView2.Settings.UserAgent = selectedUserAgent;
+                }
+                
+                _isWebViewInitialized = true;
+            }
+            
+            // Navigate to the URL
+            WebsitePreview.CoreWebView2.Navigate(url);
+            
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error loading website: {ex.Message}");
+            
+            WebsiteLoadingRing.Visibility = Visibility.Collapsed;
+            LoadWebsiteButton.IsEnabled = true;
+            
+            // Show error message
+            var dialog = new ContentDialog
+            {
+                Title = "Error",
+                Content = $"Failed to load website: {ex.Message}",
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            _ = dialog.ShowAsync();
+        }
+    }
+    
+    private void RefreshWebsiteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isWebViewInitialized && WebsitePreview.CoreWebView2 != null)
+        {
+            WebsitePreview.CoreWebView2.Reload();
+        }
+    }
+    
+    private async void WebsitePreview_NavigationCompleted(object sender, Microsoft.Web.WebView2.Core.CoreWebView2NavigationCompletedEventArgs e)
+    {
+        try
+        {
+            WebsiteLoadingRing.Visibility = Visibility.Collapsed;
+            LoadWebsiteButton.IsEnabled = true;
+            
+            if (e.IsSuccess)
+            {
+                WebsitePreview.Visibility = Visibility.Visible;
+                WebsitePreviewPlaceholder.Visibility = Visibility.Collapsed;
+                RefreshWebsiteButton.Visibility = Visibility.Visible;
+                
+                // Apply zoom if set
+                if (WebsiteZoomSlider != null && WebsiteZoomSlider.Value != 1.0)
+                {
+                    await ApplyZoomToPreviewAsync(WebsiteZoomSlider.Value);
+                }
+                
+                // Store navigation state for persistence
+                if (WebsitePreview.CoreWebView2 != null)
+                {
+                    WebsiteNavigationState = WebsitePreview.CoreWebView2.Source;
+                }
+            }
+            else
+            {
+                // Show error
+                WebsitePreviewPlaceholder.Text = "Failed to load website. Please check the URL and try again.";
+                WebsitePreviewPlaceholder.Visibility = Visibility.Visible;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Navigation completed error: {ex.Message}");
+        }
+    }
+    
+    private async Task ApplyZoomToPreviewAsync(double zoomFactor)
+    {
+        try
+        {
+            if (WebsitePreview.CoreWebView2 != null)
+            {
+                // Try native ZoomFactor property first
+                var zoomProp = WebsitePreview.CoreWebView2.GetType().GetProperty("ZoomFactor");
+                if (zoomProp != null && zoomProp.CanWrite)
+                {
+                    zoomProp.SetValue(WebsitePreview.CoreWebView2, zoomFactor);
+                    return;
+                }
+                
+                // Fallback to CSS zoom
+                var zoomCss = zoomFactor.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+                string js = $"document.documentElement.style.zoom='{zoomCss}'; document.body.style.zoom='{zoomCss}';";
+                await WebsitePreview.CoreWebView2.ExecuteScriptAsync(js);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error applying zoom: {ex.Message}");
+        }
+    }
+    
+    private string GetSelectedUserAgent()
+    {
+        if (WebsiteUserAgentCombo?.SelectedItem is ComboBoxItem item)
+        {
+            if (item.Tag?.ToString() == "custom")
+            {
+                return WebsiteCustomUserAgentBox?.Text ?? "";
+            }
+            return item.Tag?.ToString() ?? "";
+        }
+        return "";
+    }
+    
+    private async Task<string?> GetNavigationStateAsync()
+    {
+        try
+        {
+            if (_isWebViewInitialized && WebsitePreview.CoreWebView2 != null)
+            {
+                // Get the current URL and any session data
+                var currentUrl = WebsitePreview.CoreWebView2.Source;
+                
+                // For now, we'll just store the URL. In the future, we could store cookies, localStorage, etc.
+                return currentUrl;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error getting navigation state: {ex.Message}");
+        }
+        return null;
+    }
+    
+    private async Task RestoreNavigationStateAsync(string navigationState)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(navigationState) && Uri.TryCreate(navigationState, UriKind.Absolute, out var uri))
+            {
+                if (!_isWebViewInitialized)
+                {
+                    await WebsitePreview.EnsureCoreWebView2Async();
+                    _isWebViewInitialized = true;
+                }
+                
+                WebsitePreview.CoreWebView2.Navigate(navigationState);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error restoring navigation state: {ex.Message}");
         }
     }
 }

@@ -247,9 +247,36 @@ public sealed partial class DraggableSourceItem : UserControl
             _websiteRefreshTimer = null;
         }
 
+        // Dispose WebView resources to stop audio and clean up properly
+        DisposeWebViewResources();
+
         if (_captureService != null)
         {
             _captureService.FrameAvailable -= OnFrameAvailable;
+        }
+    }
+    
+    private void DisposeWebViewResources()
+    {
+        try
+        {
+            if (WebsitePreview?.CoreWebView2 != null)
+            {
+                // Stop any ongoing navigation
+                WebsitePreview.CoreWebView2.Stop();
+                
+                // Navigate to about:blank to stop any media playback (videos, audio, etc.)
+                WebsitePreview.CoreWebView2.Navigate("about:blank");
+                
+                // Unsubscribe from events
+                WebsitePreview.CoreWebView2.NavigationCompleted -= WebView_NavigationCompleted;
+                
+                Debug.WriteLine($"🧹 Disposed WebView resources for {Source?.Name}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Error disposing WebView resources: {ex.Message}");
         }
     }
 
@@ -402,11 +429,21 @@ public sealed partial class DraggableSourceItem : UserControl
     double cropRightPct, double cropBottomPct,
     double cropRotation)
     {
-        // ─────── big outer rect (always the whole control) ───────
-        var outer = new Microsoft.UI.Xaml.Media.RectangleGeometry
+        // Check if no cropping is applied (all percentages are 0 or very close to 0)
+        const double tolerance = 0.001;
+        bool noCroppingApplied = cropLeftPct < tolerance && cropTopPct < tolerance && 
+                                cropRightPct < tolerance && cropBottomPct < tolerance;
+        
+        if (noCroppingApplied)
         {
-            Rect = new Rect(0, 0, ActualWidth, ActualHeight)
-        };
+            // No cropping applied - hide the shade completely
+            CropShadePath.Data = null;
+            return;
+        }
+
+        // ─────── Create rounded outer bounds instead of rectangular ───────
+        var cornerRadius = GetControlCornerRadius();
+        var outer = CreateRoundedRectangleGeometry(0, 0, ActualWidth, ActualHeight, cornerRadius);
 
         // ─────── inner "hole" rect (the visible part) ───────
         double left = ActualWidth * cropLeftPct;
@@ -414,16 +451,24 @@ public sealed partial class DraggableSourceItem : UserControl
         double right = ActualWidth * cropRightPct;
         double bottom = ActualHeight * cropBottomPct;
 
+        var innerWidth = Math.Max(0, ActualWidth - left - right);
+        var innerHeight = Math.Max(0, ActualHeight - top - bottom);
+        
+        // If the inner area would be too small or invalid, show full shade
+        if (innerWidth < 1 || innerHeight < 1)
+        {
+            CropShadePath.Data = outer;
+            return;
+        }
+
         var inner = new Microsoft.UI.Xaml.Media.RectangleGeometry
         {
-            Rect = new Rect(left, top,
-                            Math.Max(0, ActualWidth - left - right),
-                            Math.Max(0, ActualHeight - top - bottom))
+            Rect = new Rect(left, top, innerWidth, innerHeight)
         };
 
         // centre of the visible part → rotation pivot
-        double pivotX = left + inner.Rect.Width / 2;
-        double pivotY = top + inner.Rect.Height / 2;
+        double pivotX = left + innerWidth / 2;
+        double pivotY = top + innerHeight / 2;
 
         inner.Transform = Math.Abs(cropRotation) < 0.1
                             ? null
@@ -1891,7 +1936,7 @@ public sealed partial class DraggableSourceItem : UserControl
         if (source == null) return;
 
         DisplayNameText.Text = source.DisplayName;
-        TypeText.Text = source.Type.ToString();
+        // TypeIcon glyph is automatically updated through binding
         
         // Handle website sources
         if (source.Type == SourceType.Website && !string.IsNullOrEmpty(source.WebsiteUrl))
@@ -1910,8 +1955,8 @@ public sealed partial class DraggableSourceItem : UserControl
         {
             // Hide regular content and show WebView
             ContentBorder.Visibility = Visibility.Collapsed;
-            PreviewImage.Visibility = Visibility.Collapsed;
-            WebsitePreview.Visibility = Visibility.Visible;
+            PreviewBorder.Visibility = Visibility.Collapsed;
+            WebsiteBorder.Visibility = Visibility.Visible;
             
             // Ensure WebView
             await WebsitePreview.EnsureCoreWebView2Async();
@@ -1952,13 +1997,13 @@ public sealed partial class DraggableSourceItem : UserControl
         _websiteRefreshTimer?.Stop();
         _websiteRefreshTimer = null;
         
-        WebsitePreview.Visibility = Visibility.Collapsed;
+        WebsiteBorder.Visibility = Visibility.Collapsed;
         ContentBorder.Visibility = Visibility.Visible;
         
         // Show preview image if live preview is enabled
         if (Source?.IsLivePreviewEnabled == true && Source.Type != SourceType.Website)
         {
-            PreviewImage.Visibility = Visibility.Visible;
+            PreviewBorder.Visibility = Visibility.Visible;
         }
     }
 
@@ -1974,6 +2019,8 @@ public sealed partial class DraggableSourceItem : UserControl
             UpdateCropShading();
             SetupWebsiteRefreshTimer();
         }
+        
+        // Don't initialize root clipping - we want handles to extend outside bounds
     }
 
     private void OnSizeChanged(object sender, SizeChangedEventArgs e)
@@ -1985,20 +2032,92 @@ public sealed partial class DraggableSourceItem : UserControl
         }
         
         UpdateShadeClip();
+        // Don't call UpdateRootClip() - we don't want to clip handles and crop controls
     }
 
-
-
-private void UpdateShadeClip()
-{
-    if (ActualWidth == 0 || ActualHeight == 0) return;
-
-    CropShadePath.Clip = new RectangleGeometry
+    private void UpdateShadeClip()
     {
-        Rect         = new Rect(0, 0, ActualWidth, ActualHeight),
-    };
-}
+        if (ActualWidth == 0 || ActualHeight == 0) return;
 
+        CropShadePath.Clip = new RectangleGeometry
+        {
+            Rect         = new Rect(0, 0, ActualWidth, ActualHeight),
+        };
+    }
+
+    
+
+    private double GetControlCornerRadius()
+    {
+        // Try to get the corner radius from the static resource
+        if (Application.Current.Resources.TryGetValue("ControlCornerRadius", out var resource))
+        {
+            if (resource is CornerRadius cornerRadius)
+            {
+                return cornerRadius.TopLeft; // Assume uniform radius
+            }
+        }
+        
+        // Fallback to a reasonable default
+        return 4.0;
+    }
+
+    private PathGeometry CreateRoundedRectangleGeometry(double x, double y, double width, double height, double cornerRadius)
+    {
+        var pathGeometry = new PathGeometry();
+        var pathFigure = new PathFigure
+        {
+            StartPoint = new Point(x + cornerRadius, y),
+            IsClosed = true
+        };
+
+        // Top edge
+        pathFigure.Segments.Add(new LineSegment { Point = new Point(x + width - cornerRadius, y) });
+        
+        // Top-right corner
+        pathFigure.Segments.Add(new ArcSegment
+        {
+            Point = new Point(x + width, y + cornerRadius),
+            Size = new Size(cornerRadius, cornerRadius),
+            SweepDirection = SweepDirection.Clockwise
+        });
+        
+        // Right edge
+        pathFigure.Segments.Add(new LineSegment { Point = new Point(x + width, y + height - cornerRadius) });
+        
+        // Bottom-right corner
+        pathFigure.Segments.Add(new ArcSegment
+        {
+            Point = new Point(x + width - cornerRadius, y + height),
+            Size = new Size(cornerRadius, cornerRadius),
+            SweepDirection = SweepDirection.Clockwise
+        });
+        
+        // Bottom edge
+        pathFigure.Segments.Add(new LineSegment { Point = new Point(x + cornerRadius, y + height) });
+        
+        // Bottom-left corner
+        pathFigure.Segments.Add(new ArcSegment
+        {
+            Point = new Point(x, y + height - cornerRadius),
+            Size = new Size(cornerRadius, cornerRadius),
+            SweepDirection = SweepDirection.Clockwise
+        });
+        
+        // Left edge
+        pathFigure.Segments.Add(new LineSegment { Point = new Point(x, y + cornerRadius) });
+        
+        // Top-left corner
+        pathFigure.Segments.Add(new ArcSegment
+        {
+            Point = new Point(x + cornerRadius, y),
+            Size = new Size(cornerRadius, cornerRadius),
+            SweepDirection = SweepDirection.Clockwise
+        });
+
+        pathGeometry.Figures.Add(pathFigure);
+        return pathGeometry;
+    }
 
     public void SetSelected(bool selected)
     {
@@ -2032,9 +2151,9 @@ private void UpdateShadeClip()
             {
                 try
                 {
-                    if (WebsitePreview.Visibility == Visibility.Visible && 
-                        WebsitePreview.CoreWebView2 != null && 
-                        !string.IsNullOrEmpty(Source?.WebsiteUrl))
+                                    if (WebsiteBorder.Visibility == Visibility.Visible && 
+                    WebsitePreview.CoreWebView2 != null && 
+                    !string.IsNullOrEmpty(Source?.WebsiteUrl))
                     {
                         WebsitePreview.CoreWebView2.Reload();
                         Debug.WriteLine($"🔄 Auto-refreshed website: {Source.Name}");
@@ -2115,5 +2234,21 @@ private void UpdateShadeClip()
             Debug.WriteLine($"Error capturing WebView frame: {ex.Message}");
             return null;
         }
+    }
+    
+    /// <summary>
+    /// Call this method when the source is being deleted to ensure immediate WebView cleanup
+    /// </summary>
+    public void CleanupOnDelete()
+    {
+        // Stop website refresh timer immediately
+        if (_websiteRefreshTimer != null)
+        {
+            _websiteRefreshTimer.Stop();
+            _websiteRefreshTimer = null;
+        }
+        
+        // Dispose WebView resources immediately
+        DisposeWebViewResources();
     }
 } 

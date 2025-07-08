@@ -7,7 +7,8 @@
     PrimaryButtonText="Save"
     SecondaryButtonText="Cancel">
 
-    <StackPanel Width="320" Spacing="12">
+    <ScrollViewer Width="320" MaxHeight="600" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="12">
         <TextBox x:Name="NameBox" Header="Friendly name" />
 
         <!--  capture kind  -->
@@ -15,14 +16,36 @@
             x:Name="KindBox"
             Header="Capture kind"
             SelectionChanged="KindBox_SelectionChanged">
-            <ComboBoxItem
-                Content="Monitor"
-                IsSelected="True"
-                Tag="Monitor" />
-            <ComboBoxItem Content="Process (window)" Tag="Process" />
-            <ComboBoxItem Content="Region" Tag="Region" />
-            <ComboBoxItem Content="Webcam" Tag="Webcam" />
-            <ComboBoxItem Content="Website" Tag="Website" />
+            <ComboBoxItem IsSelected="True" Tag="Monitor">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE7F4;" FontSize="14" />
+                    <TextBlock Text="Monitor" />
+                </StackPanel>
+            </ComboBoxItem>
+            <ComboBoxItem Tag="Process">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE756;" FontSize="14" />
+                    <TextBlock Text="Process (window)" />
+                </StackPanel>
+            </ComboBoxItem>
+            <ComboBoxItem Tag="Region">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xEF20;" FontSize="14" />
+                    <TextBlock Text="Region" />
+                </StackPanel>
+            </ComboBoxItem>
+            <ComboBoxItem Tag="Webcam">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE960;" FontSize="14" />
+                    <TextBlock Text="Webcam" />
+                </StackPanel>
+            </ComboBoxItem>
+            <ComboBoxItem Tag="Website">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE774;" FontSize="14" />
+                    <TextBlock Text="Website" />
+                </StackPanel>
+            </ComboBoxItem>
         </ComboBox>
 
         <!--  ‑‑‑‑ MONITOR ‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑  -->
@@ -138,7 +161,46 @@
             Spacing="8"
             Visibility="Collapsed">
             <TextBlock FontWeight="SemiBold" Text="Website Configuration" />
-            <TextBox x:Name="WebsiteUrlBox" Header="Website URL" PlaceholderText="https://www.example.com" />
+            <TextBox x:Name="WebsiteUrlBox" Header="Website URL" PlaceholderText="https://www.example.com" TextChanged="WebsiteUrlBox_TextChanged" />
+            
+            <!-- Interactive WebView Preview -->
+            <StackPanel x:Name="WebsitePreviewSection" Spacing="4" Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="Interactive Preview" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <Button x:Name="LoadWebsiteButton" Content="Load Website" Click="LoadWebsiteButton_Click" />
+                    <Button x:Name="RefreshWebsiteButton" Content="Refresh" Click="RefreshWebsiteButton_Click" Visibility="Collapsed" />
+                </StackPanel>
+                
+                <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" 
+                        BorderThickness="1" 
+                        CornerRadius="4"
+                        Height="300">
+                    <Grid>
+                        <WebView2 x:Name="WebsitePreview" 
+                                  Visibility="Collapsed"
+                                  NavigationCompleted="WebsitePreview_NavigationCompleted" />
+                        <TextBlock x:Name="WebsitePreviewPlaceholder" 
+                                   Text="Enter a URL and click 'Load Website' to preview and interact with the site"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="20" />
+                        <ProgressRing x:Name="WebsiteLoadingRing"
+                                      Width="40"
+                                      Height="40"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      Visibility="Collapsed" />
+                    </Grid>
+                </Border>
+                
+                <TextBlock Text="💡 Tip: Use this preview to navigate to the exact page, login, scroll to content, or set up the website as you want it to appear in the capture."
+                           Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,0" />
+            </StackPanel>
             
             <!-- Zoom Level -->
             <StackPanel Spacing="4">
@@ -228,5 +290,6 @@
                 </Grid>
             </StackPanel>
         </StackPanel>
-    </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
 </ContentDialog>

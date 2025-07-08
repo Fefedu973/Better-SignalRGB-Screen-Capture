@@ -284,6 +284,12 @@ public partial class MainViewModel : ObservableRecipient
             _sourceControls.Remove(source);
         }
     }
+    
+    public Views.DraggableSourceItem? GetDraggableSourceItem(Guid sourceId)
+    {
+        var source = Sources.FirstOrDefault(s => s.Id == sourceId);
+        return source != null ? GetDraggableSourceControl(source) : null;
+    }
 
     public MainViewModel(ILocalSettingsService localSettingsService, ICaptureService captureService, IMjpegStreamingService mjpegStreamingService, ICompositeFrameService compositeFrameService, IKestrelApiService kestrelApiService)
     {
@@ -391,6 +397,16 @@ public partial class MainViewModel : ObservableRecipient
     {
         if (Sources.Contains(source))
         {
+            // Clean up WebView resources immediately for website sources
+            if (source.Type == SourceType.Website)
+            {
+                var draggableControl = GetDraggableSourceControl(source);
+                if (draggableControl != null)
+                {
+                    draggableControl.CleanupOnDelete();
+                }
+            }
+            
             await _captureService.StopCaptureAsync(source);
             Sources.Remove(source);
             await _mjpegStreamingService.NotifySourceRemovedAsync(source.Id);
@@ -1449,42 +1465,50 @@ public partial class MainViewModel : ObservableRecipient
     [RelayCommand]
     private async Task ToggleRecordingAsync()
     {
-        if (IsRecording)
+        if (IsRecordingLoading)
         {
-            // Stop recording
-            await StopAllCapturesAsync();
-            await _mjpegStreamingService.StopStreamingAsync();
-            await _kestrelApiService.StopAsync();
-            IsRecording = false;
-            IsPaused = false;
-            CanPause = false;
-            StreamingUrl = null;
-            _availabilityCts?.Cancel();
+            return;
         }
-        else
+
+        IsRecordingLoading = true;
+
+        try
         {
-            // Start recording
-            IsRecordingLoading = true;
-            try
-        {
-            await StartAllCapturesAsync();
-                await _mjpegStreamingService.StartStreamingAsync(PreviewFps);
-                var httpsPort = await GetHttpsPortAsync();
-                await _kestrelApiService.StartAsync(httpsPort);
-            IsRecording = true;
-                CanPause = true;
-                NeedsRefresh = false; // Clear refresh flag when starting
-                if (WaitForSourceAvailability)
-                {
-                    _availabilityCts?.Cancel();
-                    _availabilityCts = new System.Threading.CancellationTokenSource();
-                    _ = EnsureSourcesLoop(_availabilityCts.Token);
-                }
-            }
-            finally
+            if (IsRecording)
             {
-                IsRecordingLoading = false;
+                await StopAllCapturesAsync();
+                App.MainWindow.DispatcherQueue.TryEnqueue(() => 
+                {
+                    IsRecording = false;
+                    CanPause = false;
+                    IsPaused = false;
+                });
             }
+            else
+            {
+                await StartAllCapturesAsync();
+                App.MainWindow.DispatcherQueue.TryEnqueue(() => 
+                {
+                    IsRecording = true;
+                    CanPause = true;
+                    IsPaused = false;
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            // TODO: Proper error logging/display
+            System.Diagnostics.Debug.WriteLine($"Error toggling recording: {ex}");
+            App.MainWindow.DispatcherQueue.TryEnqueue(() => 
+            {
+                IsRecording = false;
+                CanPause = false;
+                IsPaused = false;
+            }); // Reset state on error
+        }
+        finally
+        {
+            App.MainWindow.DispatcherQueue.TryEnqueue(() => IsRecordingLoading = false);
         }
     }
 
