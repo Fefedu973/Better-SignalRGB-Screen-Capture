@@ -9,6 +9,7 @@
     <AppIconSource>C:\Users\ferre\Downloads\bettersignalrgbscreencapture4.png</AppIconSource>
     <SplashScreenSource>C:\Users\ferre\Downloads\bettersignalrgbscreencapture4.png</SplashScreenSource>
     <PackageLogoSource>C:\Users\ferre\Downloads\bettersignalrgbscreencapture4.png</PackageLogoSource>
+    <_LastSelectedProfileId>C:\Users\ferre\Codespace\Projects\BetterSignalRGBScreenCapture\Better-SignalRGB-Screen-Capture\Properties\PublishProfiles\win10-arm64.pubxml</_LastSelectedProfileId>
   </PropertyGroup>
   <ItemGroup>
     <Page Update="Views\AddSourceDialog.xaml">
