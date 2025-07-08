@@ -548,7 +548,7 @@
                                     <NumberBox
                                         Grid.Column="0"
                                         Header="Width"
-                                        Minimum="100"
+                                        Minimum="50"
                                         SmallChange="10"
                                         Value="{x:Bind ViewModel.SelectedSourceWidth, Mode=TwoWay}" />
                                     <ToggleButton
@@ -561,7 +561,7 @@
                                     <NumberBox
                                         Grid.Column="2"
                                         Header="Height"
-                                        Minimum="80"
+                                        Minimum="40"
                                         SmallChange="10"
                                         Value="{x:Bind ViewModel.SelectedSourceHeight, Mode=TwoWay}" />
                                 </Grid>

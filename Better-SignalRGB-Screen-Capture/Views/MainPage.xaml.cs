@@ -105,27 +105,28 @@ public sealed partial class MainPage : Page, INavigationAware
 
         var source = new SourceItem { Name = name };
         
-        // Calculate appropriate initial size based on canvas
-        const double canvasWidth = 800;
-        const double canvasHeight = 600;
-        const double maxInitialWidth = 400; // Half of canvas width
-        const double maxInitialHeight = 300; // Half of canvas height
+        // Calculate appropriate initial size based on actual canvas dimensions
+        // Canvas is 320x200 with 40px padding, so usable area is 240x120
+        const double canvasWidth = 240;
+        const double canvasHeight = 120;
+        const double maxInitialWidth = 200; // Max reasonable width within canvas
+        const double maxInitialHeight = 100; // Max reasonable height within canvas
         
         switch (dialog.SelectedSourceType)
         {
             case SourceType.Monitor:
             source.Type = SourceType.Monitor;
             source.MonitorDeviceId = dialog.SelectedMonitorDeviceId;
-                // Set reasonable initial size for monitors (will be adjusted by capture service)
-                source.CanvasWidth = (int)Math.Min(maxInitialWidth, canvasWidth * 0.4);
-                source.CanvasHeight = (int)Math.Min(maxInitialHeight, canvasHeight * 0.4);
+                // Set small initial size that will be updated by capture service with proper aspect ratio
+                source.CanvasWidth = 50; // Small placeholder - will be updated
+                source.CanvasHeight = 40; // Small placeholder - will be updated
                 break;
             case SourceType.Process:
             source.Type = SourceType.Process;
             source.ProcessPath = dialog.SelectedProcessPath;
-                // Windows are often smaller, use conservative size
-                source.CanvasWidth = (int)Math.Min(300, canvasWidth * 0.3);
-                source.CanvasHeight = (int)Math.Min(200, canvasHeight * 0.3);
+                // Set small initial size that will be updated by capture service with proper aspect ratio
+                source.CanvasWidth = 50; // Small placeholder - will be updated
+                source.CanvasHeight = 40; // Small placeholder - will be updated
                 break;
             case SourceType.Region:
             source.Type = SourceType.Region;
@@ -141,9 +142,9 @@ public sealed partial class MainPage : Page, INavigationAware
             case SourceType.Webcam:
             source.Type = SourceType.Webcam;
             source.WebcamDeviceId = dialog.SelectedWebcamDeviceId;
-                // Webcams typically have 16:9 or 4:3 aspect ratio
-                source.CanvasWidth = 320;
-                source.CanvasHeight = 240;
+                // Set small initial size that will be updated by capture service with proper aspect ratio
+                source.CanvasWidth = 50; // Small placeholder - will be updated
+                source.CanvasHeight = 40; // Small placeholder - will be updated
                 break;
             case SourceType.Website:
             source.Type = SourceType.Website;
@@ -882,6 +883,13 @@ public sealed partial class MainPage : Page, INavigationAware
 
     public void ClearSelection()
     {
+        // First clear the IsSelected flags on all sources
+        foreach (var source in ViewModel.Sources)
+        {
+            source.IsSelected = false;
+        }
+        
+        // Then update the ViewModel and UI
         ViewModel.UpdateSelectedSources(new List<SourceItem>());
         UpdateListViewSelection();
         UpdateSelectionOnCanvas();
@@ -1029,6 +1037,9 @@ public sealed partial class MainPage : Page, INavigationAware
         DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
         {
             UpdateCanvas();
+            // Clear any existing selection to ensure clean state
+            ClearSelection();
+            // Force update the UI to sync everything properly
             UpdateListViewSelection();
             UpdateSelectionOnCanvas();
         });

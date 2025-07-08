@@ -5,8 +5,8 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:converters="using:Better_SignalRGB_Screen_Capture.Converters"
-    MinWidth="100"
-    MinHeight="80"
+    MinWidth="50"
+    MinHeight="40"
     Opacity="{x:Bind Source.Opacity, Mode=OneWay}"
     mc:Ignorable="d">
     

@@ -478,38 +478,38 @@ public class CaptureService : ICaptureService
     {
         try
         {
-            // Only set size during initial creation (when size is default)
-            if (source.CanvasWidth <= 100 && source.CanvasHeight <= 80)
+                    // Only set size during initial creation (when size is small placeholder)
+        if (source.CanvasWidth <= 60 && source.CanvasHeight <= 50)
+        {
+            // Use the same backend as TestApp to get proper coordinates and sizing
+            var outputDimensions = Recorder.GetOutputDimensionsForRecordingSources(new[] { recordingSource });
+            if (outputDimensions.OutputCoordinates.Any())
             {
-                // Use the same backend as TestApp to get proper coordinates and sizing
-                var outputDimensions = Recorder.GetOutputDimensionsForRecordingSources(new[] { recordingSource });
-                if (outputDimensions.OutputCoordinates.Any())
-                {
-                    var sourceCoord = outputDimensions.OutputCoordinates.First();
-                    
-                    // Scale coordinates to canvas size with proper padding calculation
-                    var sourceWidth = sourceCoord.Coordinates.Width;
-                    var sourceHeight = sourceCoord.Coordinates.Height;
-                    
-                    // Calculate scale factor to fit within canvas bounds accounting for actual padding
-                    // Canvas is 320x200, padding is about 8px on each side, so usable area is 304x184
-                    var maxCanvasWidth = 304.0; // Account for padding
-                    var maxCanvasHeight = 184.0; // Account for padding
-                    var scaleX = maxCanvasWidth / sourceWidth;
-                    var scaleY = maxCanvasHeight / sourceHeight;
-                    var scale = Math.Min(scaleX, scaleY); // Maintain aspect ratio
-                    
-                    // Apply conservative scaling to ensure items fit well within canvas
-                    scale *= 0.75; // More conservative to prevent overflow
-                    
-                    // Update source canvas properties with scaled coordinates (only during creation)
-                    source.CanvasWidth = Math.Max(100, (int)(sourceWidth * scale)); // Minimum 100px width
-                    source.CanvasHeight = Math.Max(80, (int)(sourceHeight * scale)); // Minimum 80px height
-                    
-                    Debug.WriteLine($"📐 Source {source.Name} initial size set to: {source.CanvasWidth}x{source.CanvasHeight} " +
-                                  $"(original: {sourceWidth}x{sourceHeight}, scale: {scale:F3})");
-                }
+                var sourceCoord = outputDimensions.OutputCoordinates.First();
+                
+                // Scale coordinates to canvas size with proper padding calculation
+                var sourceWidth = sourceCoord.Coordinates.Width;
+                var sourceHeight = sourceCoord.Coordinates.Height;
+                
+                // Calculate scale factor to fit within canvas bounds accounting for actual padding
+                // Canvas is 320x200 with 40px padding, so usable area is 240x120
+                var maxCanvasWidth = 240.0; // Actual usable width
+                var maxCanvasHeight = 120.0; // Actual usable height
+                var scaleX = maxCanvasWidth / sourceWidth;
+                var scaleY = maxCanvasHeight / sourceHeight;
+                var scale = Math.Min(scaleX, scaleY); // Maintain aspect ratio
+                
+                // Apply conservative scaling to ensure items fit well within canvas
+                scale *= 0.8; // Conservative to prevent overflow and allow multiple items
+                
+                // Update source canvas properties with scaled coordinates (only during creation)
+                source.CanvasWidth = Math.Max(50, (int)(sourceWidth * scale)); // Minimum 50px width
+                source.CanvasHeight = Math.Max(40, (int)(sourceHeight * scale)); // Minimum 40px height
+                
+                Debug.WriteLine($"📐 Source {source.Name} initial size set to: {source.CanvasWidth}x{source.CanvasHeight} " +
+                              $"(original: {sourceWidth}x{sourceHeight}, scale: {scale:F3})");
             }
+        }
         }
         catch (Exception ex)
         {
