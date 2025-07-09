@@ -339,6 +339,7 @@
 
     function onambilightFullChanged() {
         document.body.classList.toggle('ambilight-full', ambilightFull);
+        savedZones = null;               // clear saved zones when toggling
     }
 
     function onhideSourcesInFullscreenChanged() {
@@ -409,6 +410,10 @@
         const sources = new Map();
         let frameCount = 0;
         let errorCount = 0;
+
+        // Caching variables for fullscreen ambilight to prevent jittering
+        let savedZones = null;      // saved Voronoi zone results
+        let lastZonesSaveTime = 0;  // timestamp of last zones calculation
 
         // Beat-pulse helpers
         let beatEnergy = 0;
@@ -591,6 +596,8 @@
             source.chunks.clear();
             source.expect = 0;
 
+            // No zone invalidation on frame updates - zones stay cached
+
             return true;
         }
 
@@ -639,86 +646,126 @@
                 const w = virtualCanvas.width;
                 const h = virtualCanvas.height;
 
-                const sourcesInfo = [];
-                activeSources.forEach((mediaElement) => {
-                    const wrapper = mediaElement.closest('.source-element');
-                    if (!wrapper) return;
+                // Only recalculate zones if we don't have saved zones OR it's been 10+ seconds
+                const now = Date.now();
+                const shouldRecalculate = !savedZones || (now - lastZonesSaveTime > 10000);
 
-                    const style = wrapper.style;
-                    const left = parseFloat(style.left) || 0;
-                    const top = parseFloat(style.top) || 0;
-                    const width = parseFloat(style.width) || 160;
-                    const height = parseFloat(style.height) || 100;
+                if (shouldRecalculate) {
+                    lastZonesSaveTime = now;
 
-                    const right = left + width;
-                    const bottom = top + height;
+                    const sourcesInfo = [];
+                    activeSources.forEach((mediaElement) => {
+                        const wrapper = mediaElement.closest('.source-element');
+                        if (!wrapper) return;
 
-                    sourcesInfo.push({ left, top, right, bottom, media: mediaElement });
-                });
+                        const style = wrapper.style;
+                        const left = parseFloat(style.left) || 0;
+                        const top = parseFloat(style.top) || 0;
+                        const width = parseFloat(style.width) || 160;
+                        const height = parseFloat(style.height) || 100;
 
-                // --- Determine each pixel's owner and expand bounding boxes
+                        const right = left + width;
+                        const bottom = top + height;
 
-                sourcesInfo.forEach(s => { s.minX = w; s.minY = h; s.maxX = 0; s.maxY = 0; });
+                        sourcesInfo.push({ left, top, right, bottom, media: mediaElement });
+                    });
 
-                for (let y = 0; y < h; y++) {
-                    for (let x = 0; x < w; x++) {
-                        let bestIdx = 0;
-                        let bestDist = Infinity;
-                        for (let i = 0; i < sourcesInfo.length; i++) {
-                            const s = sourcesInfo[i];
+                    // --- Determine each pixel's owner and expand bounding boxes
 
-                            let dx = 0;
-                            if (x < s.left) dx = s.left - x;
-                            else if (x > s.right) dx = x - s.right;
+                    sourcesInfo.forEach(s => { s.minX = w; s.minY = h; s.maxX = 0; s.maxY = 0; });
 
-                            let dy = 0;
-                            if (y < s.top) dy = s.top - y;
-                            else if (y > s.bottom) dy = y - s.bottom;
+                    for (let y = 0; y < h; y++) {
+                        for (let x = 0; x < w; x++) {
+                            let bestIdx = 0;
+                            let bestDist = Infinity;
+                            for (let i = 0; i < sourcesInfo.length; i++) {
+                                const s = sourcesInfo[i];
 
-                            const distSq = dx * dx + dy * dy;
-                            if (distSq < bestDist) { bestDist = distSq; bestIdx = i; }
+                                let dx = 0;
+                                if (x < s.left) dx = s.left - x;
+                                else if (x > s.right) dx = x - s.right;
+
+                                let dy = 0;
+                                if (y < s.top) dy = s.top - y;
+                                else if (y > s.bottom) dy = y - s.bottom;
+
+                                const distSq = dx * dx + dy * dy;
+                                if (distSq < bestDist) { bestDist = distSq; bestIdx = i; }
+                            }
+
+                            const owner = sourcesInfo[bestIdx];
+                            if (x < owner.minX) owner.minX = x;
+                            if (x > owner.maxX) owner.maxX = x;
+                            if (y < owner.minY) owner.minY = y;
+                            if (y > owner.maxY) owner.maxY = y;
                         }
+                    }
 
-                        const owner = sourcesInfo[bestIdx];
-                        if (x < owner.minX) owner.minX = x;
-                        if (x > owner.maxX) owner.maxX = x;
-                        if (y < owner.minY) owner.minY = y;
-                        if (y > owner.maxY) owner.maxY = y;
+                    // --- NEW: expand every live <div class="source-element"> to its grown zone
+                    sourcesInfo.forEach(s => {
+                        const wrapper = s.media.closest('.source-element');
+                        if (!wrapper) return;
+
+                        const newW = s.maxX - s.minX + 1;
+                        const newH = s.maxY - s.minY + 1;
+
+                        wrapper.style.left = `${s.minX}px`;
+                        wrapper.style.top = `${s.minY}px`;
+                        wrapper.style.width = `${newW}px`;
+                        wrapper.style.height = `${newH}px`;
+
+                        // Ensure the media itself has no extra transforms that would offset scaling
+                        s.media.style.transform = '';
+                    });
+
+                    // Save the calculated zones for future use
+                    savedZones = [];
+                    sourcesInfo.forEach(s => {
+                        const wrapper = s.media.closest('.source-element');
+                        if (wrapper) {
+                            savedZones.push({
+                                sourceId: wrapper.dataset.sourceId,
+                                left: parseFloat(wrapper.style.left),
+                                top: parseFloat(wrapper.style.top),
+                                width: parseFloat(wrapper.style.width),
+                                height: parseFloat(wrapper.style.height)
+                            });
+                        }
+                    });
+                } else {
+                    // Apply saved zones to current wrappers
+                    if (savedZones) {
+                        savedZones.forEach(zone => {
+                            const wrapper = document.querySelector(`[data-source-id="${zone.sourceId}"]`);
+                            if (wrapper) {
+                                wrapper.style.left = `${zone.left}px`;
+                                wrapper.style.top = `${zone.top}px`;
+                                wrapper.style.width = `${zone.width}px`;
+                                wrapper.style.height = `${zone.height}px`;
+                            }
+                        });
                     }
                 }
 
-                // --- NEW: expand every live <div class="source-element"> to its grown zone
-                sourcesInfo.forEach(s => {
-                    const wrapper = s.media.closest('.source-element');
+                // ---- drawing is still needed every frame ------------
+                virtualCtx.clearRect(0, 0, w, h);
+                activeSources.forEach(mediaElement => {
+                    const wrapper = mediaElement.closest('.source-element');
                     if (!wrapper) return;
 
-                    const newW = s.maxX - s.minX + 1;
-                    const newH = s.maxY - s.minY + 1;
+                    const destX = parseFloat(wrapper.style.left) || 0;
+                    const destY = parseFloat(wrapper.style.top) || 0;
+                    const destW = parseFloat(wrapper.style.width) || 160;
+                    const destH = parseFloat(wrapper.style.height) || 100;
 
-                    wrapper.style.left = `${s.minX}px`;
-                    wrapper.style.top = `${s.minY}px`;
-                    wrapper.style.width = `${newW}px`;
-                    wrapper.style.height = `${newH}px`;
-
-                    // Ensure the media itself has no extra transforms that would offset scaling
-                    s.media.style.transform = '';
-                });
-
-                // --- Draw each source scaled to its expanded zone
-                virtualCtx.clearRect(0, 0, w, h);
-
-                sourcesInfo.forEach(s => {
-                    const destX = s.minX;
-                    const destY = s.minY;
-                    const destW = s.maxX - s.minX + 1;
-                    const destH = s.maxY - s.minY + 1;
-
-                    const natW = s.media.videoWidth || s.media.naturalWidth || s.media.width || w;
-                    const natH = s.media.videoHeight || s.media.naturalHeight || s.media.height || h;
+                    const natW = mediaElement.videoWidth || mediaElement.naturalWidth || destW;
+                    const natH = mediaElement.videoHeight || mediaElement.naturalHeight || destH;
 
                     try {
-                        virtualCtx.drawImage(s.media, 0, 0, natW, natH, destX, destY, destW, destH);
-                    } catch (e) { /* ignore */ }
+                        virtualCtx.drawImage(mediaElement,
+                            0, 0, natW, natH,
+                            destX, destY, destW, destH);
+                    } catch { /* ignore */ }
                 });
 
             } else {
@@ -890,6 +937,7 @@
                         source.element.remove();
                     }
                     sources.delete(sourceId);
+                    // Don't invalidate zones on source removal - keep cached zones
                 }
                 return;
             }
@@ -924,6 +972,7 @@
                         source.element.remove();
                     }
                     sources.delete(id);
+                    // Don't invalidate zones on stale source cleanup - keep cached zones
                 }
             }
         }, 10000); // Check every 10 seconds

@@ -14,6 +14,8 @@
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	<WindowsPackagedType>None</WindowsPackagedType>
+	<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained> 
   </PropertyGroup>
   <ItemGroup>
     <None Remove="Views\AddSourceDialog.xaml" />
@@ -34,6 +36,17 @@
     <PackageReference Include="System.Drawing.Common" Version="10.0.0-preview.5.25277.114" />
     <PackageReference Include="WinUIEx" Version="2.6.0" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+	    <!-- Add every file and sub-folder under Assets -->
+	  <Content Include="Assets\**\*">
+		    <!-- Put the files next to Better-SignalRGB-Screen-Capture.exe in bin\… -->
+		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+
+		    <!-- …and make sure they’re kept when you run “dotnet publish”      -->
+		    <!--  (Use Always if you need the entire folder every time)         -->
+		  <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+	  </Content>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Better-SignalRGB-Screen-Capture.Core\Better-SignalRGB-Screen-Capture.Core.csproj" />

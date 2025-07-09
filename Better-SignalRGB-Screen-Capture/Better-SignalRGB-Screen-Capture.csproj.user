@@ -9,7 +9,11 @@
     <AppIconSource>C:\Users\ferre\Downloads\bettersignalrgbscreencapture4.png</AppIconSource>
     <SplashScreenSource>C:\Users\ferre\Downloads\bettersignalrgbscreencapture4.png</SplashScreenSource>
     <PackageLogoSource>C:\Users\ferre\Downloads\bettersignalrgbscreencapture4.png</PackageLogoSource>
-    <_LastSelectedProfileId>C:\Users\ferre\Codespace\Projects\BetterSignalRGBScreenCapture\Better-SignalRGB-Screen-Capture\Properties\PublishProfiles\win10-arm64.pubxml</_LastSelectedProfileId>
+    <_LastSelectedProfileId>C:\Users\ferre\Codespace\Projects\BetterSignalRGBScreenCapture\Better-SignalRGB-Screen-Capture\Properties\PublishProfiles\win10-x86.pubxml</_LastSelectedProfileId>
+    <ActiveDebugProfile>Better-SignalRGB-Screen-Capture (Unpackaged)</ActiveDebugProfile>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x86'">
+    <DebuggerFlavor>ProjectDebugger</DebuggerFlavor>
   </PropertyGroup>
   <ItemGroup>
     <Page Update="Views\AddSourceDialog.xaml">
