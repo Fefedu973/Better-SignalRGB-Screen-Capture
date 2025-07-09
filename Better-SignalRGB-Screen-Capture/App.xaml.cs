@@ -101,9 +101,6 @@ public partial class App : Application
         }).
         Build();
 
-        // Initialize tray icon service so the TaskbarIcon is created immediately
-        _ = GetService<TrayIconService>();
-
         App.GetService<IAppNotificationService>().Initialize();
 
         UnhandledException += App_UnhandledException;
@@ -122,6 +119,9 @@ public partial class App : Application
         App.GetService<IAppNotificationService>().Show(string.Format("AppNotificationSamplePayload".GetLocalized(), AppContext.BaseDirectory));
 
         await App.GetService<IActivationService>().ActivateAsync(args);
+
+        // Initialize tray icon service AFTER MainWindow is fully activated
+        _ = GetService<TrayIconService>();
 
         // If user prefers to start in tray, hide the main window after activation
         var localSettings = GetService<ILocalSettingsService>();
