@@ -1,10 +1,48 @@
-<!-- Better SignalRGB Screen Capture - Multi-Source Canvas Effect -->
+<!-- Better SignalRGB Screen Capture - Multi-Source Canvas with Ambilight Effect -->
 
 <head>
-    <title>Better SignalRGB Screen Capture - Multi-Source Canvas</title>
-    <meta name="description" content="Multi-source screen capture canvas with per-source styling support" />
+    <title>Screen Ambience – Multi‑Source</title>
+    <meta name="description"
+        content="Multi-source screen capture canvas with per-source styling and ambilight support" />
     <meta name="publisher" content="Better SignalRGB Screen Capture" />
+
+    <!-- ── Picture modes and color controls ──────────────────────────────────── -->
+    <meta property="picture_mode" label="Picture Mode" type="combobox" values="Standard,Cinema,Mono,Vivid,Dominant,HD"
+        default="Vivid" />
+    <meta property="boost" label="Color Shift" type="number" min="-180" max="180" default="0" />
+    <meta property="brightness" label="Brightness" type="number" min="-100" max="100" default="0" />
+    <meta property="saturation" label="Saturation" type="number" min="-100" max="100" default="0" />
+    <meta property="BlurToggle" label="Blur" type="boolean" default="false" />
+
+    <!-- ── Screen positioning controls ──────────────────────────────────────── -->
+    <meta property="screenX" label="Screen X" type="number" min="0" max="319" default="80" />
+    <meta property="screenY" label="Screen Y" type="number" min="0" max="199" default="50" />
+    <meta property="screenW" label="Width" type="number" min="20" max="320" default="160" />
+    <meta property="screenH" label="Height" type="number" min="20" max="200" default="100" />
+
+    <!-- ── Ambilight controls ──────────────────────────────────────────────── -->
+    <meta property="ambilightToggle" label="Ambilight Effect" type="boolean" default="true" />
+    <meta property="ambilightSaturation" label="Ambilight Saturation" type="number" min="1" max="10" default="3" />
+
+    <meta property="ambilightSpread" label="Spread" type="number" min="1" max="100" default="10" />
+    <meta property="ambilightBlur" label="Blur" type="number" min="10" max="100" default="30" />
+    <meta property="ambilightFull" label="Ambilight Full-screen" type="boolean" default="false" />
+    <meta property="hideSourcesInFullscreen" label="Hide Sources in Fullscreen" type="boolean" default="false" />
+
+    <!-- ── Beat-pulse controls ───────────────────────────────────────────── -->
+    <meta property="beatPulse" label="Beat Pulse" type="boolean" default="false" />
+    <meta property="pulseStrength" label="Pulse Strength (%)" type="number" min="0" max="300" default="100" />
+    <meta property="beatSens" label="Beat Sensitivity" type="number" min="-100" max="100" default="0" />
+
     <style>
+        :root {
+            --boost: 0deg;
+            --brightness: 100%;
+            --saturation: 100%;
+            --beatBright: 0%;
+            --pulseBright: 1;
+        }
+
         html,
         body {
             margin: 0;
@@ -13,11 +51,19 @@
             overflow: hidden;
         }
 
+
+
+        /* ——— REPLACE the current #canvas rule ——— */
         #canvas {
             position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
+            /* anchored inside #screenContainer            */
+            top: 0;
+            left: 0;
+            width: 320px;
+            /* design resolution – do not change          */
+            height: 200px;
+            transform-origin: top left;
+            /* scale will grow/shrink from (0,0)     */
         }
 
         .source-element {
@@ -26,6 +72,8 @@
             max-width: none;
             max-height: none;
             transform-origin: center center;
+            z-index: 10;
+            /* Sources above ambilight effects */
         }
 
         .crop-wrapper {
@@ -40,31 +88,351 @@
             width: 100%;
             height: 100%;
             object-fit: fill;
+            z-index: 15;
+            /* Images on top */
+            position: relative;
+        }
+
+        #screenContainer {
+            position: absolute;
+            background: transparent;
+            z-index: 100;
+        }
+
+        /* Apply ambilight to the main screenContainer, not individual sources */
+        #screenContainer.ambilight {
+            filter: url(#ambilight);
+        }
+
+        /* Combined filters for ambilight + other effects on main container */
+        #screenContainer.ambilight.hueShift {
+            filter:
+                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) url(#ambilight);
+        }
+
+        #screenContainer.ambilight.hueShift.blur {
+            filter:
+                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) blur(1px) url(#ambilight);
+        }
+
+        #screenContainer.hueShift.blur {
+            filter:
+                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) blur(1px);
+        }
+
+        #screenContainer.hueShift {
+            filter:
+                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation));
+        }
+
+        /* Hide sources when fullscreen ambilight is active and hide option is enabled */
+        .ambilight-full.hide-sources #screenContainer {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        /* Full-screen glow surface */
+        #ambiCanvas {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 1;
+            image-rendering: pixelated;
+            opacity: 0;
+            transition: opacity .2s linear;
+            filter: blur(var(--ambiBlur, 120px)) saturate(var(--ambiSat, 3)) brightness(1.2) brightness(var(--pulseBright));
+        }
+
+        .ambilight-full #ambiCanvas {
+            opacity: 1;
+        }
+
+        /* Picture Mode Effects */
+        .picture-cinema {
+            filter: sepia(0.2) contrast(1.1) brightness(0.9);
+        }
+
+        .picture-mono {
+            filter: grayscale(1);
+        }
+
+        .picture-vivid {
+            filter: contrast(1.3) saturate(1.4) brightness(1.1);
+        }
+
+        .picture-dominant {
+            filter: contrast(1.1) saturate(1.2);
+        }
+
+        .picture-hd {
+            filter: contrast(1.05) saturate(1.1) brightness(1.02);
+        }
+
+        /* Base classes for canvas element */
+        .hueShift {
+            filter:
+                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation));
+        }
+
+        .blur {
+            filter: blur(1px);
+        }
+
+        /* Picture modes combined with other effects */
+        .picture-cinema.hueShift {
+            filter:
+                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) sepia(0.2) contrast(1.1) brightness(0.9);
+        }
+
+        .picture-mono.hueShift {
+            filter:
+                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) grayscale(1);
+        }
+
+        .picture-vivid.hueShift {
+            filter:
+                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) contrast(1.3) saturate(1.4) brightness(1.1);
+        }
+
+        .picture-dominant.hueShift {
+            filter:
+                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) contrast(1.1) saturate(1.2);
+        }
+
+        .picture-hd.hueShift {
+            filter:
+                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) contrast(1.05) saturate(1.1) brightness(1.02);
+        }
+
+        .hueShift.blur {
+            filter:
+                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) blur(1px);
         }
     </style>
 </head>
 
 <body>
-    <div id="canvas"></div>
+    <!-- SVG Filter for Ambilight Effect -->
+    <svg width="0" height="0">
+        <filter id="ambilight" width="800%" height="800%" x="-3.5" y="-3.5" color-interpolation-filters="sRGB">
+            <feOffset in="SourceGraphic" result="source-copy" />
+            <feColorMatrix in="source-copy" type="saturate" values="3" result="saturated-copy" />
+            <feColorMatrix in="saturated-copy" type="matrix" values="1 0 0 0 0
+                                 0 1 0 0 0
+                                 0 0 1 0 0
+                                 33 33 33 101 -132" result="bright-colors" />
+            <feMorphology in="bright-colors" operator="dilate" radius="10" result="spread" />
+            <feGaussianBlur in="spread" stdDeviation="30" result="ambilight-light" />
+            <feOffset in="SourceGraphic" result="source" />
+            <feComposite in="source" in2="ambilight-light" operator="over" />
+        </filter>
+    </svg>
+
+    <div id="screenContainer">
+        <div id="canvas" class="hueShift"></div>
+    </div>
+    <!-- Full-screen ambilight copy -->
+    <canvas id="ambiCanvas"></canvas>
 </body>
 
 <script>
+    // ──────────────────────────────────────────────────────────────────────
+    // GLOBAL SETTINGS HANDLERS FOR SIGNALRGB
+    // ──────────────────────────────────────────────────────────────────────
+
+    function onboostChanged() {
+        document.documentElement.style.setProperty("--boost", `${boost}deg`);
+    }
+
+    function onbrightnessChanged() {
+        document.documentElement.style.setProperty("--brightness", `${100 + brightness}%`);
+    }
+
+    function onsaturationChanged() {
+        document.documentElement.style.setProperty("--saturation", `${100 + saturation}%`);
+    }
+
+    function onBlurToggleChanged() {
+        const canvas = document.getElementById("canvas");
+        if (BlurToggle) {
+            canvas.classList.add("blur");
+        } else {
+            canvas.classList.remove("blur");
+        }
+    }
+
+    function onpicture_modeChanged() {
+        // Apply picture mode effects to the canvas (like original)
+        const canvas = document.getElementById("canvas");
+        if (canvas) {
+            // Remove existing picture mode classes
+            canvas.classList.remove('picture-standard', 'picture-cinema', 'picture-mono', 'picture-vivid', 'picture-dominant', 'picture-hd');
+
+            // Add current picture mode class
+            if (typeof picture_mode !== 'undefined') {
+                canvas.classList.add(`picture-${picture_mode.toLowerCase()}`);
+            }
+        }
+    }
+
+    function onscreenXChanged() {
+        const screenContainer = document.getElementById("screenContainer");
+        if (screenContainer) {
+            screenContainer.style.left = `${screenX}px`;
+        }
+    }
+
+    function onscreenYChanged() {
+        const screenContainer = document.getElementById("screenContainer");
+        if (screenContainer) {
+            screenContainer.style.top = `${screenY}px`;
+        }
+    }
+
+    function onscreenWChanged() {
+        updateCanvasSize();
+    }
+
+    function onscreenHChanged() {
+        updateCanvasSize();
+    }
+
+    /* ——— REPLACE your existing updateCanvasSize() ——— */
+    function updateCanvasSize() {
+        const screenContainer = document.getElementById("screenContainer");
+        const canvas = document.getElementById("canvas");
+        if (!screenContainer || !canvas) return;
+
+        /* 1.  resize the draggable container                               */
+        screenContainer.style.width = `${screenW}px`;
+        screenContainer.style.height = `${screenH}px`;
+
+        /* 2.  scale the internal 320×200 stage so every source moves/size
+               proportionally, exactly like the old bitmap canvas           */
+        const scaleX = screenW / 320;
+        const scaleY = screenH / 200;
+        canvas.style.transform = `scale(${scaleX}, ${scaleY})`;
+    }
+
+    function onambilightToggleChanged() {
+        const screenContainer = document.getElementById("screenContainer");
+        if (ambilightToggle) {
+            screenContainer.classList.add("ambilight");
+        } else {
+            screenContainer.classList.remove("ambilight");
+        }
+    }
+
+    function onambilightSaturationChanged() {
+        updateAmbilightFilterGlobal();
+    }
+
+
+
+    function onambilightSpreadChanged() {
+        updateAmbilightFilterGlobal();
+    }
+
+    function onambilightBlurChanged() {
+        updateAmbilightFilterGlobal();
+    }
+
+    function onambilightFullChanged() {
+        document.body.classList.toggle('ambilight-full', ambilightFull);
+    }
+
+    function onhideSourcesInFullscreenChanged() {
+        document.body.classList.toggle('hide-sources', hideSourcesInFullscreen);
+    }
+
+    function onbeatPulseChanged() {
+        // Beat pulse is handled in the main animation loop
+    }
+
+    function onpulseStrengthChanged() {
+        // Pulse strength is handled in the main animation loop
+    }
+
+    function onbeatSensChanged() {
+        // Beat sensitivity is handled in the main animation loop
+    }
+
+    function updateAmbilightFilterGlobal() {
+        const filter = document.querySelector('#ambilight');
+        if (!filter) return;
+
+        // Update saturation
+        const satMatrix = filter.querySelector('feColorMatrix[type="saturate"]');
+        if (satMatrix) {
+            satMatrix.setAttribute('values', ambilightSaturation);
+        }
+
+        // Keep original cutoff value
+        const colorMatrix = filter.querySelector('feColorMatrix[type="matrix"]');
+        if (colorMatrix) {
+            colorMatrix.setAttribute('values',
+                `1 0 0 0 0
+                 0 1 0 0 0
+                 0 0 1 0 0
+                 33 33 33 101 -132`);
+        }
+
+        // Update spread
+        const morphology = filter.querySelector('feMorphology');
+        if (morphology) {
+            morphology.setAttribute('radius', ambilightSpread);
+        }
+
+        // Update blur
+        const blur = filter.querySelector('feGaussianBlur');
+        if (blur) {
+            blur.setAttribute('stdDeviation', ambilightBlur);
+        }
+
+        // Update CSS variables
+        const root = document.documentElement;
+        root.style.setProperty('--ambiSat', ambilightSaturation);
+        root.style.setProperty('--ambiBlur', `${ambilightBlur}px`);
+    }
+
     (() => {
         "use strict";
 
         // Constants
         const SENDER = "BetterSignalRGBScreenCapture";
         const canvas = document.getElementById("canvas");
+        const screenContainer = document.getElementById("screenContainer");
+        const ambiCanvas = document.getElementById("ambiCanvas");
+        const ambiCtx = ambiCanvas.getContext("2d");
 
         // Source management
         const sources = new Map();
         let frameCount = 0;
         let errorCount = 0;
 
+        // Beat-pulse helpers
+        let beatEnergy = 0;
+        const PULSE_DECAY = 0.9;
+        let prevLevel = 0;
+
+
+
         // Debug logging
         function log(message) {
             console.log(`[${new Date().toLocaleTimeString()}] ${message}`);
         }
+
+        // ──────────────────────────────────────────────────────────────────────
+        // SETTINGS CHANGE HANDLERS - GLOBAL SCOPE FOR SIGNALRGB
+        // ──────────────────────────────────────────────────────────────────────
+
+
+
+
+
+        // ──────────────────────────────────────────────────────────────────────
+        // SOURCE MANAGEMENT (from original Better-SignalRGB-Screen-Capture-Effect)
+        // ──────────────────────────────────────────────────────────────────────
 
         // Get or create source state
         function getSource(id) {
@@ -176,9 +544,9 @@
                 if (mediaElement) {
                     if (rotateMatch) {
                         const rotation = parseFloat(rotateMatch[1]);
-                        const counterRotation = -rotation; // inverse rotation
+                        const counterRotation = -rotation;
 
-                        // NEW: read scale if present
+                        // Read scale if present
                         let scaleX = 1, scaleY = 1;
                         const scaleMatch = source.cropStyle.match(/scale\(([^)]+)\)/);
                         if (scaleMatch) {
@@ -187,11 +555,9 @@
                             else if (parts.length === 1) { scaleX = scaleY = parts[0]; }
                         }
 
-                        // Counter-transform keeps the picture perfectly undistorted
                         mediaElement.style.transform =
                             `rotate(${counterRotation}deg) scale(${1 / scaleX}, ${1 / scaleY})`;
                         mediaElement.style.transformOrigin = 'center center';
-                        // Ensure the media element is properly centered and sized
                         mediaElement.style.position = 'absolute';
                         mediaElement.style.top = '0';
                         mediaElement.style.left = '0';
@@ -199,7 +565,6 @@
                         mediaElement.style.height = '100%';
                         mediaElement.style.objectFit = 'fill';
                     } else {
-                        // No rotation, use normal positioning
                         mediaElement.style.transform = '';
                         mediaElement.style.transformOrigin = '';
                         mediaElement.style.position = 'relative';
@@ -229,7 +594,205 @@
             return true;
         }
 
-        // Canvas API event handler
+        // Create virtual canvas for fullscreen ambilight (like original approach)
+        let virtualCanvas = null;
+        let virtualCtx = null;
+
+        function initVirtualCanvas() {
+            if (!virtualCanvas) {
+                virtualCanvas = document.createElement('canvas');
+                virtualCtx = virtualCanvas.getContext('2d');
+                virtualCanvas.width = 320;
+                virtualCanvas.height = 200;
+            }
+        }
+
+        function renderSourcesToVirtualCanvas() {
+            if (!virtualCanvas) initVirtualCanvas();
+
+            // Clear the virtual canvas
+            virtualCtx.fillStyle = '#000000';
+            virtualCtx.fillRect(0, 0, virtualCanvas.width, virtualCanvas.height);
+
+            // Get active sources
+            const activeSources = [];
+            for (const [id, source] of sources.entries()) {
+                if (source.element) {
+                    const mediaElement = source.element.querySelector('img, video');
+                    if (mediaElement && (mediaElement.complete || mediaElement.readyState >= 2)) {
+                        activeSources.push(mediaElement);
+                    }
+                }
+            }
+
+            if (activeSources.length === 0) return virtualCanvas;
+
+            const isFullscreenAmbilight = document.body.classList.contains('ambilight-full');
+
+            if (isFullscreenAmbilight) {
+                // IMPROVED LOGIC – Each source “grows” outward from its
+                // original rectangle until it hits the canvas edge or another
+                // grown source (distance measured to the nearest point of the
+                // original rectangle). Think of it as distance-to-rectangle
+                // Voronoi.
+
+                const w = virtualCanvas.width;
+                const h = virtualCanvas.height;
+
+                const sourcesInfo = [];
+                activeSources.forEach((mediaElement) => {
+                    const wrapper = mediaElement.closest('.source-element');
+                    if (!wrapper) return;
+
+                    const style = wrapper.style;
+                    const left = parseFloat(style.left) || 0;
+                    const top = parseFloat(style.top) || 0;
+                    const width = parseFloat(style.width) || 160;
+                    const height = parseFloat(style.height) || 100;
+
+                    const right = left + width;
+                    const bottom = top + height;
+
+                    sourcesInfo.push({ left, top, right, bottom, media: mediaElement });
+                });
+
+                // --- Determine each pixel's owner and expand bounding boxes
+
+                sourcesInfo.forEach(s => { s.minX = w; s.minY = h; s.maxX = 0; s.maxY = 0; });
+
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        let bestIdx = 0;
+                        let bestDist = Infinity;
+                        for (let i = 0; i < sourcesInfo.length; i++) {
+                            const s = sourcesInfo[i];
+
+                            let dx = 0;
+                            if (x < s.left) dx = s.left - x;
+                            else if (x > s.right) dx = x - s.right;
+
+                            let dy = 0;
+                            if (y < s.top) dy = s.top - y;
+                            else if (y > s.bottom) dy = y - s.bottom;
+
+                            const distSq = dx * dx + dy * dy;
+                            if (distSq < bestDist) { bestDist = distSq; bestIdx = i; }
+                        }
+
+                        const owner = sourcesInfo[bestIdx];
+                        if (x < owner.minX) owner.minX = x;
+                        if (x > owner.maxX) owner.maxX = x;
+                        if (y < owner.minY) owner.minY = y;
+                        if (y > owner.maxY) owner.maxY = y;
+                    }
+                }
+
+                // --- NEW: expand every live <div class="source-element"> to its grown zone
+                sourcesInfo.forEach(s => {
+                    const wrapper = s.media.closest('.source-element');
+                    if (!wrapper) return;
+
+                    const newW = s.maxX - s.minX + 1;
+                    const newH = s.maxY - s.minY + 1;
+
+                    wrapper.style.left = `${s.minX}px`;
+                    wrapper.style.top = `${s.minY}px`;
+                    wrapper.style.width = `${newW}px`;
+                    wrapper.style.height = `${newH}px`;
+
+                    // Ensure the media itself has no extra transforms that would offset scaling
+                    s.media.style.transform = '';
+                });
+
+                // --- Draw each source scaled to its expanded zone
+                virtualCtx.clearRect(0, 0, w, h);
+
+                sourcesInfo.forEach(s => {
+                    const destX = s.minX;
+                    const destY = s.minY;
+                    const destW = s.maxX - s.minX + 1;
+                    const destH = s.maxY - s.minY + 1;
+
+                    const natW = s.media.videoWidth || s.media.naturalWidth || s.media.width || w;
+                    const natH = s.media.videoHeight || s.media.naturalHeight || s.media.height || h;
+
+                    try {
+                        virtualCtx.drawImage(s.media, 0, 0, natW, natH, destX, destY, destW, destH);
+                    } catch (e) { /* ignore */ }
+                });
+
+            } else {
+                // For normal mode: draw sources at their actual positions
+                for (const [id, source] of sources.entries()) {
+                    if (source.element) {
+                        const mediaElement = source.element.querySelector('img, video');
+                        if (mediaElement && (mediaElement.complete || mediaElement.readyState >= 2)) {
+                            try {
+                                // Get source position within the 320x200 space
+                                const sourceStyle = source.element.style;
+                                const left = parseFloat(sourceStyle.left) || 0;
+                                const top = parseFloat(sourceStyle.top) || 0;
+                                const width = parseFloat(sourceStyle.width) || 160;
+                                const height = parseFloat(sourceStyle.height) || 100;
+
+                                virtualCtx.drawImage(mediaElement, left, top, width, height);
+                            } catch (e) {
+                                // Skip this source if drawing fails
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+
+
+
+            return virtualCanvas;
+        }
+
+        // ──────────────────────────────────────────────────────────────────────
+        // BEAT PULSE UPDATE LOOP
+        // ──────────────────────────────────────────────────────────────────────
+
+        function updateBeatPulse() {
+            if (typeof beatPulse !== 'undefined' && beatPulse) {
+                // Get a raw beat value (exactly like original)
+                let rawBeat = 0;
+                if (typeof engine !== 'undefined' && engine?.audio?.beat != null) {
+                    rawBeat = engine.audio.beat;
+                } else if (typeof engine !== 'undefined' && engine?.audio?.level != null) {
+                    const lin = Math.pow(10, engine.audio.level / 20);
+                    const delta = Math.max(0, lin - prevLevel);
+                    rawBeat = delta * 4;
+                    prevLevel = lin * 0.5 + prevLevel * 0.5;
+                }
+
+                // Apply user sensitivity (exactly like original)
+                const sens = typeof beatSens !== 'undefined' ? (100 + beatSens) / 100 : 1;
+                rawBeat *= sens;
+
+                // Smooth & scale (exactly like original)
+                beatEnergy = Math.max(rawBeat, beatEnergy * PULSE_DECAY);
+                const strength = typeof pulseStrength !== 'undefined' ? pulseStrength : 100;
+                const extra = Math.min(strength * beatEnergy, 300); // NO extra scaling like original
+                const factor = 1 + extra / 100;
+
+                document.documentElement.style.setProperty('--beatBright', `${extra}%`);
+                document.documentElement.style.setProperty('--pulseBright', factor);
+            } else if (beatEnergy) {
+                // Reset beat effects when disabled (like original)
+                beatEnergy = 0;
+                document.documentElement.style.setProperty('--beatBright', '0%');
+                document.documentElement.style.setProperty('--pulseBright', '1');
+            }
+
+            requestAnimationFrame(updateBeatPulse);
+        }
+
+        // ──────────────────────────────────────────────────────────────────────
+        // CANVAS API EVENT HANDLER
+        // ──────────────────────────────────────────────────────────────────────
+
         window.onCanvasApiEvent = function (event) {
             if (event.sender !== SENDER) {
                 return; // Ignore events from other senders
@@ -250,7 +813,7 @@
                 const filename = parts[1];
                 const mime = parts[2];
                 const chunkCount = parseInt(parts[3], 10);
-                const styles = parts.slice(4).join(":"); // Rejoin in case style contains colons
+                const styles = parts.slice(4).join(":");
 
                 // Extract source ID from filename (should be GUID.jpg)
                 const sourceId = filename.split(".")[0];
@@ -261,15 +824,13 @@
 
                 // Parse styles - handle both legacy and separated format
                 if (styles.includes("outer:") && styles.includes("crop:")) {
-                    // New separated format: "outer:{outerStyle}|crop:{cropStyle}"
                     const parts = styles.split("|");
                     const outerPart = parts.find(p => p.startsWith("outer:"));
                     const cropPart = parts.find(p => p.startsWith("crop:"));
 
-                    source.outerStyle = outerPart ? outerPart.substring(6) : ""; // Remove "outer:"
-                    source.cropStyle = cropPart ? cropPart.substring(5) : "";   // Remove "crop:"
+                    source.outerStyle = outerPart ? outerPart.substring(6) : "";
+                    source.cropStyle = cropPart ? cropPart.substring(5) : "";
                 } else {
-                    // Legacy format - treat as outer style only
                     source.outerStyle = styles;
                     source.cropStyle = "position: relative; width: 100%; height: 100%; overflow: hidden;";
                 }
@@ -337,6 +898,20 @@
             log(`Unknown event type: ${msg.substring(0, 50)}...`);
         };
 
+        // ──────────────────────────────────────────────────────────────────────
+        // INITIALIZATION
+        // ──────────────────────────────────────────────────────────────────────
+
+        // Keep the ambiCanvas as large as the viewport
+        function resizeAmbiCanvas() {
+            ambiCanvas.width = window.innerWidth;
+            ambiCanvas.height = window.innerHeight;
+            ambiCtx.clearRect(0, 0, ambiCanvas.width, ambiCanvas.height);
+        }
+
+        window.addEventListener('resize', resizeAmbiCanvas);
+        resizeAmbiCanvas();
+
         // Periodic cleanup for stale sources
         setInterval(() => {
             const now = Date.now();
@@ -360,8 +935,45 @@
             }
         }, 30000); // Log every 30 seconds
 
+        // Initialize settings
+        setTimeout(() => {
+            // Initialize all settings with current values
+            if (typeof onboostChanged === 'function') onboostChanged();
+            if (typeof onbrightnessChanged === 'function') onbrightnessChanged();
+            if (typeof onsaturationChanged === 'function') onsaturationChanged();
+            if (typeof onBlurToggleChanged === 'function') onBlurToggleChanged();
+            if (typeof onscreenXChanged === 'function') onscreenXChanged();
+            if (typeof onscreenYChanged === 'function') onscreenYChanged();
+            if (typeof onscreenWChanged === 'function') onscreenWChanged();
+            if (typeof onscreenHChanged === 'function') onscreenHChanged();
+            if (typeof onambilightToggleChanged === 'function') onambilightToggleChanged();
+            if (typeof updateAmbilightFilterGlobal === 'function') updateAmbilightFilterGlobal();
+            if (typeof onambilightFullChanged === 'function') onambilightFullChanged();
+            if (typeof onhideSourcesInFullscreenChanged === 'function') onhideSourcesInFullscreenChanged();
+        }, 100);
+
+        // Start beat pulse animation
+        requestAnimationFrame(updateBeatPulse);
+
+        // Main update loop for fullscreen ambilight (exactly like original)
+        function mainUpdate() {
+            // Render sources to virtual canvas first
+            const canvas = renderSourcesToVirtualCanvas();
+
+            /* Paint a stretched copy for the glow layer when enabled (exactly like original) */
+            if (document.body.classList.contains('ambilight-full')) {
+                // First, draw the canvas to the ambiCanvas
+                ambiCtx.drawImage(canvas, 0, 0, ambiCanvas.width, ambiCanvas.height);
+
+
+            }
+
+            requestAnimationFrame(mainUpdate);
+        }
+        requestAnimationFrame(mainUpdate);
+
         // Initialize
-        log(`Multi-source Canvas effect initialized (sender: ${SENDER})`);
+        log(`Multi-source Canvas effect with Ambilight initialized (sender: ${SENDER})`);
         log(`Ready to receive frames from Better SignalRGB Screen Capture`);
     })();
 </script>
