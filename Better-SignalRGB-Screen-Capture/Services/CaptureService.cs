@@ -28,6 +28,8 @@ public class CaptureService : ICaptureService
     private readonly ConcurrentDictionary<Guid, byte[]> _lastFrameData = new();
     private readonly ConcurrentDictionary<Guid, Microsoft.UI.Dispatching.DispatcherQueueTimer> _websiteTimers = new();
     private int _frameRate = 15; // Increased from 10 for smoother streaming
+    private const int MIN_RESOLUTION_WIDTH = 320;
+    private const int MIN_RESOLUTION_HEIGHT = 200;
 
     public event EventHandler<SourceFrameEventArgs>? FrameAvailable;
 
@@ -334,6 +336,52 @@ public class CaptureService : ICaptureService
         }
     }
 
+    /// <summary>
+    /// Calculates the minimum resolution that preserves aspect ratio while ensuring both dimensions
+    /// are at least the minimum required resolution.
+    /// </summary>
+    /// <param name="originalWidth">Original width</param>
+    /// <param name="originalHeight">Original height</param>
+    /// <param name="minWidth">Minimum required width</param>
+    /// <param name="minHeight">Minimum required height</param>
+    /// <returns>Tuple of (width, height) that meets minimum requirements while preserving aspect ratio</returns>
+    private (int width, int height) CalculateMinimumResolution(int originalWidth, int originalHeight, int minWidth = MIN_RESOLUTION_WIDTH, int minHeight = MIN_RESOLUTION_HEIGHT)
+    {
+        if (originalWidth <= 0 || originalHeight <= 0)
+        {
+            return (minWidth, minHeight);
+        }
+
+        // If both dimensions already meet minimum requirements, return original
+        if (originalWidth >= minWidth && originalHeight >= minHeight)
+        {
+            return (originalWidth, originalHeight);
+        }
+
+        // Calculate aspect ratio
+        double aspectRatio = (double)originalWidth / originalHeight;
+
+        // Calculate scale factors needed to reach minimum dimensions
+        double scaleX = (double)minWidth / originalWidth;
+        double scaleY = (double)minHeight / originalHeight;
+
+        // Use the larger scale factor to ensure both dimensions meet minimum requirements
+        double scale = Math.Max(scaleX, scaleY);
+
+        // Calculate new dimensions
+        int newWidth = (int)Math.Round(originalWidth * scale);
+        int newHeight = (int)Math.Round(originalHeight * scale);
+
+        // Ensure we don't go below minimums due to rounding
+        newWidth = Math.Max(newWidth, minWidth);
+        newHeight = Math.Max(newHeight, minHeight);
+
+        Debug.WriteLine($"📐 Resolution adjustment: {originalWidth}x{originalHeight} -> {newWidth}x{newHeight} " +
+                       $"(aspect ratio preserved: {aspectRatio:F3}, scale: {scale:F3})");
+
+        return (newWidth, newHeight);
+    }
+
     private RecorderOptions? CreateRecorderOptions(SourceItem source)
     {
         try
@@ -362,8 +410,14 @@ public class CaptureService : ICaptureService
 
                 if (source.Type != SourceType.Region)
                 {
-                    recSrc.Stretch    = StretchMode.Fill;
-                    recSrc.OutputSize = new ScreenSize((int)source.CanvasWidth, (int)source.CanvasHeight);
+                    recSrc.Stretch = StretchMode.Fill;
+                    
+                    // Apply minimum resolution constraint while preserving aspect ratio
+                    var (adjustedWidth, adjustedHeight) = CalculateMinimumResolution(
+                        (int)source.CanvasWidth, 
+                        (int)source.CanvasHeight);
+                    
+                    recSrc.OutputSize = new ScreenSize(adjustedWidth, adjustedHeight);
                 }
                 else
                 {
@@ -417,7 +471,10 @@ public class CaptureService : ICaptureService
                     width  = (int)source.CanvasWidth;
                     height = (int)source.CanvasHeight;
                 }
-                options.OutputOptions.OutputFrameSize = new ScreenSize(width, height);
+                
+                // Apply minimum resolution constraint while preserving aspect ratio
+                var (adjustedWidth, adjustedHeight) = CalculateMinimumResolution(width, height);
+                options.OutputOptions.OutputFrameSize = new ScreenSize(adjustedWidth, adjustedHeight);
             }
 
             Debug.WriteLine($"📋 Recorder options for {source.Name}:");
@@ -703,6 +760,11 @@ public class CaptureService : ICaptureService
             {
                 Debug.WriteLine($"📐 Creating recording source for display: {mapping.Display.FriendlyName}");
 
+                // Apply minimum resolution constraint while preserving aspect ratio
+                var (adjustedWidth, adjustedHeight) = CalculateMinimumResolution(
+                    (int)mapping.SourceRect.Width, 
+                    (int)mapping.SourceRect.Height);
+                
                 var displaySource = new DisplayRecordingSource(mapping.Display)
                 {
                     RecorderApi = RecorderApi.WindowsGraphicsCapture,
@@ -712,13 +774,13 @@ public class CaptureService : ICaptureService
                     Position = mapping.Position,
                     // Set OutputSize to match the actual cropped area for this monitor
                     // This works with the canvas-sized final output to scale properly
-                    OutputSize = new ScreenSize(mapping.SourceRect.Width, mapping.SourceRect.Height)
+                    OutputSize = new ScreenSize(adjustedWidth, adjustedHeight)
                 };
 
                 sources.Add(displaySource);
 
                 Debug.WriteLine($"   ✅ Applied SourceRect: {mapping.SourceRect.Left},{mapping.SourceRect.Top} size {mapping.SourceRect.Width}x{mapping.SourceRect.Height}");
-                Debug.WriteLine($"   ✅ Applied OutputSize: {mapping.SourceRect.Width}x{mapping.SourceRect.Height}");
+                Debug.WriteLine($"   ✅ Applied OutputSize: {adjustedWidth}x{adjustedHeight} (original: {mapping.SourceRect.Width}x{mapping.SourceRect.Height})");
                 if (mapping.Position != null)
                 {
                     Debug.WriteLine($"   ✅ Applied Position: {mapping.Position.Left},{mapping.Position.Top}");
