@@ -2,8 +2,9 @@ namespace Better_SignalRGB_Screen_Capture.Services;
 
 internal static class StreamingCanvasPage
 {
-    private static readonly Lazy<string> Page = new(() => Read("html").Replace(
-        "<!--WEB_OUTPUT_SCRIPT-->", "<script>" + Read("js") + "</script>", StringComparison.Ordinal));
+    private static readonly Lazy<string> Page = new(() => Read("html")
+        .Replace("<!--CONTOUR_HALO_SCRIPT-->", "<script>" + Read("contours.js") + "</script>", StringComparison.Ordinal)
+        .Replace("<!--WEB_OUTPUT_SCRIPT-->", "<script>" + Read("js") + "</script>", StringComparison.Ordinal));
 
     public static string Html => Page.Value;
 

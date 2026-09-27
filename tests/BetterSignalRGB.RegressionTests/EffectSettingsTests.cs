@@ -17,6 +17,15 @@ internal static class EffectSettingsTests
         Assert.Equal(200d, legacy.ScreenHeight, "Legacy settings fill the complete output height");
         Assert.Equal("Classic", legacy.AmbilightStyle, "Migration preserves the original halo renderer");
         Assert.Equal(0, legacy.AmbilightCutoff, "Legacy settings do not suppress any halo colors");
+        Assert.Equal(3, legacy.AmbilightEdgeDepth, "Legacy profiles gain the default contour sample depth without enabling Contours");
+        Assert.Equal(2, legacy.AmbilightEdgeMix, "Legacy profiles gain the default edge smoothing");
+        Assert.Equal(60, legacy.AmbilightEdgeReach, "Legacy profiles gain the default contour reach");
+        Assert.Equal(50, legacy.AmbilightEdgeFade, "Legacy profiles gain the default contour fade");
+        var legacySoft = Newtonsoft.Json.JsonConvert.DeserializeObject<SignalRgbEffectSettings>(
+            """{"AmbilightStyle":"Soft","AmbilightBlur":17,"AmbilightSpread":42}""")!.Normalize();
+        Assert.Equal("Soft", legacySoft.AmbilightStyle, "Migration does not replace an existing Soft profile with Contours");
+        Assert.Equal(17, legacySoft.AmbilightBlur, "Migration preserves the saved legacy blur");
+        Assert.Equal(42, legacySoft.AmbilightSpread, "Migration preserves the saved legacy spread");
         foreach (var signalEnabled in new[] { false, true })
         foreach (var webEnabled in new[] { false, true })
         {
@@ -25,7 +34,8 @@ internal static class EffectSettingsTests
                 Ambilight = false, AmbilightFullscreen = true, HideSources = true, AmbilightBlur = 8,
                 AmbilightSpread = 40, AmbilightSaturation = 8, AmbilightIntensity = 160,
                 Interpolation = "pixelated", FrameRate = 29, ScreenX = 13.25, ScreenY = 17.75,
-                ScreenWidth = 200.5, ScreenHeight = 155.5, AmbilightStyle = "Soft", AmbilightCutoff = 26 };
+                ScreenWidth = 200.5, ScreenHeight = 155.5, AmbilightStyle = "Contours", AmbilightCutoff = 26,
+                AmbilightEdgeDepth = 12, AmbilightEdgeMix = 16, AmbilightEdgeReach = 115, AmbilightEdgeFade = 83 };
             Assert.Equal(new SignalRgbEffectSettings { Enabled = signalEnabled, WebEnabled = webEnabled }, modified.ResetAppearance(),
                 "Reset restores every appearance parameter and preserves both independent output switches");
             var roundTrip = Newtonsoft.Json.JsonConvert.DeserializeObject<SignalRgbEffectSettings>(
@@ -33,7 +43,8 @@ internal static class EffectSettingsTests
             Assert.Equal(modified, roundTrip.Normalize(), "Both activation flags persist independently with the appearance settings");
         }
         var webOnly = legacy with { Enabled = false, WebEnabled = true, ScreenX = 13.25, ScreenY = 17.75,
-            ScreenWidth = 200.5, ScreenHeight = 155.5, AmbilightStyle = "Soft", AmbilightCutoff = 26 };
+            ScreenWidth = 200.5, ScreenHeight = 155.5, AmbilightStyle = "Contours", AmbilightCutoff = 26,
+            AmbilightEdgeDepth = 12, AmbilightEdgeMix = 16, AmbilightEdgeReach = 115, AmbilightEdgeFade = 83 };
         using (var wire = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(webOnly,
             new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))))
         {
@@ -43,9 +54,34 @@ internal static class EffectSettingsTests
             Assert.Equal(17.75, wire.RootElement.GetProperty("screenY").GetDouble(), "Placement preserves fractional Y coordinates on the wire");
             Assert.Equal(200.5, wire.RootElement.GetProperty("screenWidth").GetDouble(), "Placement preserves fractional width on the wire");
             Assert.Equal(155.5, wire.RootElement.GetProperty("screenHeight").GetDouble(), "Placement preserves fractional height on the wire");
-            Assert.Equal("Soft", wire.RootElement.GetProperty("ambilightStyle").GetString(), "Halo style has a stable wire name");
+            Assert.Equal("Contours", wire.RootElement.GetProperty("ambilightStyle").GetString(), "Contours has a stable wire style name");
             Assert.Equal(26, wire.RootElement.GetProperty("ambilightCutoff").GetInt32(), "Halo cutoff has a stable wire name");
+            Assert.Equal(12, wire.RootElement.GetProperty("ambilightEdgeDepth").GetInt32(), "Contour depth has a stable camelCase wire name");
+            Assert.Equal(16, wire.RootElement.GetProperty("ambilightEdgeMix").GetInt32(), "Contour smoothing has a stable camelCase wire name");
+            Assert.Equal(115, wire.RootElement.GetProperty("ambilightEdgeReach").GetInt32(), "Contour reach has a stable camelCase wire name");
+            Assert.Equal(83, wire.RootElement.GetProperty("ambilightEdgeFade").GetInt32(), "Contour fade has a stable camelCase wire name");
+            Assert.Equal(webOnly, System.Text.Json.JsonSerializer.Deserialize<SignalRgbEffectSettings>(wire.RootElement.GetRawText(),
+                new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)),
+                "Preview and streaming JSON preserve the entire Contours configuration");
         }
+        foreach (var style in new[] { "Classic", "Soft", "Contours" })
+        {
+            var selected = legacySoft with { AmbilightStyle = style, AmbilightEdgeDepth = 12, AmbilightEdgeMix = 16,
+                AmbilightEdgeReach = 115, AmbilightEdgeFade = 83 };
+            Assert.Equal(selected, selected.Normalize(), "Changing halo styles preserves both legacy and contour settings");
+        }
+        var minimumContour = new SignalRgbEffectSettings { AmbilightEdgeDepth = int.MinValue, AmbilightEdgeMix = int.MinValue,
+            AmbilightEdgeReach = int.MinValue, AmbilightEdgeFade = int.MinValue }.Normalize();
+        Assert.Equal(1, minimumContour.AmbilightEdgeDepth, "Contour samples always have positive depth");
+        Assert.Equal(0, minimumContour.AmbilightEdgeMix, "Contour edge smoothing can be disabled");
+        Assert.Equal(1, minimumContour.AmbilightEdgeReach, "Contour light always has positive reach");
+        Assert.Equal(0, minimumContour.AmbilightEdgeFade, "Uniform contour brightness is supported");
+        var maximumContour = new SignalRgbEffectSettings { AmbilightEdgeDepth = int.MaxValue, AmbilightEdgeMix = int.MaxValue,
+            AmbilightEdgeReach = int.MaxValue, AmbilightEdgeFade = int.MaxValue }.Normalize();
+        Assert.Equal(20, maximumContour.AmbilightEdgeDepth, "Contour sample depth is bounded to twenty percent");
+        Assert.Equal(30, maximumContour.AmbilightEdgeMix, "Contour edge smoothing is bounded");
+        Assert.Equal(200, maximumContour.AmbilightEdgeReach, "Contour reach is bounded");
+        Assert.Equal(100, maximumContour.AmbilightEdgeFade, "Contour fade is bounded to one hundred percent");
         var normalized = new SignalRgbEffectSettings
         {
             Enabled = true, PictureMode = "unknown", FrameRate = 900, Hue = -999,
@@ -116,6 +152,9 @@ internal static class EffectSettingsTests
         await service.UpdateAsync(webOnly);
         Assert.True(service.Current.WebEnabled && !service.Current.Enabled, "Web-only activation is published independently");
         Assert.Equal(webOnly, storage.Value, "Web-only activation is durable");
+        var reloadedService = new SignalRgbEffectSettingsService(storage);
+        await reloadedService.InitializeAsync();
+        Assert.Equal(webOnly, reloadedService.Current, "Restarting the settings service preserves all four Contours controls");
         await service.UpdateAsync(webOnly with { Enabled = true });
         Assert.True(service.Current.WebEnabled && service.Current.Enabled, "Both output targets can be enabled together");
         await service.UpdateAsync(service.Current with { WebEnabled = false });

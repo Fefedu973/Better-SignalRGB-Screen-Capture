@@ -8,6 +8,7 @@
   <ItemGroup>
     <EmbeddedResource Include="../../Better-SignalRGB-Screen-Capture/Services/WebOutput/StreamingCanvasPage.html" LogicalName="BetterSignalRGB.WebOutput.html" />
     <EmbeddedResource Include="../../Better-SignalRGB-Screen-Capture/Services/WebOutput/StreamingCanvasPage.js" LogicalName="BetterSignalRGB.WebOutput.js" />
+    <EmbeddedResource Include="../../Better-SignalRGB-Screen-Capture/Services/WebOutput/ContourHalo.js" LogicalName="BetterSignalRGB.WebOutput.contours.js" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Models/PipelineDiagnosticsSnapshot.cs" Link="PipelineDiagnosticsSnapshot.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/IPipelineDiagnosticsService.cs" Link="IPipelineDiagnosticsService.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Models/SignalRgbConnectionSnapshot.cs" Link="SignalRgbConnectionSnapshot.cs" />

@@ -18,6 +18,10 @@ public sealed record SignalRgbEffectSettings
     public bool Ambilight { get; init; } = true;
     public string AmbilightStyle { get; init; } = "Classic";
     public int AmbilightCutoff { get; init; }
+    public int AmbilightEdgeDepth { get; init; } = 3;
+    public int AmbilightEdgeMix { get; init; } = 2;
+    public int AmbilightEdgeReach { get; init; } = 60;
+    public int AmbilightEdgeFade { get; init; } = 50;
     public bool AmbilightFullscreen { get; init; }
     public bool HideSources { get; init; }
     public int AmbilightBlur { get; init; } = 30;
@@ -43,8 +47,12 @@ public sealed record SignalRgbEffectSettings
             Hue = Math.Clamp(Hue, -180, 180),
             Brightness = Math.Clamp(Brightness, -100, 100),
             Saturation = Math.Clamp(Saturation, -100, 100),
-            AmbilightStyle = AmbilightStyle is "Classic" or "Soft" ? AmbilightStyle : "Classic",
+            AmbilightStyle = AmbilightStyle is "Classic" or "Soft" or "Contours" ? AmbilightStyle : "Classic",
             AmbilightCutoff = Math.Clamp(AmbilightCutoff, 0, 100),
+            AmbilightEdgeDepth = Math.Clamp(AmbilightEdgeDepth, 1, 20),
+            AmbilightEdgeMix = Math.Clamp(AmbilightEdgeMix, 0, 30),
+            AmbilightEdgeReach = Math.Clamp(AmbilightEdgeReach, 1, 200),
+            AmbilightEdgeFade = Math.Clamp(AmbilightEdgeFade, 0, 100),
             AmbilightBlur = Math.Clamp(AmbilightBlur, 0, 100),
             AmbilightSpread = Math.Clamp(AmbilightSpread, 0, 100),
             AmbilightSaturation = double.IsFinite(AmbilightSaturation) ? Math.Clamp(AmbilightSaturation, 0, 10) : 3,

@@ -4,6 +4,7 @@
     const MAX_BUFFERED = 32 * 1024 * 1024, MAX_PIXELS = 16 * 1024 * 1024, MAX_FRAME_PIXELS = 2101000, MAX_DECODERS = 2;
     const frame = document.getElementById('frame'), context = frame.getContext('2d');
     const glow = document.getElementById('glow'), glowContext = glow.getContext('2d');
+    const contourCanvas = document.getElementById('contourHalo');
     const screen = document.getElementById('screenContainer'), stage = document.getElementById('stage');
     const filters = [document.getElementById('ambilight'), document.getElementById('fullscreenAmbilight')];
     const styleParser = document.createElement('div').style, textDecoder = new TextDecoder('utf-8', { fatal:true });
@@ -20,11 +21,13 @@
     let bufferedBytes = 0, decodedPixels = 0, activeDecoders = 0, renderCount = 0;
     let request, retry, renderTimer, animation, dirty = false, lastDraw = -Infinity;
     let previewSettings = null, placementEditor = null, placementGesture = null;
+    let contourRenderer = null, layoutSequence = 0;
 
     // Diagnostics expose counters only, never JPEGs, URLs, source names or mutation hooks.
     Object.defineProperty(window, 'webOutputDiagnostics', { get:() => Object.freeze({
         stateVersion, generation, activeDecoders, bufferedBytes, decodedPixels,
-        sourceCount:sources.size, pendingCount:decodeQueue.size, renderCount, webEnabled:settings.webEnabled }) });
+        sourceCount:sources.size, pendingCount:decodeQueue.size, renderCount, webEnabled:settings.webEnabled,
+        halo:contourRenderer?.diagnostics || null }) });
 
     function normalize(value) {
         const width = finite(value.screenWidth, 320, 1, 320), height = finite(value.screenHeight, 200, 1, 200);
@@ -37,7 +40,11 @@
             ambilight:bool(value.ambilight, true), ambilightFullscreen:bool(value.ambilightFullscreen, false),
             hideSources:bool(value.hideSources, false), ambilightBlur:finite(value.ambilightBlur, 30, 0, 100),
             ambilightSpread:finite(value.ambilightSpread, 10, 0, 100),
-            ambilightStyle:value.ambilightStyle === 'Soft' ? 'Soft' : 'Classic', ambilightCutoff:finite(value.ambilightCutoff, 0, 0, 100),
+            ambilightStyle:['Soft','Contours'].includes(value.ambilightStyle) ? value.ambilightStyle : 'Classic', ambilightCutoff:finite(value.ambilightCutoff, 0, 0, 100),
+            ambilightEdgeDepth:finite(value.ambilightEdgeDepth, 3, 1, 20),
+            ambilightEdgeMix:finite(value.ambilightEdgeMix, 2, 0, 30),
+            ambilightEdgeReach:finite(value.ambilightEdgeReach, 60, 1, 200),
+            ambilightEdgeFade:finite(value.ambilightEdgeFade, 50, 0, 100),
             ambilightSaturation:finite(value.ambilightSaturation, 3, 0, 10),
             ambilightIntensity:finite(value.ambilightIntensity, 100, 0, 200),
             interpolation:value.interpolation === 'pixelated' ? 'pixelated' : 'smooth',
@@ -46,17 +53,23 @@
 
     function applyFilters() {
         const s = settings, effects = s.webEnabled;
+        const contours = effects && s.ambilight && s.ambilightStyle === 'Contours';
         const x = effects ? s.screenX : 0, y = effects ? s.screenY : 0;
         const width = effects ? s.screenWidth : 320, height = effects ? s.screenHeight : 200;
         screen.style.left = `${x}px`; screen.style.top = `${y}px`;
         screen.style.width = `${width}px`; screen.style.height = `${height}px`;
         frame.style.transform = `scale(${width / 320},${height / 200})`;
-        const color = `hue-rotate(${s.hue}deg) brightness(${100 + s.brightness}%) saturate(${100 + s.saturation}%) ${pictureFilters[s.pictureMode]}${s.blur ? ' blur(1px)' : ''}`;
+        const tone = `hue-rotate(${s.hue}deg) brightness(${100 + s.brightness}%) saturate(${100 + s.saturation}%) ${pictureFilters[s.pictureMode]}`;
+        const color = tone + (s.blur ? ' blur(1px)' : '');
         frame.style.filter = effects ? color : 'none';
         glow.style.filter = effects ? `${color} url(#fullscreenAmbilight)` : 'none';
-        screen.style.filter = effects && s.ambilight && !s.ambilightFullscreen ? 'url(#ambilight)' : 'none';
+        // Picture softness must not bleed an exterior-only halo back into its mask.
+        contourCanvas.style.filter = effects ? tone : 'none';
+        contourCanvas.style.display = contours ? 'block' : 'none';
+        if (!contours) releaseContourRenderer();
+        screen.style.filter = effects && s.ambilight && !s.ambilightFullscreen && !contours ? 'url(#ambilight)' : 'none';
         const fullscreen = effects && s.ambilight && s.ambilightFullscreen;
-        glow.style.display = fullscreen ? 'block' : 'none';
+        glow.style.display = fullscreen && !contours ? 'block' : 'none';
         screen.style.visibility = fullscreen && s.hideSources ? 'hidden' : 'visible';
         frame.style.imageRendering = glow.style.imageRendering = effects && s.interpolation === 'pixelated' ? 'pixelated' : 'auto';
         const near = Math.max(.01, s.ambilightBlur * .35 + s.ambilightSpread * .15);
@@ -111,6 +124,7 @@
             if (index === 0) layout.crop.moveTo(x, y); else layout.crop.lineTo(x, y);
         });
         layout.crop.closePath();
+        layout.haloId = ++layoutSequence;
         return layout;
     }
 
@@ -227,7 +241,7 @@
             if (raw.loading?.version > 0 && raw.loading.generation === generation && !modeChanged) raw.loading.version = version;
         }
         ordered = Array.from(sources.values()).sort((a, b) => a.layout.z - b.layout.z);
-        if (sizeChanged) { frame.width = glow.width = value.outputWidth; frame.height = glow.height = value.outputHeight; }
+        if (sizeChanged) { frame.width = glow.width = contourCanvas.width = value.outputWidth; frame.height = glow.height = contourCanvas.height = value.outputHeight; }
         if (modeChanged || sizeChanged) clearCanvases();
         if (modeChanged || cadenceChanged) cancelRender();
         rebalanceDisplayed(); applyFilters(); scheduleRender(); pumpDecoders();
@@ -311,6 +325,30 @@
         context.resetTransform(); context.clearRect(0, 0, frame.width, frame.height);
         glowContext.resetTransform(); glowContext.clearRect(0, 0, glow.width, glow.height);
     }
+    function releaseContourRenderer() {
+        contourRenderer?.dispose(); contourRenderer = null;
+    }
+    function drawSource(target, source, mask = false) {
+        if (!source.displayed || source.layout.opacity <= 0) return;
+        const item = source.layout;
+        target.save();
+        try {
+            target.globalAlpha = mask ? 1 : Math.max(0, Math.min(1, item.opacity));
+            target.translate(item.x + item.w / 2, item.y + item.h / 2);
+            target.rotate(item.rotation); target.scale(item.sx, item.sy); target.translate(-item.w / 2, -item.h / 2);
+            target.clip(item.clip); target.clip(item.crop);
+            if (mask) { target.fillStyle = '#fff'; target.fillRect(0, 0, item.w, item.h); }
+            else target.drawImage(source.displayed.bitmap, 0, 0, item.w, item.h);
+        } finally { target.restore(); }
+    }
+    function drawContourMask(target) {
+        target.save();
+        try {
+            // The picture is clipped to the capture canvas before global placement.
+            target.beginPath(); target.rect(0, 0, 320, 200); target.clip();
+            for (const source of ordered) drawSource(target, source, true);
+        } finally { target.restore(); }
+    }
     function cancelRender() {
         clearTimeout(renderTimer); renderTimer = null;
         if (animation != null) cancelAnimationFrame(animation);
@@ -331,19 +369,13 @@
         if (settings.webEnabled) {
             context.imageSmoothingEnabled = settings.interpolation === 'smooth';
             context.setTransform(frame.width / 320, 0, 0, frame.height / 200, 0, 0);
-            for (const source of ordered) {
-                if (!source.displayed || source.layout.opacity <= 0) continue;
-                const item = source.layout;
-                context.save();
-                try {
-                    context.globalAlpha = Math.max(0, Math.min(1, item.opacity));
-                    context.translate(item.x + item.w / 2, item.y + item.h / 2);
-                    context.rotate(item.rotation); context.scale(item.sx, item.sy); context.translate(-item.w / 2, -item.h / 2);
-                    context.clip(item.clip); context.clip(item.crop);
-                    context.drawImage(source.displayed.bitmap, 0, 0, item.w, item.h);
-                } finally { context.restore(); }
-            }
-            if (settings.ambilight && settings.ambilightFullscreen) {
+            for (const source of ordered) drawSource(context, source);
+            if (settings.ambilight && settings.ambilightStyle === 'Contours') {
+                contourRenderer ||= window.ContourHalo.create(contourCanvas);
+                const geometryKey = ordered.filter(source => source.displayed && source.layout.opacity > 0)
+                    .map(source => source.layout.haloId).join(',');
+                contourRenderer.render(frame, drawContourMask, geometryKey, settings);
+            } else if (settings.ambilight && settings.ambilightFullscreen) {
                 glowContext.imageSmoothingEnabled = settings.interpolation === 'smooth';
                 glowContext.drawImage(frame, 0, 0);
             }
@@ -414,7 +446,7 @@
 
     function reset() {
         cancelRender(); clearImages(); stateVersion = 0; lastDraw = -Infinity;
-        clearCanvases();
+        clearCanvases(); releaseContourRenderer();
     }
     async function connect() {
         clearTimeout(retry); if (!active) return;
@@ -451,6 +483,7 @@
         previewSettings = settings = normalize({ ...settings, webEnabled:true,
             screenX:rect.x, screenY:rect.y, screenWidth:rect.width, screenHeight:rect.height });
         applyFilters();
+        if (settings.ambilight && settings.ambilightStyle === 'Contours') scheduleRender();
         // Only the explicitly requested preview has a native bridge. The public
         // output never posts messages or contains editor controls.
         window.chrome?.webview?.postMessage({ type:'placement', ...placement() });

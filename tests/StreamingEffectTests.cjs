@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
+require('../scripts/Sync-ContourHalo.cjs')(true);
 
 const effect = fs.readFileSync(path.join(__dirname, '..', 'Better-SignalRGB-Screen-Capture-Effect.html'), 'utf8');
 const script = effect.match(/<script>([\s\S]*?)<\/script>/)[1];
@@ -36,7 +37,7 @@ class FakeImage {
     get src() { return this.url; }
     finish(success = true) { this.naturalWidth = success ? 2 : 0; this.naturalHeight = success ? 2 : 0; (success ? this.onload : this.onerror)?.(); }
 }
-const elements = Object.fromEntries(['canvas','screenContainer','ambiCanvas','ambilight','fullscreenAmbilight'].map(id => [id, new Element(id)]));
+const elements = Object.fromEntries(['canvas','screenContainer','ambiCanvas','contourHalo','ambilight','fullscreenAmbilight'].map(id => [id, new Element(id)]));
 const sandbox = { document:{ getElementById:id => elements[id], createElement:tag => new Element(`offscreen-${tag}`) },
     requestAnimationFrame:callback => ticks.push(callback), Image:FakeImage,
     Path2D:class { constructor() { paths++; } rect() {} moveTo() {} lineTo() {} closePath() {} }, Date:{ now:() => now }, console };

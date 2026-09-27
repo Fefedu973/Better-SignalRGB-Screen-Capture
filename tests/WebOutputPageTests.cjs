@@ -23,6 +23,7 @@ function makeState(fixture, settings = {}, width = 320, height = 200) {
 module.exports = async function checkWebOutput(browser, fixtures) {
     const assets=path.join(root,'Better-SignalRGB-Screen-Capture','Services','WebOutput');
     const html=fs.readFileSync(path.join(assets,'StreamingCanvasPage.html'),'utf8')
+        .replace('<!--CONTOUR_HALO_SCRIPT-->',()=>`<script>${fs.readFileSync(path.join(assets,'ContourHalo.js'),'utf8')}</script>`)
         .replace('<!--WEB_OUTPUT_SCRIPT-->',()=>`<script>${fs.readFileSync(path.join(assets,'StreamingCanvasPage.js'),'utf8')}</script>`);
     const streams=new Set();
     let connections=0,stateVersion=1,state=makeState(fixtures[0]);
@@ -138,7 +139,7 @@ module.exports = async function checkWebOutput(browser, fixtures) {
             const c=document.createElement('canvas');c.width=800;c.height=600;const ctx=c.getContext('2d');
             return['#20e040','#d02050'].map(color=>{ctx.fillStyle=color;ctx.fillRect(0,0,800,600);return c.toDataURL('image/jpeg',.92).split(',')[1];});
         });
-        await change(makeState(fixtures[0],{enabled:true,pictureMode:'Mono'},800,600),[{bytes:Buffer.from(solid[0],'base64')}]);
+        await change(makeState(fixtures[0],{enabled:true,pictureMode:'Mono',ambilightStyle:'Contours'},800,600),[{bytes:Buffer.from(solid[0],'base64')}]);
         assert.deepEqual(await page.evaluate(()=>[document.getElementById('frame').width,document.getElementById('frame').height]),[800,600]);
         assert.ok((await stats(await page.screenshot())).colored>60000,'SignalRGB control alone never filters raw web output');
         await change(makeState(fixtures[0]),[{bytes:Buffer.from(fixtures[0].composite,'base64')}]);
@@ -166,7 +167,17 @@ module.exports = async function checkWebOutput(browser, fixtures) {
             {ambilight:true,ambilightStyle:'Classic',ambilightFullscreen:true,hideSources:true,ambilightCutoff:45},
             {ambilight:true,ambilightStyle:'Soft',ambilightFullscreen:true,hideSources:true,ambilightCutoff:100},
             {screenX:48,screenY:30,screenWidth:224,screenHeight:140,ambilight:true,ambilightBlur:8},
-            {screenX:40,screenY:15,screenWidth:140,screenHeight:160,ambilight:true,ambilightFullscreen:true,ambilightStyle:'Soft'}
+            {screenX:40,screenY:15,screenWidth:140,screenHeight:160,ambilight:true,ambilightFullscreen:true,ambilightStyle:'Soft'},
+            {ambilight:true,ambilightStyle:'Contours'},
+            {ambilight:true,ambilightStyle:'Contours',ambilightEdgeDepth:20,ambilightEdgeMix:30},
+            {ambilight:true,ambilightStyle:'Contours',ambilightEdgeReach:18,ambilightEdgeFade:0},
+            {ambilight:true,ambilightStyle:'Contours',ambilightEdgeReach:200,ambilightEdgeFade:100},
+            {ambilight:true,ambilightStyle:'Contours',ambilightFullscreen:true,hideSources:true},
+            {ambilight:true,ambilightStyle:'Contours',ambilightFullscreen:true,hideSources:true,pictureMode:'Mono'},
+            {ambilight:true,ambilightStyle:'Contours',ambilightFullscreen:true,hideSources:true,ambilightIntensity:0},
+            {ambilight:true,ambilightStyle:'Contours',ambilightFullscreen:true,hideSources:true,ambilightCutoff:100},
+            {screenX:48,screenY:30,screenWidth:224,screenHeight:140,ambilight:true,ambilightStyle:'Contours'},
+            {ambilight:false,ambilightStyle:'Contours',ambilightFullscreen:true,hideSources:true}
         ];
         for(const appearance of appearances){
             const settings={...effect,...appearance};

@@ -22,7 +22,7 @@ public partial class OutputViewModel : ObservableObject
     private string _effectSettingsStatus = string.Empty;
 
     public IReadOnlyList<string> EffectPictureModes { get; } = ["Standard", "Cinema", "Mono", "Vivid", "Dominant", "HD"];
-    public IReadOnlyList<string> EffectAmbilightStyles { get; } = ["Classic", "Soft"];
+    public IReadOnlyList<string> EffectAmbilightStyles { get; } = ["Classic", "Soft", "Contours"];
     public IReadOnlyList<string> EffectInterpolationModes { get; } = ["Smooth", "Pixelated"];
     public bool IsEffectSettingsReady => _effectSettingsReady;
     public bool CanEditEffectSettings => _effectSettingsReady;
@@ -30,6 +30,8 @@ public partial class OutputViewModel : ObservableObject
     public event EventHandler<SignalRgbEffectSettings>? PreviewSettingsChanged;
     public bool CanEditEffectGlow => CanEditEffectSettings && _effectSettings.Ambilight;
     public bool CanHideEffectPicture => CanEditEffectGlow && _effectSettings.AmbilightFullscreen;
+    public bool IsContourGlow => _effectSettings.AmbilightStyle == "Contours";
+    public bool IsLegacyGlow => !IsContourGlow;
     public string EffectSettingsStatus => _effectSettingsStatus;
 
     public bool EffectEnabled
@@ -93,6 +95,30 @@ public partial class OutputViewModel : ObservableObject
     {
         get => _effectSettings.AmbilightCutoff;
         set => ChangeEffectInteger(value, 0, 100, (settings, number) => settings with { AmbilightCutoff = number });
+    }
+
+    public double EffectAmbilightEdgeDepth
+    {
+        get => _effectSettings.AmbilightEdgeDepth;
+        set => ChangeEffectInteger(value, 1, 20, (settings, number) => settings with { AmbilightEdgeDepth = number });
+    }
+
+    public double EffectAmbilightEdgeMix
+    {
+        get => _effectSettings.AmbilightEdgeMix;
+        set => ChangeEffectInteger(value, 0, 30, (settings, number) => settings with { AmbilightEdgeMix = number });
+    }
+
+    public double EffectAmbilightEdgeReach
+    {
+        get => _effectSettings.AmbilightEdgeReach;
+        set => ChangeEffectInteger(value, 1, 200, (settings, number) => settings with { AmbilightEdgeReach = number });
+    }
+
+    public double EffectAmbilightEdgeFade
+    {
+        get => _effectSettings.AmbilightEdgeFade;
+        set => ChangeEffectInteger(value, 0, 100, (settings, number) => settings with { AmbilightEdgeFade = number });
     }
 
     public bool EffectAmbilightFullscreen

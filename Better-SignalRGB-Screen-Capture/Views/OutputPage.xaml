@@ -152,7 +152,7 @@
                     <controls:SettingsCard Header="Enable halo">
                         <ToggleSwitch AutomationProperties.Name="Enable halo" IsOn="{x:Bind ViewModel.EffectAmbilight, Mode=TwoWay}" />
                     </controls:SettingsCard>
-                    <controls:SettingsCard Header="Halo style" Description="Classic expands bright colors; Soft blends a smoother halo." IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">
+                    <controls:SettingsCard Header="Halo style" Description="Contours is recommended for a halo that follows the picture's edges. Classic and Soft remain available." IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">
                         <ComboBox Width="150" AutomationProperties.Name="Halo style" ItemsSource="{x:Bind ViewModel.EffectAmbilightStyles}" SelectedItem="{x:Bind ViewModel.EffectAmbilightStyle, Mode=TwoWay}" />
                     </controls:SettingsCard>
                     <controls:SettingsCard Header="Dark-color cutoff (%)" Description="Suppress dark colors in the halo without changing the picture." IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">
@@ -167,16 +167,41 @@
                     <controls:SettingsCard Header="Hide picture in full-area mode" Description="Show only the halo when Fill the output area is enabled." IsEnabled="{x:Bind ViewModel.CanHideEffectPicture, Mode=OneWay}">
                         <ToggleSwitch AutomationProperties.Name="Hide picture in full-area mode" IsOn="{x:Bind ViewModel.EffectHideSources, Mode=TwoWay}" />
                     </controls:SettingsCard>
-                    <controls:SettingsCard Header="Halo blur" IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">
+                    <controls:SettingsCard Header="Halo blur" IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}" Visibility="{x:Bind ViewModel.IsLegacyGlow, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal" Spacing="12">
                             <Slider Width="160" AutomationProperties.Name="Halo blur" Minimum="0" Maximum="100" StepFrequency="1" Value="{x:Bind ViewModel.EffectAmbilightBlur, Mode=TwoWay}" />
                             <NumberBox Width="90" AutomationProperties.Name="Halo blur amount" Minimum="0" Maximum="100" Value="{x:Bind ViewModel.EffectAmbilightBlur, Mode=TwoWay}" />
                         </StackPanel>
                     </controls:SettingsCard>
-                    <controls:SettingsCard Header="Halo spread" IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">
+                    <controls:SettingsCard Header="Halo spread" IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}" Visibility="{x:Bind ViewModel.IsLegacyGlow, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal" Spacing="12">
                             <Slider Width="160" AutomationProperties.Name="Halo spread" Minimum="0" Maximum="100" StepFrequency="1" Value="{x:Bind ViewModel.EffectAmbilightSpread, Mode=TwoWay}" />
                             <NumberBox Width="90" AutomationProperties.Name="Halo spread amount" Minimum="0" Maximum="100" Value="{x:Bind ViewModel.EffectAmbilightSpread, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Contours" Description="Colors extend outside visible source edges. Fill the output area extends the halo to the canvas boundary. Hide picture leaves its area black." Visibility="{x:Bind ViewModel.IsContourGlow, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <controls:SettingsCard Header="Edge sample depth (%)" Description="Sample this percentage of the picture inward from each edge." IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}" Visibility="{x:Bind ViewModel.IsContourGlow, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Edge sample depth" Minimum="1" Maximum="20" StepFrequency="1" Value="{x:Bind ViewModel.EffectAmbilightEdgeDepth, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Edge sample depth percentage" Minimum="1" Maximum="20" Value="{x:Bind ViewModel.EffectAmbilightEdgeDepth, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Edge smoothing" Description="Blend neighboring colors along each edge. 0 keeps local colors." IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}" Visibility="{x:Bind ViewModel.IsContourGlow, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Edge smoothing" Minimum="0" Maximum="30" StepFrequency="1" Value="{x:Bind ViewModel.EffectAmbilightEdgeMix, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Edge smoothing amount" Minimum="0" Maximum="30" Value="{x:Bind ViewModel.EffectAmbilightEdgeMix, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Halo reach" Description="Distance in units of the 320-wide output, equal in every direction. Fill the output area overrides it." IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}" Visibility="{x:Bind ViewModel.IsContourGlow, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Halo reach" Minimum="1" Maximum="200" StepFrequency="1" Value="{x:Bind ViewModel.EffectAmbilightEdgeReach, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Halo reach in canvas units" Minimum="1" Maximum="200" Value="{x:Bind ViewModel.EffectAmbilightEdgeReach, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Edge fade (%)" Description="0 keeps uniform brightness; higher values fade faster away from the picture." IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}" Visibility="{x:Bind ViewModel.IsContourGlow, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Edge fade" Minimum="0" Maximum="100" StepFrequency="1" Value="{x:Bind ViewModel.EffectAmbilightEdgeFade, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Edge fade percentage" Minimum="0" Maximum="100" Value="{x:Bind ViewModel.EffectAmbilightEdgeFade, Mode=TwoWay}" />
                         </StackPanel>
                     </controls:SettingsCard>
                     <controls:SettingsCard Header="Halo saturation" Description="1 keeps the picture's saturation; 0 removes color." IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">

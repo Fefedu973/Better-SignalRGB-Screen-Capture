@@ -14,6 +14,7 @@ function outputState(sources, settings = {}) {
 
 async function createHarness(browser, preview) {
     const html = fs.readFileSync(path.join(assets, 'StreamingCanvasPage.html'), 'utf8')
+        .replace('<!--CONTOUR_HALO_SCRIPT-->', () => `<script>${fs.readFileSync(path.join(assets, 'ContourHalo.js'), 'utf8')}</script>`)
         .replace('<!--WEB_OUTPUT_SCRIPT-->', () => `<script>${fs.readFileSync(path.join(assets, 'StreamingCanvasPage.js'), 'utf8')}</script>`);
     const clients = new Set(), requests = [], errors = [];
     let stream, version = 0;

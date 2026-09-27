@@ -10,6 +10,7 @@
         #screenContainer{position:absolute;left:0;top:0;width:320px;height:200px;z-index:2}
         #frame,#glow{display:block;width:320px;height:200px;border:0;transform-origin:0 0}
         #glow{position:absolute;inset:0;pointer-events:none;z-index:1;display:none}
+        #contourHalo{position:absolute;inset:0;width:320px;height:200px;pointer-events:none;z-index:1;display:none}
         #filters{position:absolute;width:0;height:0;pointer-events:none}
         #placementEditor{position:absolute;box-sizing:border-box;border:1px dashed #65c9ff;z-index:3;touch-action:none;cursor:move;outline:none}
         #placementEditor:focus{border-color:#fff}
@@ -50,8 +51,10 @@
     </svg>
     <div id="stage">
         <canvas id="glow" width="320" height="200"></canvas>
+        <canvas id="contourHalo" width="320" height="200"></canvas>
         <div id="screenContainer"><canvas id="frame" width="320" height="200"></canvas></div>
     </div>
+    <!--CONTOUR_HALO_SCRIPT-->
     <!--WEB_OUTPUT_SCRIPT-->
 </body>
 </html>
