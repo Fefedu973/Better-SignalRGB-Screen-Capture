@@ -12,6 +12,7 @@ public class NavigationViewHeaderBehavior : Behavior<NavigationView>
     private static NavigationViewHeaderBehavior? _current;
 
     private Page? _currentPage;
+    private INavigationService? _navigationService;
 
     public DataTemplate? DefaultHeaderTemplate
     {
@@ -52,8 +53,8 @@ public class NavigationViewHeaderBehavior : Behavior<NavigationView>
     {
         base.OnAttached();
 
-        var navigationService = App.GetService<INavigationService>();
-        navigationService.Navigated += OnNavigated;
+        _navigationService = App.GetService<INavigationService>();
+        _navigationService.Navigated += OnNavigated;
 
         _current = this;
     }
@@ -62,8 +63,13 @@ public class NavigationViewHeaderBehavior : Behavior<NavigationView>
     {
         base.OnDetaching();
 
-        var navigationService = App.GetService<INavigationService>();
-        navigationService.Navigated -= OnNavigated;
+        // Detaching may happen after the application's service provider was disposed.
+        // Unsubscribe from the original instance without resolving the host again.
+        if (_navigationService != null)
+        {
+            _navigationService.Navigated -= OnNavigated;
+            _navigationService = null;
+        }
     }
 
     private void OnNavigated(object sender, NavigationEventArgs e)

@@ -63,7 +63,39 @@ internal static class SignalRgbSetupTests
             var old = Path.Combine(engine, "app-2.9.1", "Signal-x64", "Effects", "Dynamic");
             var current = Path.Combine(engine, "app-2.10.0", "Signal-x64", "Effects", "Dynamic");
             Directory.CreateDirectory(old); Directory.CreateDirectory(current);
-            Assert.Equal(current, SignalRgbEffectInstaller.DetectEffectsFolder(engine, effectFolder), "Effect folder detection orders versions numerically");
+            Assert.Equal(current, SignalRgbEffectInstaller.DetectEffectsFolder(null, [], engine), "Internal fallback orders versions numerically");
+            var documents = Path.Combine(root, "Documents");
+            var custom = Path.Combine(documents, "WhirlwindFX", "Effects");
+            var oneDriveRoot = Path.Combine(root, "OneDrive");
+            var syncedDocuments = Path.Combine(oneDriveRoot, "Documents");
+            var syncedEffects = Path.Combine(syncedDocuments, "WhirlwindFX", "Effects");
+            Directory.CreateDirectory(custom);
+            Directory.CreateDirectory(syncedEffects);
+            await File.WriteAllTextAsync(Path.Combine(syncedEffects, "better-signalrgb-screen-capture.html"), "existing custom effect");
+            var candidates = SignalRgbEffectInstaller.GetDocumentFolders(documents, root, [oneDriveRoot, oneDriveRoot, null, "relative-folder"]);
+            Assert.Equal(2, candidates.Length, "Known Documents and OneDrive candidates are deduplicated; relative roots are ignored");
+            Assert.Equal(syncedEffects, SignalRgbEffectInstaller.DetectEffectsFolder(null, candidates, engine),
+                "The actual OneDrive custom effect wins over an empty Documents folder and internal engine effects");
+            Assert.Equal(effectFolder, SignalRgbEffectInstaller.DetectEffectsFolder(effectFolder, candidates, engine),
+                "An explicitly saved existing folder has priority over automatic discovery");
+            Assert.Equal(syncedEffects, SignalRgbEffectInstaller.DetectEffectsFolder(Path.Combine(root, "missing"), candidates, engine),
+                "An obsolete saved folder falls back to existing current-user effects");
+            await File.WriteAllTextAsync(Path.Combine(custom, SignalRgbEffectInstaller.FileName), "current named effect");
+            Assert.Equal(custom, SignalRgbEffectInstaller.DetectEffectsFolder(null, candidates, engine),
+                "The matching application effect identifies the preferred custom folder without inspecting internal app bundles");
+            var businessRoot = Path.Combine(root, "OneDrive - Company");
+            var businessEffects = Path.Combine(businessRoot, "Documents", "WhirlwindFX", "Effects");
+            Directory.CreateDirectory(businessEffects);
+            await File.WriteAllTextAsync(Path.Combine(businessEffects, "user-created.html"), "custom effect");
+            var businessCandidates = SignalRgbEffectInstaller.GetDocumentFolders(Path.Combine(root, "unredirected"), "", [businessRoot]);
+            Assert.Equal(businessEffects, SignalRgbEffectInstaller.DetectEffectsFolder(null, businessCandidates, engine),
+                "A registered or environment-provided business OneDrive root is supported");
+            Assert.True(SignalRgbEffectInstaller.GetDocumentFolders("", root, []).Contains(syncedDocuments),
+                "The conventional personal OneDrive location remains discoverable without environment variables");
+            Assert.Equal(custom, SignalRgbEffectInstaller.DetectEffectsFolder(null, [documents], engine),
+                "Current-user custom effects always take priority over versioned installation directories");
+            Assert.Equal<string?>(null, SignalRgbEffectInstaller.DetectEffectsFolder(null, [Path.Combine(root, "absent")], Path.Combine(root, "missing-engine")),
+                "No matching known directory is reported when no supported installation exists");
         }
         finally { Directory.Delete(root, recursive: true); }
     }

@@ -162,7 +162,6 @@ public partial class SettingsViewModel : ObservableRecipient
         _localSettingsService = localSettingsService;
         _elementTheme = _themeSelectorService.Theme;
         _versionDescription = GetVersionDescription();
-        InitializeEffectSettings();
 
         // Load persisted values
         _ = LoadSettingsAsync();

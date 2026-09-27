@@ -17,6 +17,7 @@
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/SignalRgbConnectionService.cs" Link="SignalRgbConnectionService.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/SignalRgbEffectInstaller.cs" Link="SignalRgbEffectInstaller.cs" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <ProjectReference Include="../../Better-SignalRGB-Screen-Capture.Core/Better-SignalRGB-Screen-Capture.Core.csproj" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Models/SourceItem.cs" Link="SourceItem.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Models/UndoRedoManager.cs" Link="UndoRedoManager.cs" />
@@ -28,6 +29,7 @@
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/CanvasGroupTransform.cs" Link="CanvasGroupTransform.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/CanvasSourceResize.cs" Link="CanvasSourceResize.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Models/SignalRgbEffectSettings.cs" Link="SignalRgbEffectSettings.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/ViewModels/OutputViewModel.cs" Link="OutputViewModel.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/ISignalRgbEffectSettingsService.cs" Link="ISignalRgbEffectSettingsService.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/ILocalSettingsService.cs" Link="ILocalSettingsService.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/SignalRgbEffectSettingsService.cs" Link="SignalRgbEffectSettingsService.cs" />

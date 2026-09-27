@@ -1,4 +1,4 @@
-﻿using Better_SignalRGB_Screen_Capture.ViewModels;
+using Better_SignalRGB_Screen_Capture.ViewModels;
 
 using Microsoft.UI.Xaml.Controls;
 
@@ -16,7 +16,8 @@ public sealed partial class SettingsPage : Page
     {
         ViewModel = App.GetService<SettingsViewModel>();
         InitializeComponent();
-        Loaded += async (_, _) => await ViewModel.ActivateEffectSettingsAsync();
-        Unloaded += (_, _) => ViewModel.DeactivateEffectSettings();
     }
+    private void OpenOutputEditor_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) =>
+        App.GetService<Better_SignalRGB_Screen_Capture.Contracts.Services.INavigationService>()
+            .NavigateTo(typeof(OutputViewModel).FullName!);
 }

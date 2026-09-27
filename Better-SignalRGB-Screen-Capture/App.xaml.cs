@@ -43,6 +43,26 @@ public partial class App : Application
 
     public static UIElement? AppTitlebar { get; set; }
 
+    public bool IsShuttingDown { get; private set; }
+    public event EventHandler? ShuttingDown;
+
+    /// <summary>Release UI-owned native resources before disposing application services.</summary>
+    public void PrepareForShutdown()
+    {
+        if (IsShuttingDown) return;
+        IsShuttingDown = true;
+        // Tray exit calls this on the UI thread. Actual window destruction is a
+        // second idempotent path; a cancelled close/minimize does not raise Closed.
+        var handlers = ShuttingDown;
+        ShuttingDown = null;
+        if (handlers == null) return;
+        foreach (EventHandler handler in handlers.GetInvocationList())
+        {
+            try { handler(this, EventArgs.Empty); }
+            catch (Exception exception) { ApplicationErrorLog.Write("Shutdown: release UI resources", exception); }
+        }
+    }
+
     public App()
     {
         ApplicationErrorLog.Initialize();
@@ -92,6 +112,8 @@ public partial class App : Application
             // Views and ViewModels
             services.AddTransient<SettingsViewModel>();
             services.AddTransient<SettingsPage>();
+            services.AddTransient<OutputViewModel>();
+            services.AddTransient<OutputPage>();
             services.AddTransient<DataGridViewModel>();
             services.AddTransient<ContentGridDetailViewModel>();
             services.AddTransient<ContentGridViewModel>();
@@ -115,6 +137,7 @@ public partial class App : Application
         ApplicationErrorLog.Write("App constructor: initialize notifications");
 
         App.GetService<IAppNotificationService>().Initialize();
+        MainWindow.Closed += (_, _) => PrepareForShutdown();
         ApplicationErrorLog.Write("App constructor complete");
     }
 

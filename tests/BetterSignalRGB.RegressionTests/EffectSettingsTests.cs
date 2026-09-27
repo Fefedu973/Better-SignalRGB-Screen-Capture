@@ -8,11 +8,51 @@ internal static class EffectSettingsTests
 {
     public static async Task RunAsync()
     {
+        var legacy = Newtonsoft.Json.JsonConvert.DeserializeObject<SignalRgbEffectSettings>(
+            """{"Enabled":true,"PictureMode":"Cinema","Brightness":12}""")!;
+        Assert.True(legacy.Enabled && !legacy.WebEnabled, "Existing SignalRGB-only settings keep the web output raw");
+        Assert.True(!new SignalRgbEffectSettings().WebEnabled, "New profiles keep the raw web output by default");
+        Assert.Equal("Cinema", legacy.PictureMode, "Migration preserves existing appearance choices");
+        Assert.Equal(320d, legacy.ScreenWidth, "Legacy settings fill the complete output width");
+        Assert.Equal(200d, legacy.ScreenHeight, "Legacy settings fill the complete output height");
+        Assert.Equal("Classic", legacy.AmbilightStyle, "Migration preserves the original halo renderer");
+        Assert.Equal(0, legacy.AmbilightCutoff, "Legacy settings do not suppress any halo colors");
+        foreach (var signalEnabled in new[] { false, true })
+        foreach (var webEnabled in new[] { false, true })
+        {
+            var modified = new SignalRgbEffectSettings { Enabled = signalEnabled, WebEnabled = webEnabled,
+                PictureMode = "Vivid", Hue = 90, Brightness = 30, Saturation = 20, Blur = true,
+                Ambilight = false, AmbilightFullscreen = true, HideSources = true, AmbilightBlur = 8,
+                AmbilightSpread = 40, AmbilightSaturation = 8, AmbilightIntensity = 160,
+                Interpolation = "pixelated", FrameRate = 29, ScreenX = 13.25, ScreenY = 17.75,
+                ScreenWidth = 200.5, ScreenHeight = 155.5, AmbilightStyle = "Soft", AmbilightCutoff = 26 };
+            Assert.Equal(new SignalRgbEffectSettings { Enabled = signalEnabled, WebEnabled = webEnabled }, modified.ResetAppearance(),
+                "Reset restores every appearance parameter and preserves both independent output switches");
+            var roundTrip = Newtonsoft.Json.JsonConvert.DeserializeObject<SignalRgbEffectSettings>(
+                Newtonsoft.Json.JsonConvert.SerializeObject(modified))!;
+            Assert.Equal(modified, roundTrip.Normalize(), "Both activation flags persist independently with the appearance settings");
+        }
+        var webOnly = legacy with { Enabled = false, WebEnabled = true, ScreenX = 13.25, ScreenY = 17.75,
+            ScreenWidth = 200.5, ScreenHeight = 155.5, AmbilightStyle = "Soft", AmbilightCutoff = 26 };
+        using (var wire = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(webOnly,
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))))
+        {
+            Assert.True(wire.RootElement.GetProperty("webEnabled").GetBoolean(), "Web activation has the explicit camelCase wire name");
+            Assert.True(!wire.RootElement.GetProperty("enabled").GetBoolean(), "Web activation does not enable SignalRGB control");
+            Assert.Equal(13.25, wire.RootElement.GetProperty("screenX").GetDouble(), "Placement preserves fractional X coordinates on the wire");
+            Assert.Equal(17.75, wire.RootElement.GetProperty("screenY").GetDouble(), "Placement preserves fractional Y coordinates on the wire");
+            Assert.Equal(200.5, wire.RootElement.GetProperty("screenWidth").GetDouble(), "Placement preserves fractional width on the wire");
+            Assert.Equal(155.5, wire.RootElement.GetProperty("screenHeight").GetDouble(), "Placement preserves fractional height on the wire");
+            Assert.Equal("Soft", wire.RootElement.GetProperty("ambilightStyle").GetString(), "Halo style has a stable wire name");
+            Assert.Equal(26, wire.RootElement.GetProperty("ambilightCutoff").GetInt32(), "Halo cutoff has a stable wire name");
+        }
         var normalized = new SignalRgbEffectSettings
         {
             Enabled = true, PictureMode = "unknown", FrameRate = 900, Hue = -999,
             Brightness = 500, Saturation = -500, AmbilightBlur = -1, AmbilightSpread = 200,
-            AmbilightIntensity = 900, AmbilightSaturation = double.NaN, Interpolation = "unknown"
+            AmbilightIntensity = 900, AmbilightSaturation = double.NaN, Interpolation = "unknown",
+            ScreenX = double.NaN, ScreenY = double.PositiveInfinity, ScreenWidth = double.NegativeInfinity,
+            ScreenHeight = double.NaN, AmbilightStyle = "unknown", AmbilightCutoff = 200
         }.Normalize();
         Assert.Equal(1, normalized.Version, "Effect wire format is versioned");
         Assert.Equal("Standard", normalized.PictureMode, "Invalid saved picture mode falls back predictably");
@@ -25,6 +65,20 @@ internal static class EffectSettingsTests
         Assert.Equal(200, normalized.AmbilightIntensity, "Glow intensity is bounded");
         Assert.Equal(3d, normalized.AmbilightSaturation, "Nonfinite effect saturation cannot enter JSON");
         Assert.Equal("smooth", normalized.Interpolation, "Unknown interpolation becomes smooth");
+        Assert.Equal(0d, normalized.ScreenX, "Nonfinite placement X returns to the origin");
+        Assert.Equal(0d, normalized.ScreenY, "Nonfinite placement Y returns to the origin");
+        Assert.Equal(320d, normalized.ScreenWidth, "Nonfinite placement width fills the canvas");
+        Assert.Equal(200d, normalized.ScreenHeight, "Nonfinite placement height fills the canvas");
+        Assert.Equal("Classic", normalized.AmbilightStyle, "Invalid halo style has the compatible default");
+        Assert.Equal(100, normalized.AmbilightCutoff, "Halo cutoff is bounded");
+        var outside = new SignalRgbEffectSettings { ScreenX = 400, ScreenY = 300, ScreenWidth = 256.5, ScreenHeight = 160.25 }.Normalize();
+        Assert.Equal(63.5, outside.ScreenX, "Global placement stays inside the right output edge without rounding");
+        Assert.Equal(39.75, outside.ScreenY, "Global placement stays inside the bottom output edge without rounding");
+        var zero = new SignalRgbEffectSettings { ScreenWidth = 0, ScreenHeight = -1, ScreenX = -3, ScreenY = -1, AmbilightCutoff = -10 }.Normalize();
+        Assert.Equal(1d, zero.ScreenWidth, "Global placement cannot have zero width");
+        Assert.Equal(1d, zero.ScreenHeight, "Global placement cannot have negative height");
+        Assert.Equal(0d, zero.ScreenX, "Global placement cannot leave the left edge");
+        Assert.Equal(0, zero.AmbilightCutoff, "Negative cutoff returns to zero");
 
         var storage = new Storage { Value = normalized };
         var service = new SignalRgbEffectSettingsService(storage);
@@ -54,6 +108,18 @@ internal static class EffectSettingsTests
         await service.InitializeAsync();
         Assert.Equal(0, storage.Reads, "Delayed initialization cannot overwrite an already persisted edit");
         Assert.Equal(latest, service.Current, "Early edits survive delayed initialization");
+
+        storage = new Storage { Value = legacy };
+        service = new SignalRgbEffectSettingsService(storage);
+        await service.InitializeAsync();
+        Assert.True(!service.Current.WebEnabled, "Loading a legacy profile does not turn on web effects");
+        await service.UpdateAsync(webOnly);
+        Assert.True(service.Current.WebEnabled && !service.Current.Enabled, "Web-only activation is published independently");
+        Assert.Equal(webOnly, storage.Value, "Web-only activation is durable");
+        await service.UpdateAsync(webOnly with { Enabled = true });
+        Assert.True(service.Current.WebEnabled && service.Current.Enabled, "Both output targets can be enabled together");
+        await service.UpdateAsync(service.Current with { WebEnabled = false });
+        Assert.True(service.Current.Enabled && !service.Current.WebEnabled, "Disabling web effects preserves SignalRGB activation");
     }
 
     private sealed class Storage : ILocalSettingsService

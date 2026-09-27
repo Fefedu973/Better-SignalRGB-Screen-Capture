@@ -189,7 +189,15 @@ public sealed class MjpegStreamingService : IMjpegStreamingService, IDisposable
                 return;
             }
             if (context.Request.HttpMethod != "GET") { response.StatusCode = 405; return; }
-            if (path == "/stream" || path.StartsWith("/stream/", StringComparison.Ordinal))
+            if (path == "/web-stream")
+            {
+                response.ContentType = StreamingWebSession.ContentType;
+                response.SendChunked = true;
+                await StreamingWebSession.WriteAsync(response.OutputStream, _frames, _captureService,
+                    _compositeService, _effectSettingsService, token,
+                    preview: context.Request.QueryString["preview"] == "1").ConfigureAwait(false);
+            }
+            else if (path == "/stream" || path.StartsWith("/stream/", StringComparison.Ordinal))
             {
                 StreamingFrameState state;
                 if (path == "/stream")

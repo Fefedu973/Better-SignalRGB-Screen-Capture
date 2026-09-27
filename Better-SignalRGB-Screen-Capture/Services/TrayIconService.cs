@@ -164,7 +164,11 @@ public class TrayIconService : IDisposable
         {
             await _mainVm.ShutdownAsync();
             await App.GetService<ISignalRgbEffectSettingsService>().FlushAsync();
-            if (Application.Current is App app) app.Host.Dispose();
+            if (Application.Current is App app)
+            {
+                app.PrepareForShutdown();
+                app.Host.Dispose();
+            }
             else Dispose();
             Application.Current.Exit();
         }

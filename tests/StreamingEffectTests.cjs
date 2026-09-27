@@ -155,6 +155,6 @@ const beforeExponent = images.length;
 send(`data:${id}:0:AAAA`); send(`end:${id}`);
 assert.equal(images.length, beforeExponent + 1, 'Scientific notation and very small signed CSS percentages are accepted');
 images.at(-1).finish(); send('reset');
-const page = fs.readFileSync(path.join(__dirname, '..', 'Better-SignalRGB-Screen-Capture', 'Services', 'StreamingCanvasPage.cs'), 'utf8');
-new vm.Script(page.match(/<script>([\s\S]*?)<\/script>/)[1]);
+const pageScript = fs.readFileSync(path.join(__dirname, '..', 'Better-SignalRGB-Screen-Capture', 'Services', 'WebOutput', 'StreamingCanvasPage.js'), 'utf8');
+new vm.Script(pageScript);
 console.log('PASS: effect protocol, decode backpressure, source bounds, cached paths, shared scene, filter composition, app overrides, frame-rate cap, failure/removal and HTTP script syntax.');

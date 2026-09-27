@@ -12,6 +12,7 @@ public sealed class KestrelApiService : IKestrelApiService, IDisposable
 {
     private readonly ICaptureService _captureService;
     private readonly ICompositeFrameService _compositeService;
+    private readonly ISignalRgbEffectSettingsService? _effectSettingsService;
     private readonly StreamingSourceFrames _frames = new();
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private WebApplication? _host;
@@ -23,10 +24,12 @@ public sealed class KestrelApiService : IKestrelApiService, IDisposable
     public bool IsRunning => _isRunning;
     public string? StreamingUrl { get; private set; }
 
-    public KestrelApiService(ICaptureService captureService, ICompositeFrameService compositeService)
+    public KestrelApiService(ICaptureService captureService, ICompositeFrameService compositeService,
+        ISignalRgbEffectSettingsService? effectSettings = null)
     {
         _captureService = captureService;
         _compositeService = compositeService;
+        _effectSettingsService = effectSettings;
         _captureService.FrameAvailable += OnFrameAvailable;
         _captureService.CaptureFailed += OnCaptureFailed;
     }
@@ -48,6 +51,11 @@ public sealed class KestrelApiService : IKestrelApiService, IDisposable
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             if (_isRunning) return;
+            if (_effectSettingsService != null)
+            {
+                try { await _effectSettingsService.InitializeAsync(); }
+                catch (Exception exception) { Debug.WriteLine($"Could not load web effect appearance: {exception.Message}"); }
+            }
             var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = Array.Empty<string>(), ContentRootPath = AppContext.BaseDirectory });
             builder.Services.AddCors();
             builder.Logging.SetMinimumLevel(LogLevel.Warning);
@@ -63,6 +71,7 @@ public sealed class KestrelApiService : IKestrelApiService, IDisposable
             app.MapGet("/api/sources", context => HandleLayoutAsync(context, includeCanvas: false));
             app.MapGet("/stream/{sourceId:guid}", HandleSourceStreamAsync);
             app.MapGet("/stream", HandleSourceStreamAsync);
+            app.MapGet("/web-stream", HandleWebStreamAsync);
             app.MapGet("/canvas", HandleCanvasPageAsync);
             app.MapGet("/", HandleCanvasPageAsync);
             _cancellation = new CancellationTokenSource();
@@ -147,6 +156,23 @@ public sealed class KestrelApiService : IKestrelApiService, IDisposable
         catch (Exception exception) when (exception is OperationCanceledException or IOException or ObjectDisposedException)
         { /* Normal stream cancellation/disconnection. */ }
         catch (Exception exception) { Debug.WriteLine($"HTTPS stream failed: {exception.Message}"); }
+    }
+
+    private async Task HandleWebStreamAsync(HttpContext context)
+    {
+        context.Response.ContentType = StreamingWebSession.ContentType;
+        context.Response.Headers.CacheControl = "no-store";
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted,
+            _cancellation?.Token ?? new CancellationToken(true));
+        try
+        {
+            await StreamingWebSession.WriteAsync(context.Response.Body, _frames, _captureService,
+                _compositeService, _effectSettingsService, cancellation.Token,
+                preview: context.Request.Query["preview"] == "1").ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is OperationCanceledException or IOException or ObjectDisposedException or TimeoutException)
+        { /* Stream disconnected, stopped, or exceeded its bounded protocol. */ }
+        catch (Exception exception) { Debug.WriteLine($"HTTPS web stream failed: {exception.Message}"); }
     }
 
     private static Task HandleCanvasPageAsync(HttpContext context)

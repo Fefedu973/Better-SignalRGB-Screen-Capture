@@ -14,6 +14,8 @@
     <meta property="screenW" label="Width" type="number" min="20" max="320" default="160" />
     <meta property="screenH" label="Height" type="number" min="20" max="200" default="100" />
     <meta property="ambilightToggle" label="Ambilight Effect" type="boolean" default="true" />
+    <meta property="ambilightStyle" label="Glow Style" type="combobox" values="Classic,Soft" default="Classic" />
+    <meta property="ambilightCutoff" label="Dark Color Cutoff (%)" type="number" min="0" max="100" default="0" />
     <meta property="ambilightSaturation" label="Ambilight Saturation" type="number" min="0" max="10" default="3" />
     <meta property="ambilightSpread" label="Spread" type="number" min="0" max="100" default="10" />
     <meta property="ambilightBlur" label="Ambilight Blur" type="number" min="0" max="100" default="30" />
@@ -36,19 +38,31 @@
 <body>
     <svg id="filters" aria-hidden="true">
         <filter id="ambilight" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+            <feColorMatrix data-cutoff="" in="SourceGraphic" type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 1.063 3.576 .361 0 0" result="cutMask" />
+            <feComposite in="SourceGraphic" in2="cutMask" operator="in" result="cutLight" />
+            <feColorMatrix data-soft-color="" in="SourceGraphic" type="saturate" values="3" result="softColor" />
+            <feGaussianBlur data-near="" in="softColor" stdDeviation="12" result="nearLight" />
+            <feGaussianBlur data-far="" in="softColor" stdDeviation="35" result="farLight" />
+            <feComposite in="nearLight" in2="farLight" operator="arithmetic" k1="0" k2=".65" k3=".35" k4="0" result="softLight" />
             <feMorphology in="SourceGraphic" operator="dilate" radius="10" result="spread" />
-            <feColorMatrix in="spread" type="saturate" values="3" result="saturated" />
-            <feGaussianBlur in="saturated" stdDeviation="30" result="light" />
-            <feComponentTransfer in="light" result="intense-light">
+            <feColorMatrix data-classic-color="" in="spread" type="saturate" values="3" result="saturated" />
+            <feGaussianBlur data-classic-blur="" in="saturated" stdDeviation="30" result="light" />
+            <feComponentTransfer data-intensity="" in="light" result="intense-light">
                 <feFuncR type="linear" slope="1" /><feFuncG type="linear" slope="1" /><feFuncB type="linear" slope="1" />
             </feComponentTransfer>
             <feMerge><feMergeNode in="intense-light" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
         <filter id="fullscreenAmbilight" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+            <feColorMatrix data-cutoff="" in="SourceGraphic" type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 1.063 3.576 .361 0 0" result="cutMask" />
+            <feComposite in="SourceGraphic" in2="cutMask" operator="in" result="cutLight" />
+            <feColorMatrix data-soft-color="" in="SourceGraphic" type="saturate" values="3" result="softColor" />
+            <feGaussianBlur data-near="" in="softColor" stdDeviation="12" result="nearLight" />
+            <feGaussianBlur data-far="" in="softColor" stdDeviation="35" result="farLight" />
+            <feComposite in="nearLight" in2="farLight" operator="arithmetic" k1="0" k2=".65" k3=".35" k4="0" result="softLight" />
             <feMorphology in="SourceGraphic" operator="dilate" radius="10" result="spread" />
-            <feColorMatrix in="spread" type="saturate" values="3" result="saturated" />
-            <feGaussianBlur in="saturated" stdDeviation="30" result="light" />
-            <feComponentTransfer in="light">
+            <feColorMatrix data-classic-color="" in="spread" type="saturate" values="3" result="saturated" />
+            <feGaussianBlur data-classic-blur="" in="saturated" stdDeviation="30" result="light" />
+            <feComponentTransfer data-intensity="" in="light">
                 <feFuncR type="linear" slope="1" /><feFuncG type="linear" slope="1" /><feFuncB type="linear" slope="1" />
             </feComponentTransfer>
         </filter>
@@ -69,6 +83,8 @@
     function onscreenWChanged() { window.updateCaptureSettings?.(); }
     function onscreenHChanged() { window.updateCaptureSettings?.(); }
     function onambilightToggleChanged() { window.updateCaptureSettings?.(); }
+    function onambilightStyleChanged() { window.updateCaptureSettings?.(); }
+    function onambilightCutoffChanged() { window.updateCaptureSettings?.(); }
     function onambilightSaturationChanged() { window.updateCaptureSettings?.(); }
     function onambilightSpreadChanged() { window.updateCaptureSettings?.(); }
     function onambilightBlurChanged() { window.updateCaptureSettings?.(); }
@@ -100,11 +116,13 @@
         const hostDefaults = { picture_mode:'Vivid', boost:0, brightness:0, saturation:0, BlurToggle:false,
             screenX:80, screenY:50, screenW:160, screenH:100, ambilightToggle:true, ambilightSaturation:3,
             ambilightSpread:10, ambilightBlur:30, ambilightIntensity:100, ambilightFull:false,
-            hideSourcesInFullscreen:false, interpolation:'smooth', frameRate:30, beatPulse:false, pulseStrength:100, beatSens:0 };
+            hideSourcesInFullscreen:false, interpolation:'smooth', frameRate:30, ambilightStyle:'Classic', ambilightCutoff:0,
+            beatPulse:false, pulseStrength:100, beatSens:0 };
         for (const [key, value] of Object.entries(hostDefaults)) if (typeof window[key] === 'undefined') window[key] = value;
         const appDefaults = { version:1, enabled:false, pictureMode:'Standard', hue:0, brightness:0, saturation:0,
             blur:false, ambilight:true, ambilightFullscreen:false, hideSources:false, ambilightBlur:30,
-            ambilightSpread:10, ambilightSaturation:3, ambilightIntensity:100, interpolation:'smooth', frameRate:15 };
+            ambilightSpread:10, ambilightSaturation:3, ambilightIntensity:100, interpolation:'smooth', frameRate:15,
+            ambilightStyle:'Classic', ambilightCutoff:0, screenX:0, screenY:0, screenWidth:320, screenHeight:200 };
         let appSettings = null, settings, settingsKey = '', dirty = true, ordered = [], orderDirty = true;
         let bufferedChars = 0, decodedPixels = 0, activeDecoders = 0, clearing = false;
         let lastCleanup = 0, lastDraw = -Infinity, beatEnergy = 0, prevLevel = 0, lastBeat = 0;
@@ -115,6 +133,7 @@
 
         function normalized(value) {
             const d = appDefaults;
+            const width = finite(value.screenWidth, d.screenWidth, 1, 320), height = finite(value.screenHeight, d.screenHeight, 1, 200);
             return { version:1, enabled:bool(value.enabled, d.enabled),
                 pictureMode:Object.prototype.hasOwnProperty.call(pictureFilters, value.pictureMode) ? value.pictureMode : d.pictureMode,
                 hue:finite(value.hue, d.hue, -180, 180), brightness:finite(value.brightness, d.brightness, -100, 100),
@@ -124,6 +143,10 @@
                 ambilightSpread:finite(value.ambilightSpread, d.ambilightSpread, 0, 100),
                 ambilightSaturation:finite(value.ambilightSaturation, d.ambilightSaturation, 0, 10),
                 ambilightIntensity:finite(value.ambilightIntensity, d.ambilightIntensity, 0, 200),
+                ambilightStyle:value.ambilightStyle === 'Soft' ? 'Soft' : 'Classic',
+                ambilightCutoff:finite(value.ambilightCutoff, d.ambilightCutoff, 0, 100),
+                screenX:finite(value.screenX, d.screenX, 0, 320 - width), screenY:finite(value.screenY, d.screenY, 0, 200 - height),
+                screenWidth:width, screenHeight:height,
                 interpolation:value.interpolation === 'pixelated' ? 'pixelated' : 'smooth',
                 frameRate:finite(value.frameRate, d.frameRate, 1, 30) };
         }
@@ -142,14 +165,16 @@
                 ambilightFullscreen:window.ambilightFull, hideSources:window.hideSourcesInFullscreen,
                 ambilightBlur:window.ambilightBlur, ambilightSpread:window.ambilightSpread,
                 ambilightSaturation:window.ambilightSaturation, ambilightIntensity:window.ambilightIntensity,
-                interpolation:window.interpolation, frameRate:window.frameRate };
+                interpolation:window.interpolation, frameRate:window.frameRate,
+                ambilightStyle:window.ambilightStyle, ambilightCutoff:window.ambilightCutoff };
             const effective = appSettings?.enabled ? appSettings : normalized(host);
             const key = JSON.stringify([effective, window.screenX, window.screenY, window.screenW, window.screenH, window.innerWidth, window.innerHeight]);
             if (key === settingsKey) return;
             settingsKey = key; settings = effective;
-            const width = finite(window.screenW, 160, 20, 320), height = finite(window.screenH, 100, 20, 200);
-            screen.style.left = `${finite(window.screenX, 80, 0, 319)}px`;
-            screen.style.top = `${finite(window.screenY, 50, 0, 199)}px`;
+            const width = appSettings?.enabled ? settings.screenWidth : finite(window.screenW, 160, 20, 320);
+            const height = appSettings?.enabled ? settings.screenHeight : finite(window.screenH, 100, 20, 200);
+            screen.style.left = `${appSettings?.enabled ? settings.screenX : finite(window.screenX, 80, 0, 319)}px`;
+            screen.style.top = `${appSettings?.enabled ? settings.screenY : finite(window.screenY, 50, 0, 199)}px`;
             screen.style.width = `${width}px`; screen.style.height = `${height}px`;
             canvas.style.transform = `scale(${width / 320},${height / 200})`;
             screen.style.filter = settings.ambilight && !settings.ambilightFullscreen ? 'url(#ambilight)' : 'none';
@@ -157,11 +182,22 @@
             ambiCanvas.style.display = full ? 'block' : 'none';
             screen.style.visibility = full && settings.hideSources ? 'hidden' : 'visible';
             canvas.style.imageRendering = ambiCanvas.style.imageRendering = settings.interpolation === 'pixelated' ? 'pixelated' : 'auto';
-            const margin = Math.ceil(settings.ambilightSpread + 3 * settings.ambilightBlur);
+            const soft = settings.ambilightStyle === 'Soft';
+            const near = Math.max(.01, settings.ambilightBlur * .35 + settings.ambilightSpread * .15);
+            const far = Math.max(.01, settings.ambilightBlur + settings.ambilightSpread * .5);
+            const margin = Math.ceil(soft ? 3 * Math.max(near, far) : settings.ambilightSpread + 3 * settings.ambilightBlur);
             filters.forEach((filter, index) => {
+                const glowInput = settings.ambilightCutoff > 0 ? 'cutLight' : 'SourceGraphic';
+                filter.querySelector('[data-cutoff]').setAttribute('values', `1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 1.063 3.576 .361 0 ${-5 * settings.ambilightCutoff / 100}`);
+                filter.querySelector('feMorphology').setAttribute('in', glowInput);
+                filter.querySelector('[data-soft-color]').setAttribute('in', glowInput);
+                filter.querySelector('[data-soft-color]').setAttribute('values', settings.ambilightSaturation);
+                filter.querySelector('[data-near]').setAttribute('stdDeviation', near);
+                filter.querySelector('[data-far]').setAttribute('stdDeviation', far);
+                filter.querySelector('[data-intensity]').setAttribute('in', soft ? 'softLight' : 'light');
                 filter.querySelector('feMorphology').setAttribute('radius', settings.ambilightSpread);
-                filter.querySelector('feColorMatrix').setAttribute('values', settings.ambilightSaturation);
-                filter.querySelector('feGaussianBlur').setAttribute('stdDeviation', settings.ambilightBlur);
+                filter.querySelector('[data-classic-color]').setAttribute('values', settings.ambilightSaturation);
+                filter.querySelector('[data-classic-blur]').setAttribute('stdDeviation', settings.ambilightBlur);
                 for (const channel of ['R','G','B']) filter.querySelector(`feFunc${channel}`).setAttribute('slope', settings.ambilightIntensity / 100);
                 const filterWidth = index ? finite(window.innerWidth, 320, 1, 7680) : width;
                 const filterHeight = index ? finite(window.innerHeight, 200, 1, 4320) : height;

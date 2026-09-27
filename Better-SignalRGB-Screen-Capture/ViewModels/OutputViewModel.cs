@@ -5,15 +5,15 @@ using Better_SignalRGB_Screen_Capture.Models;
 
 using CommunityToolkit.Mvvm.Input;
 
-using Microsoft.UI.Dispatching;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Better_SignalRGB_Screen_Capture.ViewModels;
 
-public partial class SettingsViewModel
+public partial class OutputViewModel : ObservableObject
 {
-    private readonly ISignalRgbEffectSettingsService _effectSettingsService = App.GetService<ISignalRgbEffectSettingsService>();
+    private readonly ISignalRgbEffectSettingsService _effectSettingsService;
     private SignalRgbEffectSettings _effectSettings = new();
-    private DispatcherQueue? _effectDispatcher;
+    private readonly SynchronizationContext? _uiContext;
     private Task _effectInitialization = Task.CompletedTask;
     private int _effectChangeVersion;
     private bool _effectSettingsReady;
@@ -22,9 +22,12 @@ public partial class SettingsViewModel
     private string _effectSettingsStatus = string.Empty;
 
     public IReadOnlyList<string> EffectPictureModes { get; } = ["Standard", "Cinema", "Mono", "Vivid", "Dominant", "HD"];
+    public IReadOnlyList<string> EffectAmbilightStyles { get; } = ["Classic", "Soft"];
     public IReadOnlyList<string> EffectInterpolationModes { get; } = ["Smooth", "Pixelated"];
     public bool IsEffectSettingsReady => _effectSettingsReady;
-    public bool CanEditEffectSettings => _effectSettingsReady && _effectSettings.Enabled;
+    public bool CanEditEffectSettings => _effectSettingsReady;
+    public SignalRgbEffectSettings PreviewSettings => _effectSettings;
+    public event EventHandler<SignalRgbEffectSettings>? PreviewSettingsChanged;
     public bool CanEditEffectGlow => CanEditEffectSettings && _effectSettings.Ambilight;
     public bool CanHideEffectPicture => CanEditEffectGlow && _effectSettings.AmbilightFullscreen;
     public string EffectSettingsStatus => _effectSettingsStatus;
@@ -33,6 +36,12 @@ public partial class SettingsViewModel
     {
         get => _effectSettings.Enabled;
         set => ChangeEffectSettings(_effectSettings with { Enabled = value });
+    }
+
+    public bool EffectWebEnabled
+    {
+        get => _effectSettings.WebEnabled;
+        set => ChangeEffectSettings(_effectSettings with { WebEnabled = value });
     }
 
     public string EffectPictureMode
@@ -72,6 +81,18 @@ public partial class SettingsViewModel
     {
         get => _effectSettings.Ambilight;
         set => ChangeEffectSettings(_effectSettings with { Ambilight = value });
+    }
+
+    public string EffectAmbilightStyle
+    {
+        get => _effectSettings.AmbilightStyle;
+        set { if (EffectAmbilightStyles.Contains(value)) ChangeEffectSettings(_effectSettings with { AmbilightStyle = value }); }
+    }
+
+    public double EffectAmbilightCutoff
+    {
+        get => _effectSettings.AmbilightCutoff;
+        set => ChangeEffectInteger(value, 0, 100, (settings, number) => settings with { AmbilightCutoff = number });
     }
 
     public bool EffectAmbilightFullscreen
@@ -130,9 +151,50 @@ public partial class SettingsViewModel
         set => ChangeEffectInteger(value, 1, 30, (settings, number) => settings with { FrameRate = number });
     }
 
-    private void InitializeEffectSettings()
+
+    public double ScreenX
     {
-        _effectDispatcher = DispatcherQueue.GetForCurrentThread();
+        get => _effectSettings.ScreenX;
+        set { if (double.IsFinite(value)) ChangeEffectSettings(_effectSettings with { ScreenX = value }); }
+    }
+
+    public double ScreenY
+    {
+        get => _effectSettings.ScreenY;
+        set { if (double.IsFinite(value)) ChangeEffectSettings(_effectSettings with { ScreenY = value }); }
+    }
+
+    public double ScreenWidth
+    {
+        get => _effectSettings.ScreenWidth;
+        set { if (double.IsFinite(value)) ChangeEffectSettings(_effectSettings with { ScreenWidth = value }); }
+    }
+
+    public double ScreenHeight
+    {
+        get => _effectSettings.ScreenHeight;
+        set { if (double.IsFinite(value)) ChangeEffectSettings(_effectSettings with { ScreenHeight = value }); }
+    }
+
+    public void ApplyPlacement(double x, double y, double width, double height)
+    {
+        if (!double.IsFinite(x) || !double.IsFinite(y) || !double.IsFinite(width) || !double.IsFinite(height)) return;
+        ChangeEffectSettings(_effectSettings with { ScreenX = x, ScreenY = y, ScreenWidth = width, ScreenHeight = height });
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEditEffectSettings))]
+    private void FillPlacement() => ApplyPlacement(0, 0, 320, 200);
+
+    [RelayCommand(CanExecute = nameof(CanEditEffectSettings))]
+    private void InsetPlacement() => ApplyPlacement(32, 20, 256, 160);
+
+    [RelayCommand(CanExecute = nameof(CanEditEffectSettings))]
+    private void CenterPlacement() => ApplyPlacement((320 - ScreenWidth) / 2, (200 - ScreenHeight) / 2, ScreenWidth, ScreenHeight);
+
+    public OutputViewModel(ISignalRgbEffectSettingsService effectSettingsService)
+    {
+        _effectSettingsService = effectSettingsService;
+        _uiContext = SynchronizationContext.Current;
         _effectInitialization = LoadEffectSettingsAsync();
     }
 
@@ -141,7 +203,7 @@ public partial class SettingsViewModel
         try
         {
             await _effectSettingsService.InitializeAsync();
-            // A recently closed Settings page may still have an edit in the debounce window.
+            // A recently closed output editor may still have an edit in the debounce window.
             // Load that confirmed value before a new page can edit a stale snapshot.
             await _effectSettingsService.FlushAsync();
             _effectSettingsReady = true;
@@ -178,8 +240,8 @@ public partial class SettingsViewModel
             if (_effectSettingsSubscribed && !_effectSavePending) RefreshEffectSettings();
         }
 
-        if (_effectDispatcher?.HasThreadAccess == true) RefreshIfIdle();
-        else _effectDispatcher?.TryEnqueue(RefreshIfIdle);
+        if (_uiContext == null || SynchronizationContext.Current == _uiContext) RefreshIfIdle();
+        else _uiContext.Post(_ => RefreshIfIdle(), null);
     }
 
     private void RefreshEffectSettings()
@@ -187,6 +249,10 @@ public partial class SettingsViewModel
         _effectSettings = _effectSettingsService.Current;
         OnPropertyChanged(string.Empty);
         ResetEffectSettingsCommand.NotifyCanExecuteChanged();
+        FillPlacementCommand.NotifyCanExecuteChanged();
+        InsetPlacementCommand.NotifyCanExecuteChanged();
+        CenterPlacementCommand.NotifyCanExecuteChanged();
+        PreviewSettingsChanged?.Invoke(this, _effectSettings);
     }
 
     private void ChangeEffectInteger(double value, int minimum, int maximum,
@@ -201,9 +267,10 @@ public partial class SettingsViewModel
 
     private void ChangeEffectSettings(SignalRgbEffectSettings settings, [CallerMemberName] string? propertyName = null)
     {
+        settings = settings.Normalize();
         if (!_effectSettingsReady || settings == _effectSettings) return;
         _effectSettings = settings;
-        OnPropertyChanged(propertyName);
+        OnPropertyChanged(string.Empty);
         OnPropertyChanged(nameof(CanEditEffectSettings));
         OnPropertyChanged(nameof(CanEditEffectGlow));
         OnPropertyChanged(nameof(CanHideEffectPicture));
@@ -211,7 +278,8 @@ public partial class SettingsViewModel
 
         _effectSavePending = true;
         var version = ++_effectChangeVersion;
-        _ = SaveEffectSettingsAsync(version, settings);
+        PreviewSettingsChanged?.Invoke(this, _effectSettings);
+        _ = SaveEffectSettingsAsync(version, _effectSettings);
     }
 
     private async Task SaveEffectSettingsAsync(int version, SignalRgbEffectSettings settings)
@@ -240,16 +308,17 @@ public partial class SettingsViewModel
         }
     }
 
+    public void ReportPreviewError(string message) => ReportEffectSettingsError(message);
+
     private void ReportEffectSettingsError(string message)
     {
         _effectSettingsStatus = message;
         OnPropertyChanged(nameof(EffectSettingsStatus));
-        App.GetService<MainViewModel>().StatusMessage = message;
     }
 
     [RelayCommand(CanExecute = nameof(CanEditEffectSettings))]
     private void ResetEffectSettings()
     {
-        ChangeEffectSettings(new SignalRgbEffectSettings { Enabled = _effectSettings.Enabled }, string.Empty);
+        ChangeEffectSettings(_effectSettings.ResetAppearance(), string.Empty);
     }
 }

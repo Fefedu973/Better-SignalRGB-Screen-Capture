@@ -35,6 +35,7 @@ internal static partial class Program
         await CheckCanvasFailureRecoveryAsync(capture, compositor);
         await EffectConfigurationTransportTests.RunAsync(Check);
         await CheckHighQualitySignalAsync();
+        await CheckWebStreamingAsync();
         Console.WriteLine($"PASS: {_assertions} production compositor/HTTP/HTTPS integration assertions.");
     }
 
@@ -159,7 +160,7 @@ internal static partial class Program
             "API canvas dimensions match the editor");
         Check(metadata.RootElement.GetProperty("sources")[0].GetProperty("id").GetGuid() == source.Id, "API source snapshot is serialized correctly");
         var canvasPage = await client.GetStringAsync("/canvas/");
-        Check(canvasPage.Contains("fetch('/stream'"), "Output page consumes the actual composite stream");
+        Check(canvasPage.Contains("/web-stream"), "Output page consumes the multiplexed web stream");
         Check(!canvasPage.Contains("id=\"status\"") && !canvasPage.Contains("Connecting") && !canvasPage.Contains("/api/canvasinfo"),
             "Output page contains no debug text or redundant layout polling");
         Check(await client.GetStringAsync("/") == canvasPage, "The root URL is the same clean RGB output surface");

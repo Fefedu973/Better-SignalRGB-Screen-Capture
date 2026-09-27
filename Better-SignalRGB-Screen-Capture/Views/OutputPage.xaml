@@ -1,0 +1,228 @@
+<Page
+    x:Class="Better_SignalRGB_Screen_Capture.Views.OutputPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:ui="using:CommunityToolkit.WinUI">
+    <Grid x:Name="LayoutRoot" ColumnSpacing="20" RowSpacing="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition x:Name="SettingsColumn" Width="440" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition x:Name="PreviewRow" Height="*" />
+            <RowDefinition x:Name="ControlsRow" Height="0" />
+        </Grid.RowDefinitions>
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup>
+                <VisualState x:Name="Wide">
+                    <VisualState.StateTriggers><AdaptiveTrigger MinWindowWidth="1050" /></VisualState.StateTriggers>
+                </VisualState>
+                <VisualState x:Name="Narrow">
+                    <VisualState.StateTriggers><AdaptiveTrigger MinWindowWidth="0" /></VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="SettingsColumn.Width" Value="0" />
+                        <Setter Target="PreviewRow.Height" Value="320" />
+                        <Setter Target="ControlsRow.Height" Value="*" />
+                        <Setter Target="SettingsScroll.(Grid.Row)" Value="1" />
+                        <Setter Target="SettingsScroll.(Grid.Column)" Value="0" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+        <Grid RowSpacing="12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <StackPanel Spacing="4">
+                <TextBlock Text="Live output preview" Style="{ThemeResource SubtitleTextBlockStyle}" />
+                <TextBlock Text="Drag the picture to move it, or its corners to resize. The preview always shows your appearance settings." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+            <Grid x:Name="PreviewHost" Grid.Row="1" SizeChanged="PreviewHost_SizeChanged" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <Border x:Name="PreviewBorder" Background="Black" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Grid x:Name="BrowserContainer" />
+                </Border>
+            </Grid>
+            <StackPanel Grid.Row="2" Spacing="8">
+                <TextBlock x:Name="CaptureHint" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="StartCaptureButton" Content="Start capture" Click="StartCapture_Click" />
+                    <Button Content="Reload preview" Click="ReloadPreview_Click" />
+                </StackPanel>
+                <TextBlock x:Name="PreviewStatus" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+            </StackPanel>
+        </Grid>
+        <ScrollViewer x:Name="SettingsScroll" Grid.Column="1" HorizontalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="6" Padding="0,0,12,24">
+            <controls:SettingsCard
+                Header="Control SignalRGB appearance from this app"
+                Description="When enabled, these settings replace the corresponding controls in SignalRGB. Turn off to use SignalRGB's controls again."
+                HeaderIcon="{ui:FontIcon Glyph=&#xE790;}">
+                <ToggleSwitch
+                    AutomationProperties.Name="Control SignalRGB appearance from this app"
+                    IsEnabled="{x:Bind ViewModel.IsEffectSettingsReady, Mode=OneWay}"
+                    IsOn="{x:Bind ViewModel.EffectEnabled, Mode=TwoWay}" />
+            </controls:SettingsCard>
+            <controls:SettingsCard
+                Header="Apply effects to the web output"
+                Description="Apply the shared picture and halo settings to the streaming webpage. Turn off to display the raw canvas."
+                HeaderIcon="{ui:FontIcon Glyph=&#xE774;}">
+                <ToggleSwitch
+                    AutomationProperties.Name="Apply effects to the web output"
+                    IsEnabled="{x:Bind ViewModel.IsEffectSettingsReady, Mode=OneWay}"
+                    IsOn="{x:Bind ViewModel.EffectWebEnabled, Mode=TwoWay}" />
+            </controls:SettingsCard>
+            <TextBlock
+                Margin="16,4,16,8"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Text="Preview changes here before enabling an output. Only the outputs switched on above receive these settings. SignalRGB requires the effect file supplied with this app."
+                TextWrapping="Wrap" />
+            <TextBlock
+                Margin="16,0"
+                Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                Text="{x:Bind ViewModel.EffectSettingsStatus, Mode=OneWay}"
+                TextWrapping="Wrap" />
+
+            <controls:SettingsExpander Header="Picture placement" Description="Shrink or move the whole canvas to leave room for the halo." IsExpanded="True" IsEnabled="{x:Bind ViewModel.CanEditEffectSettings, Mode=OneWay}">
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard Header="Placement presets" ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Fill" Command="{x:Bind ViewModel.FillPlacementCommand}" ToolTipService.ToolTip="Fill the output area." />
+                            <Button Content="Inset" Command="{x:Bind ViewModel.InsetPlacementCommand}" ToolTipService.ToolTip="Leave a 10% margin for the halo." />
+                            <Button Content="Center" Command="{x:Bind ViewModel.CenterPlacementCommand}" ToolTipService.ToolTip="Center the picture at its current size." />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Position and size" Description="Coordinates use a 320 × 200 area. Drag the picture or its corners in the preview." ContentAlignment="Vertical" HorizontalContentAlignment="Stretch">
+                        <Grid ColumnSpacing="12" RowSpacing="8">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <NumberBox x:Name="PlacementXBox" Header="X" AutomationProperties.Name="Picture X position" Minimum="0" Maximum="319" Value="{x:Bind ViewModel.ScreenX, Mode=OneWay}" ValueChanged="Placement_ValueChanged" />
+                            <NumberBox x:Name="PlacementYBox" Grid.Column="1" Header="Y" AutomationProperties.Name="Picture Y position" Minimum="0" Maximum="199" Value="{x:Bind ViewModel.ScreenY, Mode=OneWay}" ValueChanged="Placement_ValueChanged" />
+                            <NumberBox x:Name="PlacementWidthBox" Grid.Row="1" Header="Width" AutomationProperties.Name="Picture width" Minimum="1" Maximum="320" Value="{x:Bind ViewModel.ScreenWidth, Mode=OneWay}" ValueChanged="Placement_ValueChanged" />
+                            <NumberBox x:Name="PlacementHeightBox" Grid.Row="1" Grid.Column="1" Header="Height" AutomationProperties.Name="Picture height" Minimum="1" Maximum="200" Value="{x:Bind ViewModel.ScreenHeight, Mode=OneWay}" ValueChanged="Placement_ValueChanged" />
+                        </Grid>
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
+
+            <controls:SettingsExpander
+                Header="Picture and color"
+                Description="Adjust the picture and the colors used by the halo."
+                HeaderIcon="{ui:FontIcon Glyph=&#xE7B5;}"
+                IsEnabled="{x:Bind ViewModel.CanEditEffectSettings, Mode=OneWay}">
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard Header="Picture preset">
+                        <ComboBox
+                            Width="150"
+                            AutomationProperties.Name="Picture preset"
+                            ItemsSource="{x:Bind ViewModel.EffectPictureModes}"
+                            SelectedItem="{x:Bind ViewModel.EffectPictureMode, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Hue" Description="Shift colors by −180° to 180°.">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Hue" Minimum="-180" Maximum="180" StepFrequency="1" Value="{x:Bind ViewModel.EffectHue, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Hue in degrees" Minimum="-180" Maximum="180" Value="{x:Bind ViewModel.EffectHue, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Brightness" Description="0 keeps the preset's brightness.">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Brightness" Minimum="-100" Maximum="100" StepFrequency="1" Value="{x:Bind ViewModel.EffectBrightness, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Brightness adjustment" Minimum="-100" Maximum="100" Value="{x:Bind ViewModel.EffectBrightness, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Saturation" Description="0 keeps the preset's saturation.">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Saturation" Minimum="-100" Maximum="100" StepFrequency="1" Value="{x:Bind ViewModel.EffectSaturation, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Saturation adjustment" Minimum="-100" Maximum="100" Value="{x:Bind ViewModel.EffectSaturation, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Soften picture" Description="Blur the picture before it is displayed.">
+                        <ToggleSwitch AutomationProperties.Name="Soften picture" IsOn="{x:Bind ViewModel.EffectBlur, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
+
+            <controls:SettingsExpander
+                Header="Ambient halo"
+                IsExpanded="True"
+                Description="Extend the composed picture with a colored glow."
+                HeaderIcon="{ui:FontIcon Glyph=&#xE793;}"
+                IsEnabled="{x:Bind ViewModel.CanEditEffectSettings, Mode=OneWay}">
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard Header="Enable halo">
+                        <ToggleSwitch AutomationProperties.Name="Enable halo" IsOn="{x:Bind ViewModel.EffectAmbilight, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Halo style" Description="Classic expands bright colors; Soft blends a smoother halo." IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">
+                        <ComboBox Width="150" AutomationProperties.Name="Halo style" ItemsSource="{x:Bind ViewModel.EffectAmbilightStyles}" SelectedItem="{x:Bind ViewModel.EffectAmbilightStyle, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Dark-color cutoff (%)" Description="Suppress dark colors in the halo without changing the picture." IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Dark-color cutoff" Minimum="0" Maximum="100" Value="{x:Bind ViewModel.EffectAmbilightCutoff, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Dark-color cutoff percentage" Minimum="0" Maximum="100" Value="{x:Bind ViewModel.EffectAmbilightCutoff, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Fill the output area" Description="Expand the halo across the whole enabled output." IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">
+                        <ToggleSwitch AutomationProperties.Name="Fill the output area with the halo" IsOn="{x:Bind ViewModel.EffectAmbilightFullscreen, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Hide picture in full-area mode" Description="Show only the halo when Fill the output area is enabled." IsEnabled="{x:Bind ViewModel.CanHideEffectPicture, Mode=OneWay}">
+                        <ToggleSwitch AutomationProperties.Name="Hide picture in full-area mode" IsOn="{x:Bind ViewModel.EffectHideSources, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Halo blur" IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Halo blur" Minimum="0" Maximum="100" StepFrequency="1" Value="{x:Bind ViewModel.EffectAmbilightBlur, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Halo blur amount" Minimum="0" Maximum="100" Value="{x:Bind ViewModel.EffectAmbilightBlur, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Halo spread" IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Halo spread" Minimum="0" Maximum="100" StepFrequency="1" Value="{x:Bind ViewModel.EffectAmbilightSpread, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Halo spread amount" Minimum="0" Maximum="100" Value="{x:Bind ViewModel.EffectAmbilightSpread, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Halo saturation" Description="1 keeps the picture's saturation; 0 removes color." IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Halo saturation" Minimum="0" Maximum="10" StepFrequency="0.1" Value="{x:Bind ViewModel.EffectAmbilightSaturation, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Halo saturation multiplier" Minimum="0" Maximum="10" SmallChange="0.1" Value="{x:Bind ViewModel.EffectAmbilightSaturation, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Halo intensity (%)" Description="100% is normal brightness." IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Halo intensity" Minimum="0" Maximum="200" StepFrequency="1" Value="{x:Bind ViewModel.EffectAmbilightIntensity, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Halo intensity percentage" Minimum="0" Maximum="200" Value="{x:Bind ViewModel.EffectAmbilightIntensity, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
+
+            <controls:SettingsExpander
+                Header="Rendering and update rate"
+                Description="Balance detail, responsiveness and processing work."
+                HeaderIcon="{ui:FontIcon Glyph=&#xE9D9;}"
+                IsEnabled="{x:Bind ViewModel.CanEditEffectSettings, Mode=OneWay}">
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard Header="Image scaling" Description="Smooth blends neighboring pixels; Pixelated keeps sharp pixel edges.">
+                        <ComboBox
+                            Width="150"
+                            AutomationProperties.Name="Image scaling"
+                            ItemsSource="{x:Bind ViewModel.EffectInterpolationModes}"
+                            SelectedItem="{x:Bind ViewModel.EffectInterpolation, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Effect update rate (FPS)" Description="1–30 FPS for enabled outputs, independent of the capture frame rate. Lower values reduce work; higher values can improve responsiveness.">
+                        <NumberBox
+                            Width="90"
+                            AutomationProperties.Name="Effect update rate in frames per second"
+                            Minimum="1"
+                            Maximum="30"
+                            SpinButtonPlacementMode="Compact"
+                            Value="{x:Bind ViewModel.EffectFrameRate, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
+            <controls:SettingsCard Header="Reset appearance" Description="Restore default picture, halo and rendering settings. Keep both output switches unchanged. Global placement also resets to Fill.">
+                <Button Command="{x:Bind ViewModel.ResetEffectSettingsCommand}" Content="Reset to defaults" />
+            </controls:SettingsCard>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

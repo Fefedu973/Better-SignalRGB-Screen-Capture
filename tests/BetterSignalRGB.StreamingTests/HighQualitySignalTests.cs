@@ -19,7 +19,9 @@ internal static partial class Program
         StreamingCanvasSnapshot.Sources = [snapshot];
         var events = Channel.CreateUnbounded<string>();
         Task Send(string message, CancellationToken token) { token.ThrowIfCancellationRequested(); events.Writer.TryWrite(message); return Task.CompletedTask; }
-        using var service = new MjpegStreamingService(capture, compositor, true, Send);
+        var effectSettings = new WebSettings();
+        await effectSettings.UpdateAsync(effectSettings.Current with { WebEnabled = false });
+        using var service = new MjpegStreamingService(capture, compositor, true, Send, effectSettings);
         var port = FreePort();
         await service.StartStreamingAsync(port);
         using var client = new HttpClient { BaseAddress = new Uri($"http://localhost:{port}") };
@@ -28,6 +30,13 @@ internal static partial class Program
         try
         {
             capture.Publish(source, preview, signal);
+            using var webResponse = await client.GetAsync("/web-stream?preview=1", HttpCompletionOption.ResponseHeadersRead);
+            await using var webStream = await webResponse.Content.ReadAsStreamAsync();
+            Check((await ReadWebPartAsync(webStream)).Json.GetProperty("settings").GetProperty("webEnabled").GetBoolean(),
+                "The effect preview can run simultaneously with the SignalRGB sender");
+            Check((await ReadWebPartAsync(webStream)).Bytes.SequenceEqual(preview),
+                "The simultaneous web effect receives HQ pixels while SignalRGB retains its small derivative");
+            Check(!effectSettings.Current.WebEnabled, "A private effect preview never changes public web or SignalRGB settings");
             using var response = await client.GetAsync($"/stream/{source.Id}", HttpCompletionOption.ResponseHeadersRead);
             await using var stream = await response.Content.ReadAsStreamAsync();
             Check((await ReadPartAsync(stream)).SequenceEqual(preview), "HTTP source streaming preserves the detailed preview JPEG exactly");

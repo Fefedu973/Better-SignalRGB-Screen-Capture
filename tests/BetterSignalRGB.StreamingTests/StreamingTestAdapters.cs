@@ -11,6 +11,12 @@ namespace Better_SignalRGB_Screen_Capture.Services
     {
         public const int Width = 320, Height = 200;
         public static StreamingSourceSnapshot[] Sources = [];
+        public static bool IsHighQuality;
+        public static Task<StreamingWebCanvasSnapshot> CaptureWebAsync(CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            return Task.FromResult(new StreamingWebCanvasSnapshot(Sources, IsHighQuality ? 800 : 320, IsHighQuality ? 600 : 200));
+        }
         public static Task<StreamingSourceSnapshot[]> CaptureAsync(CancellationToken token)
         {
             token.ThrowIfCancellationRequested();

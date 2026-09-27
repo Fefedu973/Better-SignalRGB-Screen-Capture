@@ -18,6 +18,7 @@ const html = fs.readFileSync(path.join(root, 'Better-SignalRGB-Screen-Capture-Ef
     const browser = await chromium.launch({ headless:true });
     try {
         await require('./RawOutputPageTests.cjs')(browser, fixtures);
+        await require('./WebOutputStressTests.cjs')(browser, fixtures);
         const page = await browser.newPage({ viewport:{ width:320, height:200 } });
         const errors = []; page.on('pageerror', error => errors.push(error.message));
         await page.evaluate(() => {

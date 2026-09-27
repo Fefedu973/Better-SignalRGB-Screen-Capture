@@ -100,7 +100,7 @@ The application bridges the gap between your screen content and RGB lighting by 
 - **Ambilight Effects**: Customizable ambilight with blur, saturation, and spread controls
 - **Beat Pulse Sync**: Audio-reactive lighting effects with beat detection
 - **Picture Modes**: Multiple visual modes (Standard, Cinema, Mono, Vivid, Dominant, HD)
-- **Web Output**: Clean, full-page RGB output for browser effects, plus individual source streams
+- **Web Output**: Clean, full-page RGB output for browser effects, with optional picture filters and ambilight controlled from the app
 - **App Effect Controls**: Optional live picture, halo, interpolation and update-rate settings from the application
 - **Guided Setup**: Detect and update the matching SignalRGB effect, with separate API and rendered-image connection checks
 - **Scenes**: Save, replace, rename, load, import and export named source layouts
@@ -243,10 +243,10 @@ Open **Diagnostics** to inspect each source's requested and actual frame rates, 
    - Use the setup connection check to distinguish an API response from the matching effect confirming that it has drawn captured images. This does not verify physical LED output.
 
 4. **Optional App Controls**:
-   - Open **Settings → SignalRGB effect → Control effect appearance from this app**.
-   - Adjust picture preset, hue, brightness, saturation, blur, halo, interpolation and the SignalRGB update rate (1–30 FPS).
+   - Open **Output editor → Control SignalRGB appearance from this app**. **Settings** retains the installation and connection checks, with a link to the output editor.
+   - Adjust global picture placement, picture preset, hue, brightness, saturation, blur, halo, interpolation and the update rate (1–30 FPS) beside a live preview.
    - Changes apply while streaming. Turning app control off restores SignalRGB's own appearance controls and the application's default 15 FPS delivery rate.
-   - Install the matching HTML effect included beside the built application; older effect files do not understand these settings. Screen placement and audio beat controls remain in SignalRGB.
+   - Install the matching HTML effect included beside the built application; older effect files do not understand these settings. Audio beat controls remain in SignalRGB.
 
 ### MJPEG Streaming
 
@@ -257,7 +257,15 @@ The application provides HTTP endpoints for external access:
 - **Clean Web Output**: `http://localhost:8080/` (also `/canvas`)
 - **API Endpoints**: `http://localhost:8080/api/sources`
 
-The root page and `/canvas` display only the composed stream across the full viewport: no labels, controls, debug overlay or scrollbars. Use this page as a browser effect in OpenRGB or another application. The same page is available on the configured HTTPS port (for example, `https://localhost:18443/`). It reconnects automatically after interruption and adapts to live quality changes. `/stream` is the underlying MJPEG endpoint. The web output contains the source composition; SignalRGB-specific halo and picture filters belong to the separate SignalRGB effect.
+The root page and `/canvas` fill the viewport without labels, controls, debug overlays or scrollbars. Use this page as a browser effect in OpenRGB or another application. The same page is available on the configured HTTPS port (for example, `https://localhost:18443/`). It reconnects automatically after interruption and adapts to live quality changes.
+
+In **Output editor**, enable **Apply effects to the web output** to apply placement, picture modes, hue, brightness, saturation, blur, halo spread/blur/saturation/intensity, full-area halo, picture hiding, interpolation and the effect frame-rate limit. Changes apply live even when source images are unchanged, provided streaming remains active. Pausing or stopping capture also stops streaming. These appearance settings are shared with SignalRGB, but each output has its own activation switch: the webpage works without SignalRGB running. Turn the web switch off to restore the raw canvas. The switch is off by default for existing installations.
+
+The output editor previews appearance even before either output is enabled. Drag the picture or use its eight resize handles to leave room for the halo; **Fill**, **Inset** and **Center** offer quick placements. Arrow keys nudge the focused picture, Shift makes larger nudges or preserves aspect ratio while resizing, and Escape cancels a drag. Numeric placement uses a consistent 320 × 200 coordinate area in both quality modes. Opening the editor does not start a stopped capture.
+
+The halo offers **Classic** expansion and **Soft** near/far diffusion, plus a dark-color cutoff that suppresses dim colors without altering the picture. Both styles use the current frame without temporal smoothing, keeping the response immediate. Existing saved color and halo preferences are retained when moving from Settings to Output.
+
+The web effect uses the full available source detail and transparent source geometry, so halos follow cropped, rotated and mirrored sources. Enable **HQ 800 × 600** for the larger output; the halo size and layout keep the same proportions. One connection carries layout/settings updates and the latest cached JPEGs, with bounded decoding instead of an accumulating frame queue. The webpage stays visually clean in both modes. `/stream` remains the raw composite MJPEG endpoint and is unaffected by appearance settings.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -296,6 +304,7 @@ The included HTML effect (`Better-SignalRGB-Screen-Capture-Effect.html`) provide
 | `/stream`       | GET    | Combined MJPEG stream of all sources |
 | `/stream/{id}`  | GET    | Individual source MJPEG stream       |
 | `/`, `/canvas`  | GET    | Clean, full-viewport RGB output       |
+| `/web-stream`   | GET    | Webpage transport: versioned state and latest JPEGs in one multipart connection |
 | `/api/sources`  | GET    | JSON list of active sources          |
 | `/api/canvasinfo` | GET  | Canvas dimensions and active source layouts |
 

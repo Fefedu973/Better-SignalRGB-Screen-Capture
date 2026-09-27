@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
     <TargetFramework>net10.0-windows10.0.22000.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>Better_SignalRGB_Screen_Capture</RootNamespace>
@@ -52,6 +52,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Better-SignalRGB-Screen-Capture.Core\Better-SignalRGB-Screen-Capture.Core.csproj" />
+    <EmbeddedResource Include="Services\WebOutput\StreamingCanvasPage.html" LogicalName="BetterSignalRGB.WebOutput.html" />
+    <EmbeddedResource Include="Services\WebOutput\StreamingCanvasPage.js" LogicalName="BetterSignalRGB.WebOutput.js" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="..\Better-SignalRGB-Screen-Capture-Effect.html" Link="Better-SignalRGB-Screen-Capture-Effect.html">

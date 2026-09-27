@@ -18,6 +18,7 @@ internal static class Program
             CapturePipelineTests.Run();
             await StreamingPipelineTests.RunAsync();
             await EffectSettingsTests.RunAsync();
+            await OutputViewModelTests.RunAsync();
             await EffectSettingsQueueTests.RunAsync();
             await LocalSettingsTransactionTests.RunAsync();
             await StartupPreferencesTests.RunAsync();
