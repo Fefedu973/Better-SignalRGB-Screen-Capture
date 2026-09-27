@@ -7,6 +7,7 @@
     xmlns:helpers="using:Better_SignalRGB_Screen_Capture.Helpers"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:Better_SignalRGB_Screen_Capture.Models"
+    xmlns:views="using:Better_SignalRGB_Screen_Capture.Views"
     xmlns:ui="using:CommunityToolkit.WinUI"
     xmlns:xaml="using:Microsoft.UI.Xaml"
     mc:Ignorable="d">
@@ -56,6 +57,141 @@
                 </controls:SettingsExpander.Items>
             </controls:SettingsExpander>
 
+            <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" Text="SignalRGB effect" />
+            <controls:SettingsExpander Header="SignalRGB setup and connection" Description="Install the matching effect and verify that images reach it." IsExpanded="True">
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard HorizontalContentAlignment="Stretch" ContentAlignment="Vertical">
+                        <views:SignalRgbSetupControl />
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
+            <controls:SettingsCard
+                Header="Control effect appearance from this app"
+                Description="When enabled, these settings replace the corresponding controls in SignalRGB. Turn off to use SignalRGB's controls again."
+                HeaderIcon="{ui:FontIcon Glyph=&#xE790;}">
+                <ToggleSwitch
+                    AutomationProperties.Name="Control effect appearance from this app"
+                    IsEnabled="{x:Bind ViewModel.IsEffectSettingsReady, Mode=OneWay}"
+                    IsOn="{x:Bind ViewModel.EffectEnabled, Mode=TwoWay}" />
+            </controls:SettingsCard>
+            <TextBlock
+                Margin="16,4,16,8"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Text="Changes apply while streaming and require the SignalRGB effect file supplied with this version of the app. Source placement and cropping remain controlled by the canvas."
+                TextWrapping="Wrap" />
+            <TextBlock
+                Margin="16,0"
+                Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                Text="{x:Bind ViewModel.EffectSettingsStatus, Mode=OneWay}"
+                TextWrapping="Wrap" />
+
+            <controls:SettingsExpander
+                Header="Picture and color"
+                Description="Adjust the picture and the colors used by the halo."
+                HeaderIcon="{ui:FontIcon Glyph=&#xE7B5;}"
+                IsEnabled="{x:Bind ViewModel.CanEditEffectSettings, Mode=OneWay}">
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard Header="Picture preset">
+                        <ComboBox
+                            Width="150"
+                            AutomationProperties.Name="Picture preset"
+                            ItemsSource="{x:Bind ViewModel.EffectPictureModes}"
+                            SelectedItem="{x:Bind ViewModel.EffectPictureMode, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Hue" Description="Shift colors by −180° to 180°.">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Hue" Minimum="-180" Maximum="180" StepFrequency="1" Value="{x:Bind ViewModel.EffectHue, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Hue in degrees" Minimum="-180" Maximum="180" Value="{x:Bind ViewModel.EffectHue, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Brightness" Description="0 keeps the preset's brightness.">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Brightness" Minimum="-100" Maximum="100" StepFrequency="1" Value="{x:Bind ViewModel.EffectBrightness, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Brightness adjustment" Minimum="-100" Maximum="100" Value="{x:Bind ViewModel.EffectBrightness, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Saturation" Description="0 keeps the preset's saturation.">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Saturation" Minimum="-100" Maximum="100" StepFrequency="1" Value="{x:Bind ViewModel.EffectSaturation, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Saturation adjustment" Minimum="-100" Maximum="100" Value="{x:Bind ViewModel.EffectSaturation, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Soften picture" Description="Blur the picture before it is displayed.">
+                        <ToggleSwitch AutomationProperties.Name="Soften picture" IsOn="{x:Bind ViewModel.EffectBlur, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
+
+            <controls:SettingsExpander
+                Header="Ambient halo"
+                Description="Extend the composed picture with a colored glow."
+                HeaderIcon="{ui:FontIcon Glyph=&#xE793;}"
+                IsEnabled="{x:Bind ViewModel.CanEditEffectSettings, Mode=OneWay}">
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard Header="Enable halo">
+                        <ToggleSwitch AutomationProperties.Name="Enable halo" IsOn="{x:Bind ViewModel.EffectAmbilight, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Fill the effect area" Description="Expand the halo across the whole SignalRGB effect area." IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">
+                        <ToggleSwitch AutomationProperties.Name="Fill the effect area with the halo" IsOn="{x:Bind ViewModel.EffectAmbilightFullscreen, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Hide picture in full-area mode" Description="Show only the halo when Fill the effect area is enabled." IsEnabled="{x:Bind ViewModel.CanHideEffectPicture, Mode=OneWay}">
+                        <ToggleSwitch AutomationProperties.Name="Hide picture in full-area mode" IsOn="{x:Bind ViewModel.EffectHideSources, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Halo blur" IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Halo blur" Minimum="0" Maximum="100" StepFrequency="1" Value="{x:Bind ViewModel.EffectAmbilightBlur, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Halo blur amount" Minimum="0" Maximum="100" Value="{x:Bind ViewModel.EffectAmbilightBlur, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Halo spread" IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Halo spread" Minimum="0" Maximum="100" StepFrequency="1" Value="{x:Bind ViewModel.EffectAmbilightSpread, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Halo spread amount" Minimum="0" Maximum="100" Value="{x:Bind ViewModel.EffectAmbilightSpread, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Halo saturation" Description="1 keeps the picture's saturation; 0 removes color." IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Halo saturation" Minimum="0" Maximum="10" StepFrequency="0.1" Value="{x:Bind ViewModel.EffectAmbilightSaturation, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Halo saturation multiplier" Minimum="0" Maximum="10" SmallChange="0.1" Value="{x:Bind ViewModel.EffectAmbilightSaturation, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="Halo intensity (%)" Description="100% is normal brightness." IsEnabled="{x:Bind ViewModel.CanEditEffectGlow, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Width="160" AutomationProperties.Name="Halo intensity" Minimum="0" Maximum="200" StepFrequency="1" Value="{x:Bind ViewModel.EffectAmbilightIntensity, Mode=TwoWay}" />
+                            <NumberBox Width="90" AutomationProperties.Name="Halo intensity percentage" Minimum="0" Maximum="200" Value="{x:Bind ViewModel.EffectAmbilightIntensity, Mode=TwoWay}" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
+
+            <controls:SettingsExpander
+                Header="Rendering and update rate"
+                Description="Balance detail, responsiveness and processing work."
+                HeaderIcon="{ui:FontIcon Glyph=&#xE9D9;}"
+                IsEnabled="{x:Bind ViewModel.CanEditEffectSettings, Mode=OneWay}">
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard Header="Image scaling" Description="Smooth blends neighboring pixels; Pixelated keeps sharp pixel edges.">
+                        <ComboBox
+                            Width="150"
+                            AutomationProperties.Name="Image scaling"
+                            ItemsSource="{x:Bind ViewModel.EffectInterpolationModes}"
+                            SelectedItem="{x:Bind ViewModel.EffectInterpolation, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                    <controls:SettingsCard Header="SignalRGB update rate (FPS)" Description="1–30 FPS, independent of the capture frame rate. Lower values reduce work; higher values can improve responsiveness. Turning off app control restores 15 FPS.">
+                        <NumberBox
+                            Width="90"
+                            AutomationProperties.Name="SignalRGB update rate in frames per second"
+                            Minimum="1"
+                            Maximum="30"
+                            SpinButtonPlacementMode="Compact"
+                            Value="{x:Bind ViewModel.EffectFrameRate, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
+            <controls:SettingsCard Header="Reset effect settings" Description="Restore default picture, halo and rendering settings while keeping app control enabled.">
+                <Button Command="{x:Bind ViewModel.ResetEffectSettingsCommand}" Content="Reset to defaults" />
+            </controls:SettingsCard>
+
             <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" Text="Advanced" />
 
             <controls:SettingsCard Header="API/Canvas Port" HeaderIcon="{ui:FontIcon Glyph=&#xE93E;}">
@@ -92,7 +228,7 @@
                                 Style="{ThemeResource BodyTextBlockStyle}"
                                 TextWrapping="Wrap" />
                         </controls:SettingsCard.Header>
-                        <Button Command="{x:Bind ViewModel.CheckForUpdateCommand}" Content="Check for Updates" />
+                        <Button Command="{x:Bind ViewModel.ViewReleasesCommand}" Content="View releases" />
                     </controls:SettingsCard>
                     <controls:SettingsCard Header="Repository">
                         <HyperlinkButton NavigateUri="https://github.com/Fefedu973/Better-SignalRGB-Screen-Capture">

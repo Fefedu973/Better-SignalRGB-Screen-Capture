@@ -1,1028 +1,458 @@
-<!-- Better SignalRGB Screen Capture - Multi-Source Canvas with Ambilight Effect -->
-
+<!doctype html>
+<html>
 <head>
     <title>Better SignalRGB Screen Capture</title>
-    <meta name="description"
-        content="Multi-source screen capture canvas with per-source styling and ambilight support" />
+    <meta name="description" content="Multi-source screen capture with consistent crop, rotation, color and ambilight rendering" />
     <meta name="publisher" content="Better SignalRGB Screen Capture" />
-
-    <!-- ── Picture modes and color controls ──────────────────────────────────── -->
-    <meta property="picture_mode" label="Picture Mode" type="combobox" values="Standard,Cinema,Mono,Vivid,Dominant,HD"
-        default="Vivid" />
+    <meta property="picture_mode" label="Picture Mode" type="combobox" values="Standard,Cinema,Mono,Vivid,Dominant,HD" default="Vivid" />
     <meta property="boost" label="Color Shift" type="number" min="-180" max="180" default="0" />
     <meta property="brightness" label="Brightness" type="number" min="-100" max="100" default="0" />
     <meta property="saturation" label="Saturation" type="number" min="-100" max="100" default="0" />
     <meta property="BlurToggle" label="Blur" type="boolean" default="false" />
-
-    <!-- ── Screen positioning controls ──────────────────────────────────────── -->
     <meta property="screenX" label="Screen X" type="number" min="0" max="319" default="80" />
     <meta property="screenY" label="Screen Y" type="number" min="0" max="199" default="50" />
     <meta property="screenW" label="Width" type="number" min="20" max="320" default="160" />
     <meta property="screenH" label="Height" type="number" min="20" max="200" default="100" />
-
-    <!-- ── Ambilight controls ──────────────────────────────────────────────── -->
     <meta property="ambilightToggle" label="Ambilight Effect" type="boolean" default="true" />
-    <meta property="ambilightSaturation" label="Ambilight Saturation" type="number" min="1" max="10" default="3" />
-
-    <meta property="ambilightSpread" label="Spread" type="number" min="1" max="100" default="10" />
-    <meta property="ambilightBlur" label="Blur" type="number" min="10" max="100" default="30" />
+    <meta property="ambilightSaturation" label="Ambilight Saturation" type="number" min="0" max="10" default="3" />
+    <meta property="ambilightSpread" label="Spread" type="number" min="0" max="100" default="10" />
+    <meta property="ambilightBlur" label="Ambilight Blur" type="number" min="0" max="100" default="30" />
+    <meta property="ambilightIntensity" label="Ambilight Intensity (%)" type="number" min="0" max="200" default="100" />
     <meta property="ambilightFull" label="Ambilight Full-screen" type="boolean" default="false" />
     <meta property="hideSourcesInFullscreen" label="Hide Sources in Fullscreen" type="boolean" default="false" />
-
-    <!-- ── Beat-pulse controls ───────────────────────────────────────────── -->
+    <meta property="interpolation" label="Image Interpolation" type="combobox" values="smooth,pixelated" default="smooth" />
+    <meta property="frameRate" label="Maximum Frame Rate" type="number" min="1" max="30" default="30" />
     <meta property="beatPulse" label="Beat Pulse" type="boolean" default="false" />
     <meta property="pulseStrength" label="Pulse Strength (%)" type="number" min="0" max="300" default="100" />
     <meta property="beatSens" label="Beat Sensitivity" type="number" min="-100" max="100" default="0" />
-
     <style>
-        :root {
-            --boost: 0deg;
-            --brightness: 100%;
-            --saturation: 100%;
-            --beatBright: 0%;
-            --pulseBright: 1;
-        }
-
-        html,
-        body {
-            margin: 0;
-            padding: 0;
-            background: #000;
-            overflow: hidden;
-        }
-
-
-
-        /* ——— REPLACE the current #canvas rule ——— */
-        #canvas {
-            position: absolute;
-            /* anchored inside #screenContainer            */
-            top: 0;
-            left: 0;
-            width: 320px;
-            /* design resolution – do not change          */
-            height: 200px;
-            transform-origin: top left;
-            /* scale will grow/shrink from (0,0)     */
-        }
-
-        .source-element {
-            position: absolute;
-            display: block;
-            max-width: none;
-            max-height: none;
-            transform-origin: center center;
-            z-index: 10;
-            /* Sources above ambilight effects */
-        }
-
-        .crop-wrapper {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-        }
-
-        .source-element video,
-        .source-element img {
-            width: 100%;
-            height: 100%;
-            object-fit: fill;
-            z-index: 15;
-            /* Images on top */
-            position: relative;
-        }
-
-        #screenContainer {
-            position: absolute;
-            background: transparent;
-            z-index: 100;
-        }
-
-        /* Apply ambilight to the main screenContainer, not individual sources */
-        #screenContainer.ambilight {
-            filter: url(#ambilight);
-        }
-
-        /* Combined filters for ambilight + other effects on main container */
-        #screenContainer.ambilight.hueShift {
-            filter:
-                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) url(#ambilight);
-        }
-
-        #screenContainer.ambilight.hueShift.blur {
-            filter:
-                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) blur(1px) url(#ambilight);
-        }
-
-        #screenContainer.hueShift.blur {
-            filter:
-                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) blur(1px);
-        }
-
-        #screenContainer.hueShift {
-            filter:
-                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation));
-        }
-
-        /* Hide sources when fullscreen ambilight is active and hide option is enabled */
-        .ambilight-full.hide-sources #screenContainer {
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        /* Full-screen glow surface */
-        #ambiCanvas {
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            z-index: 1;
-            image-rendering: pixelated;
-            opacity: 0;
-            transition: opacity .2s linear;
-            filter: blur(var(--ambiBlur, 120px)) saturate(var(--ambiSat, 3)) brightness(1.2) brightness(var(--pulseBright));
-        }
-
-        .ambilight-full #ambiCanvas {
-            opacity: 1;
-        }
-
-        /* Picture Mode Effects */
-        .picture-cinema {
-            filter: sepia(0.2) contrast(1.1) brightness(0.9);
-        }
-
-        .picture-mono {
-            filter: grayscale(1);
-        }
-
-        .picture-vivid {
-            filter: contrast(1.3) saturate(1.4) brightness(1.1);
-        }
-
-        .picture-dominant {
-            filter: contrast(1.1) saturate(1.2);
-        }
-
-        .picture-hd {
-            filter: contrast(1.05) saturate(1.1) brightness(1.02);
-        }
-
-        /* Base classes for canvas element */
-        .hueShift {
-            filter:
-                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation));
-        }
-
-        .blur {
-            filter: blur(1px);
-        }
-
-        /* Picture modes combined with other effects */
-        .picture-cinema.hueShift {
-            filter:
-                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) sepia(0.2) contrast(1.1) brightness(0.9);
-        }
-
-        .picture-mono.hueShift {
-            filter:
-                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) grayscale(1);
-        }
-
-        .picture-vivid.hueShift {
-            filter:
-                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) contrast(1.3) saturate(1.4) brightness(1.1);
-        }
-
-        .picture-dominant.hueShift {
-            filter:
-                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) contrast(1.1) saturate(1.2);
-        }
-
-        .picture-hd.hueShift {
-            filter:
-                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) contrast(1.05) saturate(1.1) brightness(1.02);
-        }
-
-        .hueShift.blur {
-            filter:
-                hue-rotate(var(--boost)) brightness(calc(var(--brightness) + var(--beatBright))) saturate(var(--saturation)) blur(1px);
-        }
+        html,body { margin:0; padding:0; background:#000; overflow:hidden; }
+        #screenContainer { position:absolute; z-index:2; }
+        #canvas { display:block; width:320px; height:200px; transform-origin:top left; }
+        #ambiCanvas { position:fixed; inset:0; width:100vw; height:100vh; pointer-events:none; z-index:1; }
+        #filters { position:absolute; width:0; height:0; }
     </style>
 </head>
-
 <body>
-    <!-- SVG Filter for Ambilight Effect -->
-    <svg width="0" height="0">
-        <filter id="ambilight" width="800%" height="800%" x="-3.5" y="-3.5" color-interpolation-filters="sRGB">
-            <feOffset in="SourceGraphic" result="source-copy" />
-            <feColorMatrix in="source-copy" type="saturate" values="3" result="saturated-copy" />
-            <feColorMatrix in="saturated-copy" type="matrix" values="1 0 0 0 0
-                                 0 1 0 0 0
-                                 0 0 1 0 0
-                                 33 33 33 101 -132" result="bright-colors" />
-            <feMorphology in="bright-colors" operator="dilate" radius="10" result="spread" />
-            <feGaussianBlur in="spread" stdDeviation="30" result="ambilight-light" />
-            <feOffset in="SourceGraphic" result="source" />
-            <feComposite in="source" in2="ambilight-light" operator="over" />
+    <svg id="filters" aria-hidden="true">
+        <filter id="ambilight" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+            <feMorphology in="SourceGraphic" operator="dilate" radius="10" result="spread" />
+            <feColorMatrix in="spread" type="saturate" values="3" result="saturated" />
+            <feGaussianBlur in="saturated" stdDeviation="30" result="light" />
+            <feComponentTransfer in="light" result="intense-light">
+                <feFuncR type="linear" slope="1" /><feFuncG type="linear" slope="1" /><feFuncB type="linear" slope="1" />
+            </feComponentTransfer>
+            <feMerge><feMergeNode in="intense-light" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <filter id="fullscreenAmbilight" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+            <feMorphology in="SourceGraphic" operator="dilate" radius="10" result="spread" />
+            <feColorMatrix in="spread" type="saturate" values="3" result="saturated" />
+            <feGaussianBlur in="saturated" stdDeviation="30" result="light" />
+            <feComponentTransfer in="light">
+                <feFuncR type="linear" slope="1" /><feFuncG type="linear" slope="1" /><feFuncB type="linear" slope="1" />
+            </feComponentTransfer>
         </filter>
     </svg>
-
-    <div id="screenContainer">
-        <div id="canvas" class="hueShift"></div>
-    </div>
-    <!-- Full-screen ambilight copy -->
-    <canvas id="ambiCanvas"></canvas>
+    <canvas id="ambiCanvas" width="320" height="200"></canvas>
+    <div id="screenContainer"><canvas id="canvas" width="320" height="200"></canvas></div>
 </body>
-
 <script>
-    // ──────────────────────────────────────────────────────────────────────
-    // GLOBAL SETTINGS HANDLERS FOR SIGNALRGB
-    // ──────────────────────────────────────────────────────────────────────
-
-    function onboostChanged() {
-        document.documentElement.style.setProperty("--boost", `${boost}deg`);
-    }
-
-    function onbrightnessChanged() {
-        document.documentElement.style.setProperty("--brightness", `${100 + brightness}%`);
-    }
-
-    function onsaturationChanged() {
-        document.documentElement.style.setProperty("--saturation", `${100 + saturation}%`);
-    }
-
-    function onBlurToggleChanged() {
-        const canvas = document.getElementById("canvas");
-        if (BlurToggle) {
-            canvas.classList.add("blur");
-        } else {
-            canvas.classList.remove("blur");
-        }
-    }
-
-    function onpicture_modeChanged() {
-        // Apply picture mode effects to the canvas (like original)
-        const canvas = document.getElementById("canvas");
-        if (canvas) {
-            // Remove existing picture mode classes
-            canvas.classList.remove('picture-standard', 'picture-cinema', 'picture-mono', 'picture-vivid', 'picture-dominant', 'picture-hd');
-
-            // Add current picture mode class
-            if (typeof picture_mode !== 'undefined') {
-                canvas.classList.add(`picture-${picture_mode.toLowerCase()}`);
-            }
-        }
-    }
-
-    function onscreenXChanged() {
-        const screenContainer = document.getElementById("screenContainer");
-        if (screenContainer) {
-            screenContainer.style.left = `${screenX}px`;
-        }
-    }
-
-    function onscreenYChanged() {
-        const screenContainer = document.getElementById("screenContainer");
-        if (screenContainer) {
-            screenContainer.style.top = `${screenY}px`;
-        }
-    }
-
-    function onscreenWChanged() {
-        updateCanvasSize();
-    }
-
-    function onscreenHChanged() {
-        updateCanvasSize();
-    }
-
-    /* ——— REPLACE your existing updateCanvasSize() ——— */
-    function updateCanvasSize() {
-        const screenContainer = document.getElementById("screenContainer");
-        const canvas = document.getElementById("canvas");
-        if (!screenContainer || !canvas) return;
-
-        /* 1.  resize the draggable container                               */
-        screenContainer.style.width = `${screenW}px`;
-        screenContainer.style.height = `${screenH}px`;
-
-        /* 2.  scale the internal 320×200 stage so every source moves/size
-               proportionally, exactly like the old bitmap canvas           */
-        const scaleX = screenW / 320;
-        const scaleY = screenH / 200;
-        canvas.style.transform = `scale(${scaleX}, ${scaleY})`;
-    }
-
-    function onambilightToggleChanged() {
-        const screenContainer = document.getElementById("screenContainer");
-        if (ambilightToggle) {
-            screenContainer.classList.add("ambilight");
-        } else {
-            screenContainer.classList.remove("ambilight");
-        }
-    }
-
-    function onambilightSaturationChanged() {
-        updateAmbilightFilterGlobal();
-    }
-
-
-
-    function onambilightSpreadChanged() {
-        updateAmbilightFilterGlobal();
-    }
-
-    function onambilightBlurChanged() {
-        updateAmbilightFilterGlobal();
-    }
-
-    function onambilightFullChanged() {
-        document.body.classList.toggle('ambilight-full', ambilightFull);
-        savedZones = null;               // clear saved zones when toggling
-    }
-
-    function onhideSourcesInFullscreenChanged() {
-        document.body.classList.toggle('hide-sources', hideSourcesInFullscreen);
-    }
-
-    function onbeatPulseChanged() {
-        // Beat pulse is handled in the main animation loop
-    }
-
-    function onpulseStrengthChanged() {
-        // Pulse strength is handled in the main animation loop
-    }
-
-    function onbeatSensChanged() {
-        // Beat sensitivity is handled in the main animation loop
-    }
-
-    function updateAmbilightFilterGlobal() {
-        const filter = document.querySelector('#ambilight');
-        if (!filter) return;
-
-        // Update saturation
-        const satMatrix = filter.querySelector('feColorMatrix[type="saturate"]');
-        if (satMatrix) {
-            satMatrix.setAttribute('values', ambilightSaturation);
-        }
-
-        // Keep original cutoff value
-        const colorMatrix = filter.querySelector('feColorMatrix[type="matrix"]');
-        if (colorMatrix) {
-            colorMatrix.setAttribute('values',
-                `1 0 0 0 0
-                 0 1 0 0 0
-                 0 0 1 0 0
-                 33 33 33 101 -132`);
-        }
-
-        // Update spread
-        const morphology = filter.querySelector('feMorphology');
-        if (morphology) {
-            morphology.setAttribute('radius', ambilightSpread);
-        }
-
-        // Update blur
-        const blur = filter.querySelector('feGaussianBlur');
-        if (blur) {
-            blur.setAttribute('stdDeviation', ambilightBlur);
-        }
-
-        // Update CSS variables
-        const root = document.documentElement;
-        root.style.setProperty('--ambiSat', ambilightSaturation);
-        root.style.setProperty('--ambiBlur', `${ambilightBlur}px`);
-    }
+    // SignalRGB invokes these named property handlers. App overrides are separate
+    // from host globals, so disabling app control restores the user's host settings.
+    function onpicture_modeChanged() { window.updateCaptureSettings?.(); }
+    function onboostChanged() { window.updateCaptureSettings?.(); }
+    function onbrightnessChanged() { window.updateCaptureSettings?.(); }
+    function onsaturationChanged() { window.updateCaptureSettings?.(); }
+    function onBlurToggleChanged() { window.updateCaptureSettings?.(); }
+    function onscreenXChanged() { window.updateCaptureSettings?.(); }
+    function onscreenYChanged() { window.updateCaptureSettings?.(); }
+    function onscreenWChanged() { window.updateCaptureSettings?.(); }
+    function onscreenHChanged() { window.updateCaptureSettings?.(); }
+    function onambilightToggleChanged() { window.updateCaptureSettings?.(); }
+    function onambilightSaturationChanged() { window.updateCaptureSettings?.(); }
+    function onambilightSpreadChanged() { window.updateCaptureSettings?.(); }
+    function onambilightBlurChanged() { window.updateCaptureSettings?.(); }
+    function onambilightIntensityChanged() { window.updateCaptureSettings?.(); }
+    function onambilightFullChanged() { window.updateCaptureSettings?.(); }
+    function onhideSourcesInFullscreenChanged() { window.updateCaptureSettings?.(); }
+    function oninterpolationChanged() { window.updateCaptureSettings?.(); }
+    function onframeRateChanged() { window.updateCaptureSettings?.(); }
+    function onbeatPulseChanged() { window.updateCaptureSettings?.(); }
+    function onpulseStrengthChanged() { window.updateCaptureSettings?.(); }
+    function onbeatSensChanged() { window.updateCaptureSettings?.(); }
 
     (() => {
-        "use strict";
+        'use strict';
+        const SENDER = 'BetterSignalRGBScreenCapture';
+        const MAX_SOURCES = 128, MAX_CHUNKS = 2048, MAX_FRAME_CHARS = 12 * 1024 * 1024;
+        const MAX_BUFFERED_CHARS = 32 * 1024 * 1024, ASSEMBLY_TIMEOUT = 5000;
+        const MAX_DECODERS = 2, MAX_DECODED_PIXELS = 16 * 1024 * 1024;
+        const canvas = document.getElementById('canvas'), context = canvas.getContext('2d');
+        const ambiCanvas = document.getElementById('ambiCanvas'), ambiContext = ambiCanvas.getContext('2d');
+        const screen = document.getElementById('screenContainer');
+        const filters = [document.getElementById('ambilight'), document.getElementById('fullscreenAmbilight')];
+        canvas.width = ambiCanvas.width = 320;
+        canvas.height = ambiCanvas.height = 200;
+        const sources = new Map(), decodeQueue = new Set(), styleParser = document.createElement('div').style;
+        const pictureFilters = { Standard:'', Cinema:'sepia(0.2) contrast(1.1) brightness(0.9)',
+            Mono:'grayscale(1)', Vivid:'contrast(1.3) saturate(1.4) brightness(1.1)',
+            Dominant:'contrast(1.1) saturate(1.2)', HD:'contrast(1.05) saturate(1.1) brightness(1.02)' };
+        const hostDefaults = { picture_mode:'Vivid', boost:0, brightness:0, saturation:0, BlurToggle:false,
+            screenX:80, screenY:50, screenW:160, screenH:100, ambilightToggle:true, ambilightSaturation:3,
+            ambilightSpread:10, ambilightBlur:30, ambilightIntensity:100, ambilightFull:false,
+            hideSourcesInFullscreen:false, interpolation:'smooth', frameRate:30, beatPulse:false, pulseStrength:100, beatSens:0 };
+        for (const [key, value] of Object.entries(hostDefaults)) if (typeof window[key] === 'undefined') window[key] = value;
+        const appDefaults = { version:1, enabled:false, pictureMode:'Standard', hue:0, brightness:0, saturation:0,
+            blur:false, ambilight:true, ambilightFullscreen:false, hideSources:false, ambilightBlur:30,
+            ambilightSpread:10, ambilightSaturation:3, ambilightIntensity:100, interpolation:'smooth', frameRate:15 };
+        let appSettings = null, settings, settingsKey = '', dirty = true, ordered = [], orderDirty = true;
+        let bufferedChars = 0, decodedPixels = 0, activeDecoders = 0, clearing = false;
+        let lastCleanup = 0, lastDraw = -Infinity, beatEnergy = 0, prevLevel = 0, lastBeat = 0;
+        let health = null, renderedFrames = 0, feedbackPending = false, lastFeedback = -Infinity;
+        const finite = (value, fallback, min, max) => typeof value === 'number' && Number.isFinite(value)
+            ? Math.max(min, Math.min(max, value)) : fallback;
+        const bool = (value, fallback) => typeof value === 'boolean' ? value : fallback;
 
-        // Constants
-        const SENDER = "BetterSignalRGBScreenCapture";
-        const canvas = document.getElementById("canvas");
-        const screenContainer = document.getElementById("screenContainer");
-        const ambiCanvas = document.getElementById("ambiCanvas");
-        const ambiCtx = ambiCanvas.getContext("2d");
-
-        // Source management
-        const sources = new Map();
-        let frameCount = 0;
-        let errorCount = 0;
-
-        // Caching variables for fullscreen ambilight to prevent jittering
-        let savedZones = null;      // saved Voronoi zone results
-        let lastZonesSaveTime = 0;  // timestamp of last zones calculation
-
-        // Beat-pulse helpers
-        let beatEnergy = 0;
-        const PULSE_DECAY = 0.9;
-        let prevLevel = 0;
-
-
-
-        // Debug logging
-        function log(message) {
-            console.log(`[${new Date().toLocaleTimeString()}] ${message}`);
+        function normalized(value) {
+            const d = appDefaults;
+            return { version:1, enabled:bool(value.enabled, d.enabled),
+                pictureMode:Object.prototype.hasOwnProperty.call(pictureFilters, value.pictureMode) ? value.pictureMode : d.pictureMode,
+                hue:finite(value.hue, d.hue, -180, 180), brightness:finite(value.brightness, d.brightness, -100, 100),
+                saturation:finite(value.saturation, d.saturation, -100, 100), blur:bool(value.blur, d.blur),
+                ambilight:bool(value.ambilight, d.ambilight), ambilightFullscreen:bool(value.ambilightFullscreen, d.ambilightFullscreen),
+                hideSources:bool(value.hideSources, d.hideSources), ambilightBlur:finite(value.ambilightBlur, d.ambilightBlur, 0, 100),
+                ambilightSpread:finite(value.ambilightSpread, d.ambilightSpread, 0, 100),
+                ambilightSaturation:finite(value.ambilightSaturation, d.ambilightSaturation, 0, 10),
+                ambilightIntensity:finite(value.ambilightIntensity, d.ambilightIntensity, 0, 200),
+                interpolation:value.interpolation === 'pixelated' ? 'pixelated' : 'smooth',
+                frameRate:finite(value.frameRate, d.frameRate, 1, 30) };
         }
 
-        // ──────────────────────────────────────────────────────────────────────
-        // SETTINGS CHANGE HANDLERS - GLOBAL SCOPE FOR SIGNALRGB
-        // ──────────────────────────────────────────────────────────────────────
+        function applyFilters(extra = 0) {
+            const s = settings;
+            const color = `hue-rotate(${s.hue}deg) brightness(${100 + s.brightness + extra}%) saturate(${100 + s.saturation}%) ${pictureFilters[s.pictureMode]}${s.blur ? ' blur(1px)' : ''}`;
+            canvas.style.filter = color;
+            // The full-screen copy receives exactly the same color controls as the source scene.
+            ambiCanvas.style.filter = `${color} url(#fullscreenAmbilight)`;
+        }
 
+        window.updateCaptureSettings = function () {
+            const host = { pictureMode:window.picture_mode, hue:window.boost, brightness:window.brightness,
+                saturation:window.saturation, blur:window.BlurToggle, ambilight:window.ambilightToggle,
+                ambilightFullscreen:window.ambilightFull, hideSources:window.hideSourcesInFullscreen,
+                ambilightBlur:window.ambilightBlur, ambilightSpread:window.ambilightSpread,
+                ambilightSaturation:window.ambilightSaturation, ambilightIntensity:window.ambilightIntensity,
+                interpolation:window.interpolation, frameRate:window.frameRate };
+            const effective = appSettings?.enabled ? appSettings : normalized(host);
+            const key = JSON.stringify([effective, window.screenX, window.screenY, window.screenW, window.screenH, window.innerWidth, window.innerHeight]);
+            if (key === settingsKey) return;
+            settingsKey = key; settings = effective;
+            const width = finite(window.screenW, 160, 20, 320), height = finite(window.screenH, 100, 20, 200);
+            screen.style.left = `${finite(window.screenX, 80, 0, 319)}px`;
+            screen.style.top = `${finite(window.screenY, 50, 0, 199)}px`;
+            screen.style.width = `${width}px`; screen.style.height = `${height}px`;
+            canvas.style.transform = `scale(${width / 320},${height / 200})`;
+            screen.style.filter = settings.ambilight && !settings.ambilightFullscreen ? 'url(#ambilight)' : 'none';
+            const full = settings.ambilight && settings.ambilightFullscreen;
+            ambiCanvas.style.display = full ? 'block' : 'none';
+            screen.style.visibility = full && settings.hideSources ? 'hidden' : 'visible';
+            canvas.style.imageRendering = ambiCanvas.style.imageRendering = settings.interpolation === 'pixelated' ? 'pixelated' : 'auto';
+            const margin = Math.ceil(settings.ambilightSpread + 3 * settings.ambilightBlur);
+            filters.forEach((filter, index) => {
+                filter.querySelector('feMorphology').setAttribute('radius', settings.ambilightSpread);
+                filter.querySelector('feColorMatrix').setAttribute('values', settings.ambilightSaturation);
+                filter.querySelector('feGaussianBlur').setAttribute('stdDeviation', settings.ambilightBlur);
+                for (const channel of ['R','G','B']) filter.querySelector(`feFunc${channel}`).setAttribute('slope', settings.ambilightIntensity / 100);
+                const filterWidth = index ? finite(window.innerWidth, 320, 1, 7680) : width;
+                const filterHeight = index ? finite(window.innerHeight, 200, 1, 4320) : height;
+                for (const [name, value] of Object.entries({ x:-margin, y:-margin, width:filterWidth + 2 * margin, height:filterHeight + 2 * margin })) filter.setAttribute(name, value);
+            });
+            applyFilters(); dirty = true;
+        };
+        window.invalidateCaptureLayout = () => { dirty = true; };
 
+        function discardAssembly(source) {
+            bufferedChars -= source.receivedChars;
+            source.receivedChars = 0; source.expect = 0; source.chunks.clear();
+        }
+        function releaseFrame(frame) {
+            if (!frame) return;
+            bufferedChars -= frame.encoded?.length || 0;
+            decodedPixels -= frame.pixelCount || 0;
+            releaseImage(frame.image);
+        }
+        function releaseImage(image) {
+            if (!image) return;
+            if (typeof image.getContext === 'function') image.width = image.height = 0;
+            else { image.onload = image.onerror = null; image.src = ''; }
+        }
+        function releaseEncodedCopy(frame) {
+            if (!frame?.encoded || !frame.image) return;
+            // Keep the last valid pixels when the JPEG budget is full. Only under
+            // pressure, detach them 1:1 from the Image and its retained data URL.
+            const copy = document.createElement('canvas');
+            copy.width = frame.image.naturalWidth; copy.height = frame.image.naturalHeight;
+            try {
+                const copyContext = copy.getContext('2d');
+                copyContext.imageSmoothingEnabled = false;
+                copyContext.filter = 'none';
+                copyContext.drawImage(frame.image, 0, 0);
+            } catch { copy.width = copy.height = 0; return; }
+            const original = frame.image;
+            frame.image = copy;
+            bufferedChars -= frame.encoded.length;
+            frame.encoded = null;
+            releaseImage(original);
+        }
+        function reserveEncoded(additional, source) {
+            if (bufferedChars + additional > MAX_BUFFERED_CHARS) releaseEncodedCopy(source.displayed);
+            for (const other of sources.values()) {
+                if (bufferedChars + additional <= MAX_BUFFERED_CHARS) return true;
+                if (other !== source) releaseEncodedCopy(other.displayed);
+            }
+            return bufferedChars + additional <= MAX_BUFFERED_CHARS;
+        }
+        function clearSource(source) {
+            source.removed = true;
+            decodeQueue.delete(source);
+            discardAssembly(source);
+            if (source.loading) activeDecoders--;
+            releaseFrame(source.pending); releaseFrame(source.loading); releaseFrame(source.displayed);
+            source.pending = source.loading = source.displayed = null;
+            sources.delete(source.id); dirty = orderDirty = true;
+            pumpDecoders();
+        }
 
-
-
-        // ──────────────────────────────────────────────────────────────────────
-        // SOURCE MANAGEMENT (from original Better-SignalRGB-Screen-Capture-Effect)
-        // ──────────────────────────────────────────────────────────────────────
-
-        // Get or create source state
-        function getSource(id) {
-            if (!sources.has(id)) {
-                sources.set(id, {
-                    id: id,
-                    expect: 0,
-                    mime: "",
-                    chunks: new Map(),
-                    outerStyle: "",
-                    cropStyle: "",
-                    element: null,
-                    lastUpdate: Date.now()
+        function parseLayout(outer, crop) {
+            styleParser.cssText = outer;
+            const transform = styleParser.transform;
+            const rotation = /rotate\(([-\d.]+)deg\)/.exec(transform);
+            const scale = /scale\(([-\d.]+),\s*([-\d.]+)\)/.exec(transform);
+            const layout = { x:parseFloat(styleParser.left), y:parseFloat(styleParser.top),
+                w:parseFloat(styleParser.width), h:parseFloat(styleParser.height),
+                rotation:rotation ? Number(rotation[1]) * Math.PI / 180 : 0,
+                sx:scale ? Number(scale[1]) : 1, sy:scale ? Number(scale[2]) : 1,
+                opacity:styleParser.opacity === '' ? 1 : Number(styleParser.opacity), z:Number(styleParser.zIndex) || 0 };
+            if (Object.values(layout).some(value => !Number.isFinite(value)) || layout.w <= 0 || layout.h <= 0 ||
+                layout.w > 7680 || layout.h > 4320 || Math.abs(layout.sx) !== 1 || Math.abs(layout.sy) !== 1) return null;
+            styleParser.cssText = crop;
+            const polygon = /^polygon\((.*)\)$/.exec(styleParser.clipPath);
+            layout.clip = new Path2D(); layout.clip.rect(0, 0, layout.w, layout.h);
+            if (polygon) {
+                const points = polygon[1].split(',').map(point => point.trim().split(/\s+/));
+                const percentage = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?%$/i;
+                if (points.length < 3 || points.length > 16 || points.some(point => point.length !== 2 || point.some(value => !percentage.test(value) || !Number.isFinite(parseFloat(value))))) return null;
+                layout.crop = new Path2D();
+                points.forEach((point, index) => {
+                    const x = parseFloat(point[0]) * layout.w / 100, y = parseFloat(point[1]) * layout.h / 100;
+                    if (index === 0) layout.crop.moveTo(x, y); else layout.crop.lineTo(x, y);
                 });
+                layout.crop.closePath();
             }
-            return sources.get(id);
+            return layout;
         }
 
-        // Create or update DOM element for source
-        function ensureElement(source) {
-            const tag = source.mime.startsWith("video/") ? "video" : "img";
-
-            if (!source.element || source.element.tagName.toLowerCase() !== "div") {
-                // Remove old element if exists
-                if (source.element) {
-                    source.element.remove();
-                }
-
-                // Create container div
-                source.element = document.createElement("div");
-                source.element.className = "source-element";
-                source.element.dataset.sourceId = source.id;
-
-                // Create crop wrapper
-                const cropWrapper = document.createElement("div");
-                cropWrapper.className = "crop-wrapper";
-
-                // Create media element
-                const mediaElement = document.createElement(tag);
-                if (tag === "video") {
-                    mediaElement.autoplay = true;
-                    mediaElement.loop = true;
-                    mediaElement.muted = true;
-                }
-
-                // Error handling
-                mediaElement.onerror = function () {
-                    errorCount++;
-                    log(`Error loading ${tag} for source ${source.id}, hiding element.`);
-                    this.style.display = 'none';
-                };
-
-                // Load success
-                mediaElement.onload = function () {
-                    log(`Successfully loaded frame for source ${source.id}`);
-                    this.style.display = 'block';
-                };
-
-                cropWrapper.appendChild(mediaElement);
-                source.element.appendChild(cropWrapper);
-                canvas.appendChild(source.element);
-            }
-
-            return source.element;
+        function queueDecode(source) {
+            if (!source.removed && !source.loading && source.pending) decodeQueue.add(source);
+            pumpDecoders();
         }
 
-        // Assemble and render frame
-        function assembleAndRender(source) {
-            if (!source.expect || source.chunks.size < source.expect) {
-                return false;
-            }
-
-            // Assemble base64 data in correct order
-            const orderedChunks = [];
-            for (let i = 0; i < source.expect; i++) {
-                const chunk = source.chunks.get(i);
-                if (!chunk) {
-                    log(`Missing chunk ${i} for source ${source.id}`);
-                    return false;
-                }
-                orderedChunks.push(chunk);
-            }
-
-            const base64Data = orderedChunks.join("");
-
-            // Validate base64 data
-            if (base64Data.length % 4 !== 0) {
-                log(`Invalid base64 data length for source ${source.id}: ${base64Data.length}`);
-                errorCount++;
-                return false;
-            }
-
-            // Create data URI
-            const dataUri = `data:${source.mime};base64,${base64Data}`;
-
-            // Ensure element exists
-            const element = ensureElement(source);
-
-            // Update element styles
-            element.style.cssText = source.outerStyle;
-            const cropWrapper = element.querySelector('.crop-wrapper');
-            if (cropWrapper) {
-                cropWrapper.style.cssText = source.cropStyle;
-
-                // Extract rotation from crop style and apply counter-rotation to media
-                const rotateMatch = source.cropStyle.match(/rotate\(([^)]+)\)/);
-                const mediaElement = element.querySelector('img, video');
-
-                if (mediaElement) {
-                    if (rotateMatch) {
-                        const rotation = parseFloat(rotateMatch[1]);
-                        const counterRotation = -rotation;
-
-                        // Read scale if present
-                        let scaleX = 1, scaleY = 1;
-                        const scaleMatch = source.cropStyle.match(/scale\(([^)]+)\)/);
-                        if (scaleMatch) {
-                            const parts = scaleMatch[1].split(',').map(v => parseFloat(v.trim()));
-                            if (parts.length === 2) { [scaleX, scaleY] = parts; }
-                            else if (parts.length === 1) { scaleX = scaleY = parts[0]; }
-                        }
-
-                        mediaElement.style.transform =
-                            `rotate(${counterRotation}deg) scale(${1 / scaleX}, ${1 / scaleY})`;
-                        mediaElement.style.transformOrigin = 'center center';
-                        mediaElement.style.position = 'absolute';
-                        mediaElement.style.top = '0';
-                        mediaElement.style.left = '0';
-                        mediaElement.style.width = '100%';
-                        mediaElement.style.height = '100%';
-                        mediaElement.style.objectFit = 'fill';
-                    } else {
-                        mediaElement.style.transform = '';
-                        mediaElement.style.transformOrigin = '';
-                        mediaElement.style.position = 'relative';
-                        mediaElement.style.top = '';
-                        mediaElement.style.left = '';
-                        mediaElement.style.width = '100%';
-                        mediaElement.style.height = '100%';
-                        mediaElement.style.objectFit = 'fill';
-                    }
-                }
-            }
-
-            // Update media element source
-            const mediaElement = element.querySelector('img, video');
-            if (mediaElement) {
-                mediaElement.src = dataUri;
-            }
-
-            // Update stats
-            frameCount++;
-            source.lastUpdate = Date.now();
-
-            // Clean up for next frame
-            source.chunks.clear();
-            source.expect = 0;
-
-            // No zone invalidation on frame updates - zones stay cached
-
-            return true;
-        }
-
-        // Create virtual canvas for fullscreen ambilight (like original approach)
-        let virtualCanvas = null;
-        let virtualCtx = null;
-
-        function initVirtualCanvas() {
-            if (!virtualCanvas) {
-                virtualCanvas = document.createElement('canvas');
-                virtualCtx = virtualCanvas.getContext('2d');
-                virtualCanvas.width = 320;
-                virtualCanvas.height = 200;
+        function pumpDecoders() {
+            while (!clearing && activeDecoders < MAX_DECODERS && decodeQueue.size) {
+                const source = decodeQueue.values().next().value;
+                decodeQueue.delete(source);
+                if (!source.removed && !source.loading && source.pending) decodePending(source);
             }
         }
 
-        function renderSourcesToVirtualCanvas() {
-            if (!virtualCanvas) initVirtualCanvas();
-
-            // Clear the virtual canvas
-            virtualCtx.fillStyle = '#000000';
-            virtualCtx.fillRect(0, 0, virtualCanvas.width, virtualCanvas.height);
-
-            // Get active sources
-            const activeSources = [];
-            for (const [id, source] of sources.entries()) {
-                if (source.element) {
-                    const mediaElement = source.element.querySelector('img, video');
-                    if (mediaElement && (mediaElement.complete || mediaElement.readyState >= 2)) {
-                        activeSources.push(mediaElement);
-                    }
-                }
-            }
-
-            if (activeSources.length === 0) return virtualCanvas;
-
-            const isFullscreenAmbilight = document.body.classList.contains('ambilight-full');
-
-            if (isFullscreenAmbilight) {
-                // IMPROVED LOGIC – Each source “grows” outward from its
-                // original rectangle until it hits the canvas edge or another
-                // grown source (distance measured to the nearest point of the
-                // original rectangle). Think of it as distance-to-rectangle
-                // Voronoi.
-
-                const w = virtualCanvas.width;
-                const h = virtualCanvas.height;
-
-                // Only recalculate zones if we don't have saved zones OR it's been 10+ seconds
-                const now = Date.now();
-                const shouldRecalculate = !savedZones || (now - lastZonesSaveTime > 10000);
-
-                if (shouldRecalculate) {
-                    lastZonesSaveTime = now;
-
-                    const sourcesInfo = [];
-                    activeSources.forEach((mediaElement) => {
-                        const wrapper = mediaElement.closest('.source-element');
-                        if (!wrapper) return;
-
-                        const style = wrapper.style;
-                        const left = parseFloat(style.left) || 0;
-                        const top = parseFloat(style.top) || 0;
-                        const width = parseFloat(style.width) || 160;
-                        const height = parseFloat(style.height) || 100;
-
-                        const right = left + width;
-                        const bottom = top + height;
-
-                        sourcesInfo.push({ left, top, right, bottom, media: mediaElement });
-                    });
-
-                    // --- Determine each pixel's owner and expand bounding boxes
-
-                    sourcesInfo.forEach(s => { s.minX = w; s.minY = h; s.maxX = 0; s.maxY = 0; });
-
-                    for (let y = 0; y < h; y++) {
-                        for (let x = 0; x < w; x++) {
-                            let bestIdx = 0;
-                            let bestDist = Infinity;
-                            for (let i = 0; i < sourcesInfo.length; i++) {
-                                const s = sourcesInfo[i];
-
-                                let dx = 0;
-                                if (x < s.left) dx = s.left - x;
-                                else if (x > s.right) dx = x - s.right;
-
-                                let dy = 0;
-                                if (y < s.top) dy = s.top - y;
-                                else if (y > s.bottom) dy = y - s.bottom;
-
-                                const distSq = dx * dx + dy * dy;
-                                if (distSq < bestDist) { bestDist = distSq; bestIdx = i; }
-                            }
-
-                            const owner = sourcesInfo[bestIdx];
-                            if (x < owner.minX) owner.minX = x;
-                            if (x > owner.maxX) owner.maxX = x;
-                            if (y < owner.minY) owner.minY = y;
-                            if (y > owner.maxY) owner.maxY = y;
-                        }
-                    }
-
-                    // --- NEW: expand every live <div class="source-element"> to its grown zone
-                    sourcesInfo.forEach(s => {
-                        const wrapper = s.media.closest('.source-element');
-                        if (!wrapper) return;
-
-                        const newW = s.maxX - s.minX + 1;
-                        const newH = s.maxY - s.minY + 1;
-
-                        wrapper.style.left = `${s.minX}px`;
-                        wrapper.style.top = `${s.minY}px`;
-                        wrapper.style.width = `${newW}px`;
-                        wrapper.style.height = `${newH}px`;
-
-                        // Ensure the media itself has no extra transforms that would offset scaling
-                        s.media.style.transform = '';
-                    });
-
-                    // Save the calculated zones for future use
-                    savedZones = [];
-                    sourcesInfo.forEach(s => {
-                        const wrapper = s.media.closest('.source-element');
-                        if (wrapper) {
-                            savedZones.push({
-                                sourceId: wrapper.dataset.sourceId,
-                                left: parseFloat(wrapper.style.left),
-                                top: parseFloat(wrapper.style.top),
-                                width: parseFloat(wrapper.style.width),
-                                height: parseFloat(wrapper.style.height)
-                            });
-                        }
-                    });
-                } else {
-                    // Apply saved zones to current wrappers
-                    if (savedZones) {
-                        savedZones.forEach(zone => {
-                            const wrapper = document.querySelector(`[data-source-id="${zone.sourceId}"]`);
-                            if (wrapper) {
-                                wrapper.style.left = `${zone.left}px`;
-                                wrapper.style.top = `${zone.top}px`;
-                                wrapper.style.width = `${zone.width}px`;
-                                wrapper.style.height = `${zone.height}px`;
-                            }
-                        });
-                    }
-                }
-
-                // ---- drawing is still needed every frame ------------
-                virtualCtx.clearRect(0, 0, w, h);
-                activeSources.forEach(mediaElement => {
-                    const wrapper = mediaElement.closest('.source-element');
-                    if (!wrapper) return;
-
-                    const destX = parseFloat(wrapper.style.left) || 0;
-                    const destY = parseFloat(wrapper.style.top) || 0;
-                    const destW = parseFloat(wrapper.style.width) || 160;
-                    const destH = parseFloat(wrapper.style.height) || 100;
-
-                    const natW = mediaElement.videoWidth || mediaElement.naturalWidth || destW;
-                    const natH = mediaElement.videoHeight || mediaElement.naturalHeight || destH;
-
-                    try {
-                        virtualCtx.drawImage(mediaElement,
-                            0, 0, natW, natH,
-                            destX, destY, destW, destH);
-                    } catch { /* ignore */ }
-                });
-
-            } else {
-                // For normal mode: draw sources at their actual positions
-                for (const [id, source] of sources.entries()) {
-                    if (source.element) {
-                        const mediaElement = source.element.querySelector('img, video');
-                        if (mediaElement && (mediaElement.complete || mediaElement.readyState >= 2)) {
-                            try {
-                                // Get source position within the 320x200 space
-                                const sourceStyle = source.element.style;
-                                const left = parseFloat(sourceStyle.left) || 0;
-                                const top = parseFloat(sourceStyle.top) || 0;
-                                const width = parseFloat(sourceStyle.width) || 160;
-                                const height = parseFloat(sourceStyle.height) || 100;
-
-                                virtualCtx.drawImage(mediaElement, left, top, width, height);
-                            } catch (e) {
-                                // Skip this source if drawing fails
-                                continue;
-                            }
-                        }
-                    }
-                }
-            }
-
-
-
-            return virtualCanvas;
+        function decodePending(source) {
+            const frame = source.pending; source.pending = null; source.loading = frame;
+            activeDecoders++; frame.started = Date.now();
+            const image = frame.image = new Image();
+            const finish = valid => {
+                if (source.removed || source.loading !== frame) return;
+                source.loading = null; activeDecoders--;
+                image.onload = image.onerror = null;
+                const pixels = image.naturalWidth * image.naturalHeight;
+                if (valid && pixels > 0 && pixels <= 2101000 && decodedPixels - (source.displayed?.pixelCount || 0) + pixels <= MAX_DECODED_PIXELS) {
+                    if (source.displayed?.layout !== frame.layout) orderDirty = true;
+                    releaseFrame(source.displayed); source.displayed = frame; frame.pixelCount = pixels;
+                    decodedPixels += pixels; dirty = true;
+                } else releaseFrame(frame);
+                queueDecode(source);
+            };
+            image.onload = () => finish(true);
+            image.onerror = () => finish(false);
+            image.src = `data:image/jpeg;base64,${frame.encoded}`;
         }
 
-        // ──────────────────────────────────────────────────────────────────────
-        // BEAT PULSE UPDATE LOOP
-        // ──────────────────────────────────────────────────────────────────────
-
-        function updateBeatPulse() {
-            if (typeof beatPulse !== 'undefined' && beatPulse) {
-                // Get a raw beat value (exactly like original)
-                let rawBeat = 0;
-                if (typeof engine !== 'undefined' && engine?.audio?.beat != null) {
-                    rawBeat = engine.audio.beat;
-                } else if (typeof engine !== 'undefined' && engine?.audio?.level != null) {
-                    const lin = Math.pow(10, engine.audio.level / 20);
-                    const delta = Math.max(0, lin - prevLevel);
-                    rawBeat = delta * 4;
-                    prevLevel = lin * 0.5 + prevLevel * 0.5;
-                }
-
-                // Apply user sensitivity (exactly like original)
-                const sens = typeof beatSens !== 'undefined' ? (100 + beatSens) / 100 : 1;
-                rawBeat *= sens;
-
-                // Smooth & scale (exactly like original)
-                beatEnergy = Math.max(rawBeat, beatEnergy * PULSE_DECAY);
-                const strength = typeof pulseStrength !== 'undefined' ? pulseStrength : 100;
-                const extra = Math.min(strength * beatEnergy, 300); // NO extra scaling like original
-                const factor = 1 + extra / 100;
-
-                document.documentElement.style.setProperty('--beatBright', `${extra}%`);
-                document.documentElement.style.setProperty('--pulseBright', factor);
-            } else if (beatEnergy) {
-                // Reset beat effects when disabled (like original)
-                beatEnergy = 0;
-                document.documentElement.style.setProperty('--beatBright', '0%');
-                document.documentElement.style.setProperty('--pulseBright', '1');
+        function completeFrame(source) {
+            if (!source.expect || source.chunks.size !== source.expect) return;
+            const chunks = [];
+            for (let index = 0; index < source.expect; index++) {
+                const part = source.chunks.get(index); if (!part) return; chunks.push(part);
             }
-
-            requestAnimationFrame(updateBeatPulse);
+            const encoded = chunks.join('');
+            const layout = source.outer === source.lastOuter && source.crop === source.lastCrop ? source.lastLayout : parseLayout(source.outer, source.crop);
+            discardAssembly(source);
+            if (!layout || encoded.length % 4 !== 0) return;
+            source.lastOuter = source.outer; source.lastCrop = source.crop; source.lastLayout = layout;
+            const latest = source.pending || source.loading || source.displayed;
+            if (latest?.encoded === encoded && latest.layout === layout) return;
+            releaseFrame(source.pending);
+            source.pending = { encoded, layout };
+            bufferedChars += encoded.length;
+            queueDecode(source);
         }
-
-        // ──────────────────────────────────────────────────────────────────────
-        // CANVAS API EVENT HANDLER
-        // ──────────────────────────────────────────────────────────────────────
 
         window.onCanvasApiEvent = function (event) {
-            if (event.sender !== SENDER) {
-                return; // Ignore events from other senders
-            }
-
-            // Decode URL-encoded event data
-            const msg = decodeURIComponent(event.event);
-
-            // Handle header: header:filename:mime:chunkCount:style
-            if (msg.startsWith("header:")) {
-                const parts = msg.split(":");
-                if (parts.length < 5) {
-                    log(`Invalid header format: ${msg}`);
-                    errorCount++;
-                    return;
-                }
-
-                const filename = parts[1];
-                const mime = parts[2];
-                const chunkCount = parseInt(parts[3], 10);
-                const styles = parts.slice(4).join(":");
-
-                // Extract source ID from filename (should be GUID.jpg)
-                const sourceId = filename.split(".")[0];
-
-                const source = getSource(sourceId);
-                source.mime = mime;
-                source.expect = chunkCount;
-
-                // Parse styles - handle both legacy and separated format
-                if (styles.includes("outer:") && styles.includes("crop:")) {
-                    const parts = styles.split("|");
-                    const outerPart = parts.find(p => p.startsWith("outer:"));
-                    const cropPart = parts.find(p => p.startsWith("crop:"));
-
-                    source.outerStyle = outerPart ? outerPart.substring(6) : "";
-                    source.cropStyle = cropPart ? cropPart.substring(5) : "";
-                } else {
-                    source.outerStyle = styles;
-                    source.cropStyle = "position: relative; width: 100%; height: 100%; overflow: hidden;";
-                }
-                source.chunks.clear();
-
+            if (!event || event.sender !== SENDER || typeof event.event !== 'string') return;
+            let message;
+            try { message = /^(header:|data:|end:|remove:|config:|health:|reset$)/.test(event.event) ? event.event : decodeURIComponent(event.event); } catch { return; }
+            if (message.startsWith('health:')) {
+                if (message.length > 1024) return;
+                try {
+                    const value = JSON.parse(message.slice(7));
+                    const endpoint = /^http:\/\/localhost:(\d{1,5})\/api\/effect-status$/.exec(value.callback);
+                    if (value.version !== 1 || !endpoint || Number(endpoint[1]) < 1 || Number(endpoint[1]) > 65535 ||
+                        !/^[a-f0-9]{32}$/.test(value.session)) return;
+                    if (health?.session !== value.session) { renderedFrames = 0; dirty = true; }
+                    health = value;
+                    sendFeedback();
+                } catch { /* Invalid feedback addresses never produce a network request. */ }
                 return;
             }
-
-            // Handle data: data:sourceId:index:payload
-            if (msg.startsWith("data:")) {
-                const parts = msg.split(":");
-                if (parts.length < 4) {
-                    log(`Invalid data format: ${msg.substring(0, 50)}...`);
-                    errorCount++;
-                    return;
-                }
-                const sourceId = parts[1];
-                const index = parseInt(parts[2], 10);
-                const payload = parts.slice(3).join(":");
-
-                if (isNaN(index) || !payload) {
-                    log(`Invalid chunk data: index=${index}, payload length=${payload.length}`);
-                    errorCount++;
-                    return;
-                }
-
-                const source = sources.get(sourceId);
-                if (source) {
-                    source.chunks.set(index, payload);
-                }
-
+            if (message === 'reset') {
+                health = null; renderedFrames = 0;
+                clearing = true;
+                try { for (const source of sources.values()) clearSource(source); }
+                finally { clearing = false; }
                 return;
             }
-
-            // Handle end marker: end:sourceId
-            if (msg.startsWith("end:")) {
-                const parts = msg.split(":");
-                const sourceId = parts[1];
-                const source = sources.get(sourceId);
-
-                if (source) {
-                    assembleAndRender(source);
-                }
-
+            if (message.startsWith('config:')) {
+                if (message.length > 8192) return;
+                try {
+                    const value = JSON.parse(message.slice(7));
+                    if (!value || value.version !== 1) return;
+                    appSettings = normalized(value); window.updateCaptureSettings();
+                } catch { /* A malformed update leaves the previous configuration intact. */ }
                 return;
             }
-
-            // Handle remove event: remove:sourceId
-            if (msg.startsWith("remove:")) {
-                const parts = msg.split(":");
-                const sourceId = parts[1];
-                const source = sources.get(sourceId);
-
-                if (source) {
-                    log(`Removing source: ${sourceId}`);
-                    if (source.element) {
-                        source.element.remove();
-                    }
-                    sources.delete(sourceId);
-                    // Don't invalidate zones on source removal - keep cached zones
+            if (message.startsWith('header:')) {
+                if (message.length > 8192) return;
+                const match = /^header:([a-f0-9-]{36})\.jpg:image\/jpeg:(\d+):(.*)$/i.exec(message);
+                if (!match) return;
+                const count = Number(match[2]), id = match[1].toLowerCase();
+                if (!Number.isInteger(count) || count < 1 || count > MAX_CHUNKS) return;
+                let source = sources.get(id);
+                if (!source) {
+                    if (sources.size >= MAX_SOURCES) return;
+                    source = { id, chunks:new Map(), receivedChars:0 }; sources.set(id, source);
                 }
+                discardAssembly(source); source.expect = count; source.started = Date.now();
+                const styles = match[3].split('|');
+                source.outer = styles.find(style => style.startsWith('outer:'))?.slice(6) ?? match[3];
+                source.crop = styles.find(style => style.startsWith('crop:'))?.slice(5) ?? '';
                 return;
             }
-
-            // Unknown event type
-            log(`Unknown event type: ${msg.substring(0, 50)}...`);
+            if (message.startsWith('data:')) {
+                const match = /^data:([a-f0-9-]{36}):(\d+):([A-Za-z0-9+/=]+)$/i.exec(message);
+                if (!match) return;
+                const source = sources.get(match[1].toLowerCase()), index = Number(match[2]);
+                if (!source || !source.expect || !Number.isInteger(index) || index >= source.expect || Date.now() - source.started > ASSEMBLY_TIMEOUT) return;
+                const delta = match[3].length - (source.chunks.get(index)?.length || 0);
+                if (source.receivedChars + delta > MAX_FRAME_CHARS || !reserveEncoded(delta, source)) { discardAssembly(source); return; }
+                source.chunks.set(index, match[3]); source.receivedChars += delta; bufferedChars += delta;
+                return;
+            }
+            if (message.startsWith('end:')) {
+                const source = sources.get(message.slice(4).toLowerCase());
+                if (source && Date.now() - source.started <= ASSEMBLY_TIMEOUT) completeFrame(source);
+                return;
+            }
+            if (message.startsWith('remove:')) {
+                const source = sources.get(message.slice(7).toLowerCase()); if (source) clearSource(source);
+            }
         };
 
-        // ──────────────────────────────────────────────────────────────────────
-        // INITIALIZATION
-        // ──────────────────────────────────────────────────────────────────────
-
-        // Keep the ambiCanvas as large as the viewport
-        function resizeAmbiCanvas() {
-            ambiCanvas.width = window.innerWidth;
-            ambiCanvas.height = window.innerHeight;
-            ambiCtx.clearRect(0, 0, ambiCanvas.width, ambiCanvas.height);
+        function drawSource(source) {
+            const { image, layout:item } = source.displayed;
+            if (item.opacity <= 0) return;
+            context.save();
+            try {
+                context.globalAlpha = Math.max(0, Math.min(1, item.opacity));
+                context.translate(item.x + item.w / 2, item.y + item.h / 2);
+                context.rotate(item.rotation);
+                context.scale(item.sx, item.sy);
+                context.translate(-item.w / 2, -item.h / 2);
+                context.clip(item.clip);
+                // Snapshot polygons compensate the outer mirror: the crop mask stays fixed.
+                if (item.crop) context.clip(item.crop);
+                context.drawImage(image, 0, 0, item.w, item.h);
+            } finally { context.restore(); }
         }
 
-        window.addEventListener('resize', resizeAmbiCanvas);
-        resizeAmbiCanvas();
+        function sendFeedback() {
+            if (!health || feedbackPending || Date.now() - lastFeedback < 1000 || typeof window.fetch !== 'function') return;
+            feedbackPending = true; lastFeedback = Date.now();
+            const abort = typeof AbortController === 'function' ? new AbortController() : null;
+            const timeout = setTimeout(() => abort?.abort(), 1800);
+            const url = `${health.callback}?session=${health.session}&version=1&frames=${renderedFrames}`;
+            // This local acknowledgement confirms effect execution. Hosts that block
+            // loopback requests simply remain "rendering unconfirmed" in the app.
+            window.fetch(url, { cache:'no-store', credentials:'omit', signal:abort?.signal })
+                .catch(() => {})
+                .finally(() => { clearTimeout(timeout); feedbackPending = false; });
+        }
 
-        // Periodic cleanup for stale sources
-        setInterval(() => {
-            const now = Date.now();
-            const staleTimeout = 30000; // 30 seconds
+        function updateBeat(now) {
+            if (window.beatPulse) {
+                let raw = 0;
+                if (typeof engine !== 'undefined' && Number.isFinite(engine?.audio?.beat)) raw = engine.audio.beat;
+                else if (typeof engine !== 'undefined' && Number.isFinite(engine?.audio?.level)) {
+                    const level = Math.pow(10, engine.audio.level / 20);
+                    raw = Math.max(0, level - prevLevel) * 4; prevLevel = level * 0.5 + prevLevel * 0.5;
+                }
+                raw *= (100 + finite(window.beatSens, 0, -100, 100)) / 100;
+                beatEnergy = Math.max(raw, beatEnergy * Math.pow(0.9, Math.min(1000, now - lastBeat) / (1000 / 60)));
+                applyFilters(Math.min(300, finite(window.pulseStrength, 100, 0, 300) * beatEnergy));
+            } else if (beatEnergy) { beatEnergy = 0; applyFilters(); }
+            lastBeat = now;
+        }
 
-            for (const [id, source] of sources.entries()) {
-                if (now - source.lastUpdate > staleTimeout) {
-                    log(`Removing stale source: ${id}`);
-                    if (source.element) {
-                        source.element.remove();
+        function update() {
+            const now = Date.now(); updateBeat(now);
+            if (now - lastCleanup > 1000) {
+                lastCleanup = now;
+                for (const source of sources.values()) {
+                    if (source.expect && now - source.started > ASSEMBLY_TIMEOUT) discardAssembly(source);
+                    if (source.loading && now - source.loading.started > ASSEMBLY_TIMEOUT) {
+                        releaseFrame(source.loading); source.loading = null; activeDecoders--; queueDecode(source);
                     }
-                    sources.delete(id);
-                    // Don't invalidate zones on stale source cleanup - keep cached zones
+                    if (!source.expect && !source.displayed && !source.loading && !source.pending) clearSource(source);
                 }
             }
-        }, 10000); // Check every 10 seconds
-
-        // Stats logging
-        setInterval(() => {
-            if (frameCount > 0) {
-                log(`Stats: ${frameCount} frames, ${errorCount} errors, ${sources.size} active sources`);
+            if (dirty && now - lastDraw >= 1000 / settings.frameRate) {
+                if (orderDirty) {
+                    ordered = Array.from(sources.values()).filter(source => source.displayed).sort((a, b) => a.displayed.layout.z - b.displayed.layout.z);
+                    orderDirty = false;
+                }
+                context.clearRect(0, 0, 320, 200);
+                context.imageSmoothingEnabled = settings.interpolation === 'smooth';
+                for (const source of ordered) drawSource(source);
+                if (ordered.length) renderedFrames++;
+                if (settings.ambilight && settings.ambilightFullscreen) {
+                    ambiContext.clearRect(0, 0, 320, 200);
+                    ambiContext.drawImage(canvas, 0, 0);
+                }
+                dirty = false; lastDraw = now;
             }
-        }, 30000); // Log every 30 seconds
-
-        // Initialize settings
-        setTimeout(() => {
-            // Initialize all settings with current values
-            if (typeof onboostChanged === 'function') onboostChanged();
-            if (typeof onbrightnessChanged === 'function') onbrightnessChanged();
-            if (typeof onsaturationChanged === 'function') onsaturationChanged();
-            if (typeof onBlurToggleChanged === 'function') onBlurToggleChanged();
-            if (typeof onscreenXChanged === 'function') onscreenXChanged();
-            if (typeof onscreenYChanged === 'function') onscreenYChanged();
-            if (typeof onscreenWChanged === 'function') onscreenWChanged();
-            if (typeof onscreenHChanged === 'function') onscreenHChanged();
-            if (typeof onambilightToggleChanged === 'function') onambilightToggleChanged();
-            if (typeof updateAmbilightFilterGlobal === 'function') updateAmbilightFilterGlobal();
-            if (typeof onambilightFullChanged === 'function') onambilightFullChanged();
-            if (typeof onhideSourcesInFullscreenChanged === 'function') onhideSourcesInFullscreenChanged();
-        }, 100);
-
-        // Start beat pulse animation
-        requestAnimationFrame(updateBeatPulse);
-
-        // Main update loop for fullscreen ambilight (exactly like original)
-        function mainUpdate() {
-            // Render sources to virtual canvas first
-            const canvas = renderSourcesToVirtualCanvas();
-
-            /* Paint a stretched copy for the glow layer when enabled (exactly like original) */
-            if (document.body.classList.contains('ambilight-full')) {
-                // First, draw the canvas to the ambiCanvas
-                ambiCtx.drawImage(canvas, 0, 0, ambiCanvas.width, ambiCanvas.height);
-
-
-            }
-
-            requestAnimationFrame(mainUpdate);
+            sendFeedback();
+            requestAnimationFrame(update);
         }
-        requestAnimationFrame(mainUpdate);
-
-        // Initialize
-        log(`Multi-source Canvas effect with Ambilight initialized (sender: ${SENDER})`);
-        log(`Ready to receive frames from Better SignalRGB Screen Capture`);
+        window.updateCaptureSettings();
+        window.addEventListener?.('resize', window.updateCaptureSettings);
+        requestAnimationFrame(update);
     })();
 </script>
+</html>

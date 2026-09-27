@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.22000.0</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platform>x64</Platform>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/CaptureRecorderOptions.cs" Link="CaptureRecorderOptions.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/CaptureFrameEncoder.cs" Link="CaptureFrameEncoder.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/CoordinateMapper.cs" Link="CoordinateMapper.cs" />
+    <ProjectReference Include="../../Better-SignalRGB-Screen-Capture.Core/Better-SignalRGB-Screen-Capture.Core.csproj" />
+    <PackageReference Include="ScreenRecorderLib" Version="6.5.1" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.0-preview.5.25277.114" />
+  </ItemGroup>
+</Project>

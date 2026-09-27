@@ -1,0 +1,127 @@
+Extended source validation, Windows x64, 2026-09-27
+
+Production code linked by tests/BetterSignalRGB.NativeSmokeTests:
+CaptureSourceFactory, CaptureRecorderOptions, CaptureFrameEncoder, CaptureService,
+PipelineDiagnosticsService, IWebsiteCaptureHostFactory and RegionPreviewCapture.
+No captured images were saved, displayed or transmitted. The temporary Win32
+test windows display only synthetic solid colors and are closed after each test.
+
+Commands (append each option to the same dotnet run command):
+dotnet run --project tests/BetterSignalRGB.NativeSmokeTests/BetterSignalRGB.NativeSmokeTests.csproj --no-restore -p:Platform=x64
+  --capture-window
+  --capture-webcam
+  --capture-display
+  --capture-region
+  --capture-wallpaper
+With no options, synthetic encoder, device/window identity and website service
+tests run without capturing the desktop, a window or a camera.
+
+PASS window 319x199: three JPEG frames contain the synthetic red center.
+PASS window 319x199: still red while fully covered by a synthetic blue window.
+PASS window 100x80: one hardware encoder failure, software retry passes.
+PASS window 320x200: recovery from stale PID through exact path+unique title.
+PASS incorrect executable path rejected despite matching process identity.
+The Win32 fixture repaints periodically; this proves capture of an active DWM
+surface, not all rendering technologies or minimized windows.
+
+PASS 4/4 enumerated webcam devices produce three decodable JPEG frames in Auto.
+PASS the same 4/4 devices produce JPEG frames with an explicitly selected format.
+Reported available formats respectively: 20, 231, 1, 1.
+PASS a saved format that is unavailable is rejected rather than silently changed.
+Device names and camera pixels are not included. These may include virtual
+devices; the test validates capture/encoding, not the physical sensor's picture.
+
+PASS exact monitor/camera IDs take precedence over duplicate friendly names.
+PASS missing stable IDs do not select a different identically named device.
+PASS legacy name recovery is allowed only for a unique device.
+PASS exact HWND survives title change; mismatched owner rejects a reused handle.
+PASS PID+title and path+title recovery require uniqueness; ambiguous windows and
+the same executable name at a different filesystem path are rejected.
+
+PASS complete display sizing matrix listed in native-smoke-results.txt rerun
+after source-factory extraction (12 cases, through 1439x1439 and final restart).
+PASS region 3x5 -> JPEG3x5 and partly off-display40x30 -> JPEG40x30, software retry.
+PASS region spanning two physically connected displays -> JPEG320x200, hardware.
+PASS region dialog screenshot completes, decodes in memory and honors cancellation.
+The native screenshot preview rounds319x199 to318x198; the indicative preview
+accepts this one-pixel rounding. Production streamed JPEG dimensions remain exact.
+The initial preview assertion expected exact dimensions and failed; the accepted
+preview tolerance was then tested with --capture-region, which exited0.
+
+PASS real CaptureService with a deterministic dispatcher/timer and owned host stub:
+factory creates a browser for each session without any editor or registry;
+prepare before start; fresh host on restart; initialization failure rollback;
+bounded odd3x5 JPEG; FPS change keeps the current host; one capture in flight;
+skipped busy tick counter; immediate stop publication gate; only the owned browser
+is closed, without touching a future replacement; late error suppression; three
+processing failures terminate capture, stop its timer and expose error state.
+No actual WinUI/WebView2 rendering is claimed by these service-level tests; the
+standalone native website-host harness validates the physical browser separately.
+
+All source tests retain only immutable JPEG arrays in memory. Native capture
+checks observe three decoded frames plus one second for delayed encoder errors,
+then await native finalization. Default service tests also finished with exit0.
+
+Wallpaper Engine actual-surface integration added:
+PASS real production CaptureService -> hidden same-executable helper -> verified
+wallpaper-only Explorer WorkerW4880x2560 -> physical-monitor crop -> boundedBGRA
+pipe -> existing JPEG worker. Six319x199 JPEGs had six distinct hashes.
+PASS stop and restart with exact3x5 output; the helper exits and frame cache clears.
+PASS missing monitor produces CaptureFailed and leaves no helper or stale frame.
+PASS helper timeout and cancellation terminate only the owned blocked test process.
+PASS icon-bearing/Progman/unverified-owner/no-renderer hosts are rejected by policy.
+PASS negative coordinates, partially outside monitor crops, malformed/oversized/
+truncated protocol frames and invalid worker invocation.
+Worker discovery is refreshed once per second; ownership, icons and renderer
+presence are checked around every PrintWindow call. The backend does not change
+Wallpaper Engine settings or duplicate the renderer.
+
+Additional production-worker verification:
+PASS full desktop occlusion at 319x199: 6 decoded JPEGs, 6 distinct hashes and
+431 sampled colors while an opaque window covered the wallpaper host. The cover
+was placed immediately above the desktop, below the existing applications; every
+frame validated visibility, full host coverage and that exact z-order. Creation
+did not activate the cover. User foreground changes after setup are allowed.
+PASS native helper and cover were removed; no pixels were saved or transmitted.
+PASS actual Release win-x64 application EXE, custom --wallpaper-capture-worker
+entry: three bounded BGRA frames at319x199 with2049 sampled colors; cancellation
+terminated the owned worker. Invalid worker arguments exited nonzero with bounded
+stderr and empty stdout, without launching the GUI.
+PASS oversized helper stderr16KiB drained while retaining1024 error characters;
+stderr ReadAsync is cancelled during cleanup alongside the stdout pipe reader.
+
+Actual renderer-family matrix completed with a separately owned restore watchdog:
+Web original: baseline and fully covered319x199 each6/6distinct JPEG hashes.
+Video scene-rainbow.mp4: baseline and fully covered319x199 each6/6distinct hashes,
+respectively386 and387 sampled colors; restart3x5 six frames/six distinct hashes.
+Scene beach: baseline6/6distinct505 sampled colors; fully covered6/6distinct500
+sampled colors. Stop/restart3x5 produced6 JPEGs/4 distinct hashes; missing-monitor
+failure cleaned the helper and frame. The first scene attempt was correctly
+rejected because its test required foreground immobility while the user interacted;
+the revised test verifies nonactivating setup and per-frame occlusion independently
+of subsequent user focus changes. The second scene run passed all checks.
+Original selections restored and queried successfully on both physical displays;
+the full settings and wallpaper selections compared unchanged after restoration.
+The restore checks reported layoutUnchanged, selectionsUnchanged,
+globalSettingsUnchanged and originalPropertiesUnchanged all True. No capture
+helper or restore watchdog remained after the tests.
+This is physical coverage of all three installed renderer families on this PC,
+not a universal claim for all Windows versions, drivers, HDR or monitor layouts.
+
+HQ capture checks (synthetic pixels only; no desktop or application UI captured):
+PASS canonical320x200 requests960x600 native carrier pixels in HQ. The isotropic
+3x sampling retains detail when sources rotate; final preview/web output is800x600.
+PASS odd3x5 becomes9x15 and extreme dimensions remain inside CaptureGeometry bounds.
+PASS actual CaptureService + fake lossless browser input preserves alternating
+one-pixel stripes in960x600 JPEG output, rather than enlarging a320x200 JPEG.
+PASS browser factory receives HQ flag; real WebsiteCaptureHost native harness
+separately confirms PNG input in HQ (normal capture remains JPEG).
+PASS SignalRGB derivative remains320x200 with the exact JPEG quality65 quantization
+tables; detailed output uses finer quality92 tables. FrameAvailable and sourceHTTP
+get detailed buffers; repeated SignalRGB reads reuse one immutable derived buffer.
+PASS stop clears both variants, quality changes require stopped capture, normal
+mode shares a single JPEG for both paths and avoids redundant second encoding.
+PASS production HTTP/Canvas API integration delivers detailed bytes to HTTP,
+canonical bytes + unchanged layout to SignalRGB, preserves the low-resolution
+derivative through pause replay, and clears/replaces both paths on failure/recovery.
+Latest combined production compositor/HTTP/HTTPS run:156 assertions passed.

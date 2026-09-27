@@ -45,6 +45,9 @@ public partial class App : Application
 
     public App()
     {
+        ApplicationErrorLog.Initialize();
+        UnhandledException += App_UnhandledException;
+        ApplicationErrorLog.Write("App constructor: initialize XAML");
         InitializeComponent();
 
         Host = Microsoft.Extensions.Hosting.Host.
@@ -70,6 +73,13 @@ public partial class App : Application
             services.AddSingleton<INavigationService, NavigationService>();
 
             // Capture and streaming services
+            services.AddSingleton<IWebsiteCaptureHostFactory, WebsiteCaptureHostFactory>();
+            services.AddSingleton<ISignalRgbEffectSettingsService, SignalRgbEffectSettingsService>();
+            services.AddSingleton<ISceneLibraryStorage, SceneLibraryStorage>();
+            services.AddSingleton<ISceneLibraryService, SceneLibraryService>();
+            services.AddSingleton<ISceneFilePickerService, SceneFilePickerService>();
+            services.AddSingleton<ISignalRgbConnectionService, SignalRgbConnectionService>();
+            services.AddSingleton<IPipelineDiagnosticsService, PipelineDiagnosticsService>();
             services.AddSingleton<ICaptureService, CaptureService>();
             services.AddSingleton<IMjpegStreamingService, MjpegStreamingService>();
             services.AddSingleton<IKestrelApiService, KestrelApiService>();
@@ -101,26 +111,41 @@ public partial class App : Application
         }).
         Build();
 
-        App.GetService<IAppNotificationService>().Initialize();
+        ApplicationErrorLog.Configure(Host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<LocalSettingsOptions>>().Value.ApplicationDataFolder);
+        ApplicationErrorLog.Write("App constructor: initialize notifications");
 
-        UnhandledException += App_UnhandledException;
+        App.GetService<IAppNotificationService>().Initialize();
+        ApplicationErrorLog.Write("App constructor complete");
     }
 
     private void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
     {
-        // TODO: Log and handle exceptions as appropriate.
-        // https://docs.microsoft.com/windows/windows-app-sdk/api/winrt/microsoft.ui.xaml.application.unhandledexception.
+        ApplicationErrorLog.Write("XAML.UnhandledException", e.Exception, e.Message);
     }
 
     protected async override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        base.OnLaunched(args);
+        try
+        {
+            base.OnLaunched(args);
+            await LaunchAsync(args);
+        }
+        catch (Exception exception)
+        {
+            // DispatcherQueue may rethrow async-void failures as native stowed exceptions,
+            // bypassing XAML.UnhandledException. Record the original managed stack first.
+            ApplicationErrorLog.Write("Launch failed", exception);
+            throw;
+        }
+    }
 
-        App.GetService<IAppNotificationService>().Show(string.Format("AppNotificationSamplePayload".GetLocalized(), AppContext.BaseDirectory));
-
+    private async Task LaunchAsync(LaunchActivatedEventArgs args)
+    {
+        ApplicationErrorLog.Write("Launch: activate application");
         await App.GetService<IActivationService>().ActivateAsync(args);
 
         // Initialize tray icon service AFTER MainWindow is fully activated
+        ApplicationErrorLog.Write("Launch: initialize tray icon");
         _ = GetService<TrayIconService>();
 
         // If user prefers to start in tray, hide the main window after activation
@@ -131,11 +156,21 @@ public partial class App : Application
             App.MainWindow.Hide();
         }
 
-        var autoRecord = await localSettings.ReadSettingAsync<bool?>("AutoStartRecordingOnBoot");
-        if (autoRecord == true)
+        var autoRecord = await StartupPreferences.ReadAutoStartRecordingAsync(localSettings);
+        if (autoRecord)
         {
             var vm = GetService<MainViewModel>();
-            _ = vm.ToggleRecordingCommand.ExecuteAsync(null);
+            try
+            {
+                await vm.Initialization;
+                if (!vm.IsRecording) await vm.ToggleRecordingCommand.ExecuteAsync(null);
+            }
+            catch (Exception exception)
+            {
+                ApplicationErrorLog.Write("Launch: automatic recording", exception);
+                vm.StatusMessage = $"Could not start recording automatically: {exception.Message}";
+            }
         }
+        ApplicationErrorLog.Write("Launch complete");
     }
 }

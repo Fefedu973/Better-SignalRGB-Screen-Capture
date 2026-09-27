@@ -1,0 +1,24 @@
+PASS: padded BGRA row copy, zero alpha, JPEG resize, red/blue orientation and website JPEG downsampling.
+PASS: display 320x200 -> JPEG 320x200: 3 frames, hardware, stopped, 4878 carrier bytes discarded.
+Hardware encoder rejected 100x80; testing one software retry.
+PASS: display 100x80 -> JPEG 100x80: 3 frames, software, stopped, 2833 carrier bytes discarded.
+Hardware encoder rejected 2x2; testing one software retry.
+PASS: display 2x2 -> JPEG 2x2: 3 frames, software, stopped, 2590 carrier bytes discarded.
+Hardware encoder rejected 1x1; testing one software retry.
+PASS: display 1x1 -> JPEG 1x1: 3 frames, software, stopped, 2590 carrier bytes discarded.
+Hardware encoder rejected 3x5; testing one software retry.
+PASS: display 3x5 -> JPEG 3x5: 3 frames, software, stopped, 2590 carrier bytes discarded.
+PASS: display 319x199 -> JPEG 319x199: 3 frames, hardware, stopped, 4845 carrier bytes discarded.
+PASS: display 1080x1920 -> JPEG 1080x1920: 3 frames, hardware, stopped, 77674 carrier bytes discarded.
+PASS: display 7680x120 -> JPEG 1920x30: 3 frames, hardware, stopped, 5658 carrier bytes discarded.
+PASS: display 7680x4320 -> JPEG 1920x1080: 3 frames, hardware, stopped, 91995 carrier bytes discarded.
+PASS: display 1307x1586 -> JPEG 1307x1586: 3 frames, hardware, stopped, 82535 carrier bytes discarded.
+PASS: display 1439x1439 -> JPEG 1439x1439: 3 frames, hardware, stopped, 91135 carrier bytes discarded.
+PASS: display 320x200 -> JPEG 320x200: 3 frames, hardware, stopped, 4845 carrier bytes discarded.
+Hardware encoder rejected 3x5; testing one software retry.
+PASS: region 3x5 -> JPEG 3x5: 3 frames, software, stopped, 2326 carrier bytes discarded.
+Hardware encoder rejected 40x30; testing one software retry.
+PASS: region 40x30 -> JPEG 40x30: 3 frames, software, stopped, 2367 carrier bytes discarded.
+PASS: region 320x200 -> JPEG 320x200: 3 frames, hardware, stopped, 6393 carrier bytes discarded.
+PASS: region crossing two connected displays.
+PASS: native options, hardware/software recovery, JPEG sizing, regions, stop and restart.

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.22000.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Models/SceneProfile.cs" Link="SceneProfile.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/ISceneLibraryService.cs" Link="ISceneLibraryService.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/SceneLibraryService.cs" Link="SceneLibraryService.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Models/PipelineDiagnosticsSnapshot.cs" Link="PipelineDiagnosticsSnapshot.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/IPipelineDiagnosticsService.cs" Link="IPipelineDiagnosticsService.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/PipelineDiagnosticsService.cs" Link="PipelineDiagnosticsService.cs" />
+    <ProjectReference Include="../../Better-SignalRGB-Screen-Capture.Core/Better-SignalRGB-Screen-Capture.Core.csproj" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/ViewModels/MainViewModel*.cs" Link="ViewModels/%(Filename)%(Extension)" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Models/SourceItem.cs" Link="SourceItem.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Models/UndoRedoManager.cs" Link="UndoRedoManager.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/SourceGeometry.cs" Link="SourceGeometry.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/SourceLayerOrdering.cs" Link="SourceLayerOrdering.cs" Condition="Exists('../../Better-SignalRGB-Screen-Capture/Helpers/SourceLayerOrdering.cs')" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/ICaptureService.cs" Link="ICaptureService.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/ICompositeFrameService.cs" Link="ICompositeFrameService.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/IMjpegStreamingService.cs" Link="IMjpegStreamingService.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/IKestrelApiService.cs" Link="IKestrelApiService.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/ILocalSettingsService.cs" Link="ILocalSettingsService.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/CanvasSourceResize.cs" Link="CanvasSourceResize.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/CanvasInteractionGeometry.cs" Link="CanvasInteractionGeometry.cs" />
+  </ItemGroup>
+</Project>

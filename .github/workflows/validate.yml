@@ -1,0 +1,37 @@
+name: Validate
+on:
+  push:
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build WinUI application
+        run: dotnet build Better-SignalRGB-Screen-Capture/Better-SignalRGB-Screen-Capture.csproj -c Release -p:Platform=x64
+      - name: Run regression checks
+        run: dotnet run --project tests/BetterSignalRGB.RegressionTests -c Release
+      - name: Validate editing and recording state transitions
+        run: dotnet run --project tests/BetterSignalRGB.ViewModelTests -c Release
+      - name: Validate compositor pixels and local HTTP and HTTPS streaming
+        run: dotnet run --project tests/BetterSignalRGB.StreamingTests -c Release
+      - name: Validate capture encoding, device selection and website lifecycle without capturing the desktop
+        run: dotnet run --project tests/BetterSignalRGB.NativeSmokeTests -c Release
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate SignalRGB effect protocol and rendering
+        run: node tests/StreamingEffectTests.cjs
+      - name: Install browser test dependencies
+        working-directory: tests
+        run: npm ci --ignore-scripts
+      - name: Install Chromium for pixel comparisons
+        working-directory: tests
+        run: npx playwright install chromium
+      - name: Compare SignalRGB pixels with the production compositor
+        working-directory: tests
+        run: npm run test:browser

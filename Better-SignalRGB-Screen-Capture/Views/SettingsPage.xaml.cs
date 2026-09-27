@@ -16,5 +16,7 @@ public sealed partial class SettingsPage : Page
     {
         ViewModel = App.GetService<SettingsViewModel>();
         InitializeComponent();
+        Loaded += async (_, _) => await ViewModel.ActivateEffectSettingsAsync();
+        Unloaded += (_, _) => ViewModel.DeactivateEffectSettings();
     }
 }

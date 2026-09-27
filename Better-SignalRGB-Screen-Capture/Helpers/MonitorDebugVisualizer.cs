@@ -21,7 +21,7 @@ public static class MonitorDebugVisualizer
     /// <param name="displays">Available displays from ScreenRecorderLib</param>
     /// <param name="intersectingDisplays">Displays that intersect with the region</param>
     /// <returns>Path to the generated HTML file</returns>
-    public static string GenerateDebugVisualization(
+    public static string? GenerateDebugVisualization(
         Rectangle regionRect, 
         IEnumerable<RecordableDisplay> displays,
         List<(RecordableDisplay display, Rectangle monitorBounds)> intersectingDisplays)
@@ -358,4 +358,4 @@ public static class MonitorDebugVisualizer
         
         return null;
     }
-} 
+}

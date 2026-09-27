@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Windows.Input;
 using System.Threading.Tasks;
 using System.Linq;
@@ -7,7 +7,6 @@ using System.Collections.ObjectModel;
 
 using Better_SignalRGB_Screen_Capture.Contracts.Services;
 using Better_SignalRGB_Screen_Capture.Helpers;
-using Microsoft.Win32;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -25,9 +24,15 @@ public partial class SettingsViewModel : ObservableRecipient
     private readonly IThemeSelectorService _themeSelectorService;
     private readonly ILocalSettingsService _localSettingsService;
 
+    private bool _loadingSettings = true;
+    private readonly SemaphoreSlim _startupGate = new(1, 1);
+    private bool _updatingStartupState;
+    private bool _confirmedStartupState;
+    private int _startupChangeVersion;
+
     private const string StartOnBootKey = "StartOnBoot";
     private const string BootInTrayKey = "BootInTray";
-    private const string AutoRecordKey = "AutoStartRecordingOnBoot";
+    private const string AutoRecordKey = StartupPreferences.AutoStartRecordingKey;
     private const string WaitForSourceAvailabilityKey = "WaitForSourceAvailability";
     private const string StreamingPortKey = "StreamingPort";
     private const string HttpsPortKey = "HttpsPort";
@@ -48,7 +53,7 @@ public partial class SettingsViewModel : ObservableRecipient
     private bool _bootInTray;
 
     [ObservableProperty]
-    private bool _autoStartRecordingOnBoot;
+    private bool _autoStartRecordingOnBoot = StartupPreferences.AutoStartRecordingByDefault;
 
     [ObservableProperty]
     private bool _waitForSourceAvailability;
@@ -67,10 +72,16 @@ public partial class SettingsViewModel : ObservableRecipient
 
     public ObservableCollection<GitHubContributor> Contributors { get; } = new();
 
-    partial void OnStartOnBootChanged(bool value) => SaveSettingAsync(StartOnBootKey, value);
+    partial void OnStartOnBootChanged(bool value)
+    {
+        if (!_loadingSettings && !_updatingStartupState) _ = UpdateStartupAsync(value);
+    }
     partial void OnBootInTrayChanged(bool value) => SaveSettingAsync(BootInTrayKey, value);
     partial void OnAutoStartRecordingOnBootChanged(bool value) => SaveSettingAsync(AutoRecordKey, value);
-    partial void OnWaitForSourceAvailabilityChanged(bool value) => SaveSettingAsync(WaitForSourceAvailabilityKey, value);
+    partial void OnWaitForSourceAvailabilityChanged(bool value)
+    {
+        if (!_loadingSettings) App.GetService<MainViewModel>().WaitForSourceAvailability = value;
+    }
     partial void OnStreamingPortChanged(int value) => SaveSettingAsync(StreamingPortKey, value);
     partial void OnHttpsPortChanged(int value) => SaveSettingAsync(HttpsPortKey, value);
 
@@ -80,19 +91,69 @@ public partial class SettingsViewModel : ObservableRecipient
     }
 
     [RelayCommand]
-    private void CheckForUpdate()
+    private async Task ViewReleasesAsync()
     {
-        // TODO: Implement update check logic
+        try
+        {
+            var opened = await Windows.System.Launcher.LaunchUriAsync(
+                new Uri("https://github.com/Fefedu973/Better-SignalRGB-Screen-Capture/releases"));
+            if (!opened) App.GetService<MainViewModel>().StatusMessage = "Could not open the release page in your browser.";
+        }
+        catch (Exception ex)
+        {
+            App.GetService<MainViewModel>().StatusMessage = $"Could not open the release page: {ex.Message}";
+        }
     }
 
     private async void SaveSettingAsync(string key, object value)
     {
-        await _localSettingsService.SaveSettingAsync(key, value);
-
-        if (key == StartOnBootKey)
+        if (_loadingSettings) return;
+        try
         {
-            StartupHelper.SetStartOnBoot((bool)value);
+            if (key is StreamingPortKey or HttpsPortKey && (int)value is < 1 or > 65535)
+                throw new ArgumentOutOfRangeException(nameof(value), "Ports must be between 1 and 65535.");
+            await _localSettingsService.SaveSettingAsync(key, value);
         }
+        catch (Exception ex) { App.GetService<MainViewModel>().StatusMessage = $"Could not save setting: {ex.Message}"; }
+    }
+
+    private async Task UpdateStartupAsync(bool requested)
+    {
+        var version = ++_startupChangeVersion;
+        await _startupGate.WaitAsync();
+        try
+        {
+            if (version != _startupChangeVersion) return;
+            _confirmedStartupState = await StartupHelper.SetStartOnBootAsync(requested);
+            await _localSettingsService.SaveSettingAsync(StartOnBootKey, _confirmedStartupState);
+            if (version == _startupChangeVersion && requested != _confirmedStartupState)
+                App.GetService<MainViewModel>().StatusMessage = requested
+                    ? "Windows did not enable automatic startup. Check Startup apps in Windows Settings."
+                    : "Windows keeps automatic startup enabled by policy.";
+        }
+        catch (Exception ex)
+        {
+            // If a write partially succeeded, reconcile against the OS before updating the toggle.
+            try
+            {
+                _confirmedStartupState = await StartupHelper.IsRegisteredAsync();
+                await _localSettingsService.SaveSettingAsync(StartOnBootKey, _confirmedStartupState);
+            }
+            catch { /* Preserve the last confirmed state when Windows cannot be queried. */ }
+            App.GetService<MainViewModel>().StatusMessage = $"Could not change automatic startup: {ex.Message}";
+        }
+        finally
+        {
+            if (version == _startupChangeVersion) SetConfirmedStartupState();
+            _startupGate.Release();
+        }
+    }
+
+    private void SetConfirmedStartupState()
+    {
+        _updatingStartupState = true;
+        try { StartOnBoot = _confirmedStartupState; }
+        finally { _updatingStartupState = false; }
     }
 
     public SettingsViewModel(IThemeSelectorService themeSelectorService, ILocalSettingsService localSettingsService)
@@ -101,6 +162,7 @@ public partial class SettingsViewModel : ObservableRecipient
         _localSettingsService = localSettingsService;
         _elementTheme = _themeSelectorService.Theme;
         _versionDescription = GetVersionDescription();
+        InitializeEffectSettings();
 
         // Load persisted values
         _ = LoadSettingsAsync();
@@ -132,11 +194,12 @@ public partial class SettingsViewModel : ObservableRecipient
         {
             using var client = new HttpClient();
             client.DefaultRequestHeaders.Add("User-Agent", "Better-SignalRGB-Screen-Capture");
-            var response = await client.GetAsync("https://api.github.com/repos/Fefedu973/Better-SignalRGB-Screen-Capture");
+            using var response = await client.GetAsync("https://api.github.com/repos/Fefedu973/Better-SignalRGB-Screen-Capture");
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync();
-                var repoInfo = JsonDocument.Parse(json).RootElement;
+                using var document = JsonDocument.Parse(json);
+                var repoInfo = document.RootElement;
                 if (repoInfo.TryGetProperty("stargazers_count", out var stars))
                 {
                     StarCount = stars.GetInt32();
@@ -148,12 +211,22 @@ public partial class SettingsViewModel : ObservableRecipient
 
     private async Task LoadSettingsAsync()
     {
-        StartOnBoot = await _localSettingsService.ReadSettingAsync<bool?>(StartOnBootKey) ?? false;
-        BootInTray = await _localSettingsService.ReadSettingAsync<bool?>(BootInTrayKey) ?? false;
-        AutoStartRecordingOnBoot = await _localSettingsService.ReadSettingAsync<bool?>(AutoRecordKey) ?? false;
-        WaitForSourceAvailability = await _localSettingsService.ReadSettingAsync<bool?>(WaitForSourceAvailabilityKey) ?? true;
-        StreamingPort = await _localSettingsService.ReadSettingAsync<int?>(StreamingPortKey) ?? 8080;
-        HttpsPort = await _localSettingsService.ReadSettingAsync<int?>(HttpsPortKey) ?? 8443;
+        try
+        {
+            try
+            {
+                _confirmedStartupState = await StartupHelper.IsRegisteredAsync();
+                SetConfirmedStartupState();
+            }
+            catch (Exception ex) { App.GetService<MainViewModel>().StatusMessage = $"Could not read automatic startup state: {ex.Message}"; }
+            BootInTray = await _localSettingsService.ReadSettingAsync<bool?>(BootInTrayKey) ?? false;
+            AutoStartRecordingOnBoot = await StartupPreferences.ReadAutoStartRecordingAsync(_localSettingsService);
+            WaitForSourceAvailability = await _localSettingsService.ReadSettingAsync<bool?>(WaitForSourceAvailabilityKey) ?? true;
+            StreamingPort = await _localSettingsService.ReadSettingAsync<int?>(StreamingPortKey) ?? 8080;
+            HttpsPort = await _localSettingsService.ReadSettingAsync<int?>(HttpsPortKey) ?? 8443;
+        }
+        catch (Exception ex) { App.GetService<MainViewModel>().StatusMessage = $"Could not load settings: {ex.Message}"; }
+        finally { _loadingSettings = false; }
     }
 
     private async Task LoadContributorsAsync()
@@ -162,7 +235,7 @@ public partial class SettingsViewModel : ObservableRecipient
         {
             using var client = new HttpClient();
             client.DefaultRequestHeaders.Add("User-Agent", "Better-SignalRGB-Screen-Capture");
-            var response = await client.GetAsync("https://api.github.com/repos/Fefedu973/Better-SignalRGB-Screen-Capture/contributors");
+            using var response = await client.GetAsync("https://api.github.com/repos/Fefedu973/Better-SignalRGB-Screen-Capture/contributors");
             response.EnsureSuccessStatusCode();
             var json = await response.Content.ReadAsStringAsync();
             var contributors = JsonSerializer.Deserialize<List<GitHubContributor>>(json);

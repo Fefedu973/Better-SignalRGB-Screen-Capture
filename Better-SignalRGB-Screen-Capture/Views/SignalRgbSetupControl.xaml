@@ -1,0 +1,21 @@
+<UserControl
+    x:Class="Better_SignalRGB_Screen_Capture.Views.SignalRgbSetupControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel Spacing="12" Padding="16">
+        <TextBlock Text="Connect SignalRGB" Style="{StaticResource SubtitleTextBlockStyle}" />
+        <TextBlock Text="1. Install the effect that matches this app." TextWrapping="Wrap" />
+        <TextBox x:Name="FolderBox" Header="SignalRGB effects folder" IsReadOnly="True" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button x:Name="ChooseButton" Content="Choose folder…" Click="ChooseFolder_Click" />
+            <Button x:Name="InstallButton" Content="Install / update effect" Click="Install_Click" IsEnabled="False" />
+        </StackPanel>
+        <TextBlock x:Name="InstallationText" TextWrapping="Wrap" />
+        <TextBlock Text="2. Restart SignalRGB after installing, then select Better SignalRGB Screen Capture in its effects library." TextWrapping="Wrap" />
+        <TextBlock Text="3. Start recording and streaming in this app, then check the connection below." TextWrapping="Wrap" />
+        <Button x:Name="CheckButton" Content="Check SignalRGB connection" Click="Check_Click" />
+        <InfoBar x:Name="ConnectionStatus" IsOpen="True" IsClosable="False" Severity="Informational" Title="Connection" />
+        <TextBlock x:Name="CountersText" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        <InfoBar x:Name="OperationStatus" IsOpen="False" IsClosable="True" />
+    </StackPanel>
+</UserControl>

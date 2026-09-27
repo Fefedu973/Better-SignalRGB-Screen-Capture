@@ -9,6 +9,10 @@
 
     <ScrollViewer Width="320" MaxHeight="600" VerticalScrollBarVisibility="Auto">
         <StackPanel Spacing="12">
+        <InfoBar x:Name="ValidationError"
+                 Severity="Error"
+                 IsOpen="False"
+                 IsClosable="True" />
         <TextBox x:Name="NameBox" Header="Friendly name" />
 
         <!--  capture kind  -->
@@ -46,6 +50,12 @@
                     <TextBlock Text="Website" />
                 </StackPanel>
             </ComboBoxItem>
+            <ComboBoxItem Tag="WallpaperEngine">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xEB9F;" FontSize="14" />
+                    <TextBlock Text="Wallpaper Engine" />
+                </StackPanel>
+            </ComboBoxItem>
         </ComboBox>
 
         <!--  ‑‑‑‑ MONITOR ‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑  -->
@@ -55,7 +65,7 @@
             Visibility="Visible">
             <TextBlock FontWeight="SemiBold" Text="Choose a monitor" />
             <Grid>
-                <ComboBox x:Name="MonitorCombo" IsEnabled="False" />
+                <ComboBox x:Name="MonitorCombo" IsEnabled="False" SelectionChanged="MonitorCombo_SelectionChanged" />
                 <ProgressRing
                     x:Name="MonitorRing"
                     Width="20"
@@ -64,6 +74,14 @@
                     VerticalAlignment="Center"
                     IsActive="True" />
             </Grid>
+            <StackPanel x:Name="WallpaperEngineInfo" Spacing="8" Visibility="Collapsed">
+                <TextBlock Text="Capture the wallpaper currently rendered by Wallpaper Engine on this monitor. The same source handles scene, video and web wallpapers without opening another player."
+                           TextWrapping="Wrap" FontSize="12" />
+                <TextBlock Text="Capture continues when applications cover the desktop. If Wallpaper Engine pauses, the image stays still; if it removes its rendering surface, the source becomes unavailable. This app does not change its playback settings."
+                           TextWrapping="Wrap" FontSize="12" />
+                <Button Content="Check Wallpaper Engine" Click="CheckWallpaperEngine_Click" />
+                <TextBlock x:Name="WallpaperEngineStatus" TextWrapping="Wrap" FontSize="12" />
+            </StackPanel>
         </StackPanel>
 
         <!--  ‑‑‑‑ PROCESS ‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑  -->
@@ -71,12 +89,13 @@
             x:Name="ProcessSettings"
             Spacing="8"
             Visibility="Collapsed">
-            <TextBlock FontWeight="SemiBold" Text="Choose a process" />
+            <TextBlock FontWeight="SemiBold" Text="Choose an exact window" />
             <Grid>
                 <AutoSuggestBox
                     x:Name="ProcessBox"
                     IsEnabled="False"
-                    PlaceholderText="Type to search…"
+                    PlaceholderText="Search window title, application or PID…"
+                    TextMemberPath="DisplayText"
                     SuggestionChosen="ProcessBox_SuggestionChosen"
                     TextChanged="ProcessBox_TextChanged" />
                 <ProgressRing
@@ -87,7 +106,10 @@
                     VerticalAlignment="Center"
                     IsActive="True" />
             </Grid>
+            <Button Click="RefreshWindows_Click" Content="Refresh window list" />
+            <TextBlock x:Name="WindowDiscoveryStatus" TextWrapping="Wrap" FontSize="12" />
             <Button Click="BrowseExe_Click" Content="Browse for executable…" />
+            <TextBlock Text="An executable can reconnect automatically when exactly one matching window is available. Choose a window above to distinguish multiple instances." TextWrapping="Wrap" FontSize="12" />
         </StackPanel>
 
         <!--  ‑‑‑‑ REGION ‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑  -->
@@ -144,7 +166,7 @@
             Visibility="Collapsed">
             <TextBlock FontWeight="SemiBold" Text="Choose a webcam" />
             <Grid>
-                <ComboBox x:Name="WebcamCombo" IsEnabled="False" />
+                <ComboBox x:Name="WebcamCombo" IsEnabled="False" SelectionChanged="WebcamCombo_SelectionChanged" />
                 <ProgressRing
                     x:Name="WebcamRing"
                     Width="20"
@@ -153,6 +175,8 @@
                     VerticalAlignment="Center"
                     IsActive="True" />
             </Grid>
+            <ComboBox x:Name="WebcamFormatCombo" Header="Camera format" IsEnabled="False" HorizontalAlignment="Stretch" />
+            <TextBlock x:Name="WebcamFormatStatus" TextWrapping="Wrap" FontSize="12" Text="Auto uses the camera's default format. The app capture frame rate remains a separate limit." />
         </StackPanel>
 
         <!--  ‑‑‑‑ WEBSITE ‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑  -->
@@ -161,7 +185,10 @@
             Spacing="8"
             Visibility="Collapsed">
             <TextBlock FontWeight="SemiBold" Text="Website Configuration" />
-            <TextBox x:Name="WebsiteUrlBox" Header="Website URL" PlaceholderText="https://www.example.com" TextChanged="WebsiteUrlBox_TextChanged" />
+            <TextBox x:Name="WebsiteUrlBox" Header="Web or local file address" PlaceholderText="https://example.com or file:///C:/media/page.html" TextChanged="WebsiteUrlBox_TextChanged" />
+            <Button Content="Choose local file…" Click="ChooseWebsiteFile_Click" HorizontalAlignment="Left" />
+            <TextBlock Text="Local HTML, images and browser-supported videos. Local videos play muted in a loop."
+                       TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             
             <!-- Interactive WebView Preview -->
             <StackPanel x:Name="WebsitePreviewSection" Spacing="4" Visibility="Collapsed">
@@ -176,9 +203,12 @@
                         CornerRadius="4"
                         Height="300">
                     <Grid>
-                        <WebView2 x:Name="WebsitePreview" 
-                                  Visibility="Collapsed"
-                                  NavigationCompleted="WebsitePreview_NavigationCompleted" />
+                        <Viewbox Stretch="Uniform">
+                            <WebView2 x:Name="WebsitePreview" Width="1920" Height="1080"
+                                      Visibility="Collapsed"
+                                      NavigationStarting="WebsitePreview_NavigationStarting"
+                                      NavigationCompleted="WebsitePreview_NavigationCompleted" />
+                        </Viewbox>
                         <TextBlock x:Name="WebsitePreviewPlaceholder" 
                                    Text="Enter a URL and click 'Load Website' to preview and interact with the site"
                                    HorizontalAlignment="Center"
@@ -195,7 +225,7 @@
                     </Grid>
                 </Border>
                 
-                <TextBlock Text="💡 Tip: Use this preview to navigate to the exact page, login, scroll to content, or set up the website as you want it to appear in the capture."
+                <TextBlock Text="Use the preview to choose the final address and check the viewport and zoom. Capture uses its own browser; interactive page state is not copied."
                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
                            FontSize="12"
                            TextWrapping="Wrap"
@@ -244,7 +274,8 @@
                 <ComboBox x:Name="WebsiteUserAgentCombo" 
                           HorizontalAlignment="Stretch"
                           SelectionChanged="WebsiteUserAgentCombo_SelectionChanged">
-                    <ComboBoxItem Content="Chrome (Windows)" Tag="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" IsSelected="True" />
+                    <ComboBoxItem Content="Default (WebView2)" Tag="" IsSelected="True" />
+                    <ComboBoxItem Content="Chrome (Windows)" Tag="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" />
                     <ComboBoxItem Content="Firefox (Windows)" Tag="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0" />
                     <ComboBoxItem Content="Safari (macOS)" Tag="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15" />
                     <ComboBoxItem Content="Edge (Windows)" Tag="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0" />
@@ -261,14 +292,14 @@
             
             <!-- Iframe Dimensions -->
             <StackPanel Spacing="4">
-                <TextBlock Text="Iframe Rendering Size" />
+                <TextBlock Text="Browser viewport size" />
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <NumberBox x:Name="WebsiteWidthBox" 
+                    <NumberBox x:Name="WebsiteWidthBox" ValueChanged="WebsiteViewport_ValueChanged"
                                Grid.Column="0"
                                Header="Width"
                                Minimum="320" 
@@ -280,7 +311,7 @@
                                VerticalAlignment="Center"
                                HorizontalAlignment="Center"
                                Margin="8,20,8,0" />
-                    <NumberBox x:Name="WebsiteHeightBox" 
+                    <NumberBox x:Name="WebsiteHeightBox" ValueChanged="WebsiteViewport_ValueChanged"
                                Grid.Column="2"
                                Header="Height"
                                Minimum="240" 

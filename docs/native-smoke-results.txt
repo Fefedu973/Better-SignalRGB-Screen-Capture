@@ -1,0 +1,42 @@
+Native ScreenRecorderLib smoke validation, Windows x64, 2026-09-27
+Command: dotnet run --project tests/BetterSignalRGB.NativeSmokeTests/BetterSignalRGB.NativeSmokeTests.csproj --no-restore -p:Platform=x64 -- --capture-display
+Uses the production CaptureRecorderOptions factory, CaptureFrameEncoder JPEG encoder,
+CaptureGeometry sizing, CaptureDiscardStream, and IsEncoderFailure retry decision.
+Each case checks at least 3 decoded JPEGs, observes the encoder for 1 second after
+the previews and waits for native finalization. No screen pixels are saved or transmitted.
+
+PASS display 320x200 -> JPEG 320x200, hardware
+PASS display 100x80 -> JPEG 100x80, software retry
+PASS display 2x2 -> JPEG 2x2, software retry
+PASS display 1x1 -> JPEG 1x1, software retry
+PASS display 3x5 -> JPEG 3x5, software retry
+PASS display 319x199 -> JPEG 319x199, hardware
+PASS display 1080x1920 -> JPEG 1080x1920, hardware
+PASS display 7680x120 -> JPEG 1920x30, hardware
+PASS display 7680x4320 -> JPEG 1920x1080, hardware
+PASS display 1307x1586 -> JPEG 1307x1586, hardware (odd carrier near memory budget)
+PASS display 1439x1439 -> JPEG 1439x1439, hardware (both carrier axes round up)
+PASS display 320x200 -> JPEG 320x200, hardware (restart)
+PASS region 3x5 -> JPEG 3x5, software retry
+PASS region partly outside display, 40x30 -> JPEG 40x30, software retry
+PASS region crossing two physically connected displays -> JPEG 320x200, hardware
+Exit code 0.
+
+Hardware refusals were reproduced on small sizes, including errors occurring after
+the first preview frames. One software retry worked. Carrier size is at least 64x64
+(compatibility size verified on this machine, not a universal H.264 standard limit).
+This carrier does not change the source geometry or JPEG output target dimensions.
+JPEG output preserves one-pixel and odd dimensions, bounded by a maximum 1920-pixel
+side and 1920*1080-pixel frame budget. Only the separate carrier is rounded to even
+dimensions, with an additional bounded allowance for one rounding pixel per axis.
+The MP4 carrier is discarded without retaining its bytes.
+
+PASS synthetic production encoder checks: padded BGRA rows (512-byte stride),
+zero alpha, JPEG resize, red/blue channel and left/right orientation, website JPEG
+downsampling. No desktop capture is needed for these checks.
+Actual console output for the latest complete native matrix: native-smoke-output.txt.
+
+Limits: confirms the native capture/options/encoder integration on this Windows machine;
+does not validate all GPU drivers, webcam drivers, minimized windows, or WebView capture
+while its page is outside the active visual tree. Region content alignment is additionally
+covered by geometry tests; these native checks assert frame validity and dimensions.

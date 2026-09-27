@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.22000.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <Platform>x64</Platform>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWinUI>true</UseWinUI>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.250610002-experimental3" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.0-preview.5.25277.114" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../Better-SignalRGB-Screen-Capture.Core/Better-SignalRGB-Screen-Capture.Core.csproj" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/WebsiteCaptureHost.cs" Link="WebsiteCaptureHost.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Models/SourceItem.cs" Link="SourceItem.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Models/LocalSettingsOptions.cs" Link="LocalSettingsOptions.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/RuntimeHelper.cs" Link="RuntimeHelper.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/WebsitePreviewState.cs" Link="WebsitePreviewState.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/IWebsiteFrameSource.cs" Link="IWebsiteFrameSource.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/IWebsiteCaptureHostFactory.cs" Link="IWebsiteCaptureHostFactory.cs" />
+  </ItemGroup>
+</Project>

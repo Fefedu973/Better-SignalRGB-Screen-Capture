@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.22000.0</TargetFramework>
+    <Platform>x64</Platform>
+    <PlatformTarget>x64</PlatformTarget>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/CaptureRecorderOptions.cs" Link="CaptureRecorderOptions.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/CaptureSourceFactory.cs" Link="CaptureSourceFactory.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/RegionPreviewCapture.cs" Link="RegionPreviewCapture.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/CaptureService.cs" Link="CaptureService.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/Wallpaper*.cs" Link="Helpers/%(Filename)%(Extension)" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/WallpaperCaptureProcess.cs" Link="WallpaperCaptureProcess.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/PipelineDiagnosticsService.cs" Link="PipelineDiagnosticsService.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/ICaptureService.cs" Link="ICaptureService.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/IWebsiteFrameSource.cs" Link="IWebsiteFrameSource.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/IWebsiteCaptureHostFactory.cs" Link="IWebsiteCaptureHostFactory.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/IPipelineDiagnosticsService.cs" Link="IPipelineDiagnosticsService.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Models/PipelineDiagnosticsSnapshot.cs" Link="PipelineDiagnosticsSnapshot.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Models/SourceItem.cs" Link="SourceItem.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/CaptureFrameEncoder.cs" Link="CaptureFrameEncoder.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/CoordinateMapper.cs" Link="CoordinateMapper.cs" />
+    <ProjectReference Include="../../Better-SignalRGB-Screen-Capture.Core/Better-SignalRGB-Screen-Capture.Core.csproj" />
+    <PackageReference Include="ScreenRecorderLib" Version="6.5.1" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.0-preview.5.25277.114" />
+  </ItemGroup>
+</Project>

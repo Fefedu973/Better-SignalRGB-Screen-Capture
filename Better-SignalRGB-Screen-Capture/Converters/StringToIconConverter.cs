@@ -10,6 +10,7 @@ public class StringToIconConverter : IValueConverter
     public string WebsiteIcon { get; set; } = "\uE774"; // Globe icon
     public string RegionIcon { get; set; } = "\uEF20"; // Crop icon
     public string ProcessIcon { get; set; } = "\uE756"; // Window icon
+    public string WallpaperEngineIcon { get; set; } = "\uEB9F"; // Image icon
 
     public object Convert(object value, Type targetType, object parameter, string language)
     {
@@ -21,6 +22,7 @@ public class StringToIconConverter : IValueConverter
                 "monitor" => MonitorIcon,
                 "display" => MonitorIcon, // Display is an alias for Monitor
                 "website" => WebsiteIcon,
+                "wallpaperengine" => WallpaperEngineIcon,
                 "region" => RegionIcon,
                 "process" => ProcessIcon,
                 "window" => ProcessIcon, // Window is an alias for Process
@@ -34,6 +36,7 @@ public class StringToIconConverter : IValueConverter
                 SourceType.Webcam => WebcamIcon,
                 SourceType.Monitor => MonitorIcon, // This also handles Display since Display = Monitor
                 SourceType.Website => WebsiteIcon,
+                SourceType.WallpaperEngine => WallpaperEngineIcon,
                 SourceType.Region => RegionIcon,
                 SourceType.Process => ProcessIcon, // This also handles Window since Window = Process
                 _ => "\uE7C3" // Default icon
@@ -46,4 +49,4 @@ public class StringToIconConverter : IValueConverter
     {
         throw new NotImplementedException();
     }
-} 
+}

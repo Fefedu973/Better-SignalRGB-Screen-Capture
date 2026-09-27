@@ -16,6 +16,7 @@ public interface IMjpegStreamingService
     string? StreamingUrl { get; }
     
     Task NotifySourceRemovedAsync(Guid sourceId);
+    Task ResetCanvasAsync();
     
     //void EnableSignalRgbApi(bool enabled);
-} 
+}

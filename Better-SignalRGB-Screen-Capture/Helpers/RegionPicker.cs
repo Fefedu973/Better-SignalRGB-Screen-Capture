@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.UI.Input;
@@ -31,6 +31,7 @@ internal static class RegionPicker
         private Windows.Foundation.Point? _anchor;
         private RectInt32? _rect;
         private RectInt32? _canvasRect; // Store canvas coordinates separately for UI positioning
+        private bool _accepted;
         private Mode _mode = Mode.Drawing;
         private Edge? _resizeEdge;
         private const double HIT = 6;
@@ -154,13 +155,14 @@ internal static class RegionPicker
             };
 
             _flyout = BuildFlyout();
-            Closed += (_, _) => _tcs.TrySetResult(_rect);
+            Closed += (_, _) => _tcs.TrySetResult(_accepted ? _rect : null);
             SizeChanged += (_, _) => CoverEverything();
         }
 
         #region pointer logic
         private void OnPointerPressed(object _, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
+            if (!e.GetCurrentPoint(_root).Properties.IsLeftButtonPressed) return;
             if (_overlay.Visibility == Visibility.Visible)
                 _overlay.Visibility = Visibility.Collapsed; // first click → start drawing
 
@@ -222,9 +224,14 @@ internal static class RegionPicker
             _root.ReleasePointerCapture(e.Pointer);
             _anchor = null;
 
-            if (_mode == Mode.Drawing && _rubber.Width < 4)
+            if (_mode == Mode.Drawing && (_rubber.Width < 4 || _rubber.Height < 4))
             {
                 _rubber.Visibility = Visibility.Collapsed;
+                _rect = null;
+                _canvasRect = null;
+                _mode = Mode.Drawing;
+                _overlay.Visibility = Visibility.Visible;
+                CoverEverything();
                 return;
             }
 
@@ -249,6 +256,10 @@ internal static class RegionPicker
 
         private void UpdateRubber(double x, double y, double w, double h)
         {
+            w = Math.Clamp(w, 0, _root.ActualWidth);
+            h = Math.Clamp(h, 0, _root.ActualHeight);
+            x = Math.Clamp(x, 0, Math.Max(0, _root.ActualWidth - w));
+            y = Math.Clamp(y, 0, Math.Max(0, _root.ActualHeight - h));
             Canvas.SetLeft(_rubber, x); Canvas.SetTop(_rubber, y);
             _rubber.Width = w; _rubber.Height = h;
             _rubber.Visibility = Visibility.Visible;
@@ -261,16 +272,10 @@ internal static class RegionPicker
             int virtualScreenX = GetSystemMetrics(76);  // SM_XVIRTUALSCREEN  
             int virtualScreenY = GetSystemMetrics(77);  // SM_YVIRTUALSCREEN
             
-            int absoluteX = (int)Math.Round(x + virtualScreenX);
-            int absoluteY = (int)Math.Round(y + virtualScreenY);
-            
-            _rect = new RectInt32(absoluteX, absoluteY,
-                                  (int)Math.Round(w), (int)Math.Round(h));
-            
-            System.Diagnostics.Debug.WriteLine($"🔧 RegionPicker coordinate conversion:");
-            System.Diagnostics.Debug.WriteLine($"   Canvas coords: ({x:F1}, {y:F1}) {w:F1}x{h:F1}");
-            System.Diagnostics.Debug.WriteLine($"   Virtual screen offset: ({virtualScreenX}, {virtualScreenY})");
-            System.Diagnostics.Debug.WriteLine($"   Final region coords: ({absoluteX}, {absoluteY}) {_rect.Value.Width}x{_rect.Value.Height}");
+            // Pointer coordinates are DIPs; capture bounds are physical desktop pixels.
+            var physical = Better_SignalRGB_Screen_Capture.Core.Helpers.CanvasGeometry.ToPhysicalRegion(
+                x, y, w, h, _root.XamlRoot?.RasterizationScale ?? 1, virtualScreenX, virtualScreenY);
+            _rect = new RectInt32(physical.X, physical.Y, physical.Width, physical.Height);
 
             UpdateDimRects();
         }
@@ -365,7 +370,12 @@ internal static class RegionPicker
             });
         }
 
-        private void AcceptAndClose() => Close();
+        private void AcceptAndClose()
+        {
+            if (_rect is not { Width: > 0, Height: > 0 }) return;
+            _accepted = true;
+            Close();
+        }
         #endregion
 
         #region cursor helpers

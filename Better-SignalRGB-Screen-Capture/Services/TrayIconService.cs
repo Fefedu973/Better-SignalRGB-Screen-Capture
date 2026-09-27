@@ -5,7 +5,6 @@ using Better_SignalRGB_Screen_Capture.ViewModels;
 using H.NotifyIcon;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Controls.Primitives;
 
@@ -22,6 +21,8 @@ public class TrayIconService : IDisposable
     private readonly ILocalSettingsService _localSettings;
 
     private MenuFlyoutItem? _startStopItem;
+    private bool _isExiting;
+    private bool _disposed;
 
     public TrayIconService(MainViewModel mainVm, ILocalSettingsService localSettings)
     {
@@ -32,7 +33,10 @@ public class TrayIconService : IDisposable
         _trayIcon = new TaskbarIcon
         {
             ToolTipText = "Better SignalRGB Screen Capture",
-            IconSource = new BitmapImage(new Uri("ms-appx:///Assets/WindowIcon.ico")),
+            // Load the native tray icon directly. The asynchronous XAML image path
+            // requires package URI resolution and can fail after startup in unpackaged builds.
+            Icon = new System.Drawing.Icon(Path.Combine(AppContext.BaseDirectory, "Assets", "WindowIcon.ico")),
+            ContextMenuMode = ContextMenuMode.SecondWindow,
         };
 
         // Build context menu on the UI thread
@@ -48,7 +52,7 @@ public class TrayIconService : IDisposable
             showItem.Click += (_, __) => ShowMainWindow();
 
             var exitItem = new MenuFlyoutItem { Text = "Exit", Icon = new FontIcon { Glyph = "\uE7E8" } };
-            exitItem.Click += (_, __) => ExitApplication();
+            exitItem.Click += async (_, __) => await ExitApplicationAsync();
 
             var flyout = new MenuFlyout();
 
@@ -64,39 +68,41 @@ public class TrayIconService : IDisposable
         });
         
         // Ensure the icon is created
-        _trayIcon.ForceCreate();
-
-        // Attempt to set fluent menu mode if enum available via reflection
-        var modeProp = _trayIcon.GetType().GetProperty("ContextMenuMode");
-        if (modeProp != null)
-        {
-            var enumType = modeProp.PropertyType;
-            var fluentValue = Enum.GetValues(enumType).OfType<object>().FirstOrDefault(v => v.ToString()?.Contains("SecondWindow")==true);
-            if (fluentValue != null)
-            {
-                modeProp.SetValue(_trayIcon, fluentValue);
-            }
-        }
+        // The library defaults to enabling process-wide Efficiency Mode here.
+        // A live capture pipeline must retain its normal scheduling priority.
+        _trayIcon.ForceCreate(enablesEfficiencyMode: false);
 
         // Sync initial state
         UpdateRecordingMenuText();
 
         // Subscribe to view-model property changes so we stay in-sync
-        _mainVm.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(MainViewModel.IsRecording) || e.PropertyName == nameof(MainViewModel.IsRecordingLoading))
-            {
-                UpdateRecordingMenuText();
-            }
-        };
+        _mainVm.PropertyChanged += OnViewModelPropertyChanged;
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(MainViewModel.IsRecording) or nameof(MainViewModel.IsRecordingLoading))
+            UpdateRecordingMenuText();
     }
 
     private void ExecuteOnUI(Action action)
     {
+        void ExecuteSafely()
+        {
+            if (_disposed) return;
+            try { action(); }
+            catch (Exception exception) { ReportTrayError("complete the tray action", exception); }
+        }
         if (App.MainWindow.DispatcherQueue.HasThreadAccess)
-            action();
+            ExecuteSafely();
         else
-            App.MainWindow.DispatcherQueue.TryEnqueue(() => action());
+            App.MainWindow.DispatcherQueue.TryEnqueue(ExecuteSafely);
+    }
+
+    private void ReportTrayError(string operation, Exception exception)
+    {
+        Helpers.ApplicationErrorLog.Write($"TrayIcon: {operation}", exception);
+        _mainVm.StatusMessage = $"Could not {operation}: {exception.Message}";
     }
 
     private void UpdateRecordingMenuText()
@@ -123,10 +129,13 @@ public class TrayIconService : IDisposable
         // always run the command on the main window's dispatcher
         App.MainWindow.DispatcherQueue.TryEnqueue(async () =>
         {
-            if (!_mainVm.IsRecordingLoading)
+            if (_disposed || _isExiting) return;
+            try
             {
-                await _mainVm.ToggleRecordingCommand.ExecuteAsync(null);
+                if (!_mainVm.IsRecordingLoading)
+                    await _mainVm.ToggleRecordingCommand.ExecuteAsync(null);
             }
+            catch (Exception exception) { ReportTrayError("change recording state", exception); }
         });
     }
 
@@ -147,13 +156,31 @@ public class TrayIconService : IDisposable
         });
     }
 
-    private void ExitApplication()
+    private async Task ExitApplicationAsync()
     {
-        ExecuteOnUI(() => Application.Current.Exit());
+        if (_isExiting) return;
+        _isExiting = true;
+        try
+        {
+            await _mainVm.ShutdownAsync();
+            await App.GetService<ISignalRgbEffectSettingsService>().FlushAsync();
+            if (Application.Current is App app) app.Host.Dispose();
+            else Dispose();
+            Application.Current.Exit();
+        }
+        catch (Exception ex)
+        {
+            ReportTrayError("stop cleanly", ex);
+            _isExiting = false;
+            ShowMainWindow();
+        }
     }
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
+        _mainVm.PropertyChanged -= OnViewModelPropertyChanged;
         _trayIcon?.Dispose();
     }
-} 
+}

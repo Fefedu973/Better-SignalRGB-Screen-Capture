@@ -130,6 +130,7 @@
             PointerReleased="OnPointerReleased">
             <Line
                 x:Name="RotationHandleLine"
+                IsHitTestVisible="False"
                 Stroke="{ThemeResource SystemAccentColor}"
                 StrokeThickness="3" />
             <Ellipse
@@ -141,4 +142,4 @@
                 StrokeThickness="2" />
         </Canvas>
     </Grid>
-</UserControl> 
+</UserControl>

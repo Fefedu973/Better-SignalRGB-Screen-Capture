@@ -10,5 +10,6 @@ public interface ICompositeFrameService
     void UpdateSourceFrame(SourceItem source, byte[] frameData);
     void RemoveSource(SourceItem source);
     void SetCanvasSize(int width, int height);
+    void InvalidateLayout();
     byte[]? GetLatestCompositeFrame();
-} 
+}

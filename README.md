@@ -92,14 +92,20 @@ The application bridges the gap between your screen content and RGB lighting by 
 
 ### Key Features
 
-- **Multi-Source Capture**: Simultaneously capture from displays, windows, custom regions, webcams, and websites
+- **Multi-Source Capture**: Simultaneously capture from displays, windows, custom regions, webcams, websites, and Wallpaper Engine
+- **Wallpaper Engine**: Capture the actual rendered wallpaper on a selected monitor, including behind other applications; web, scene and video use the same capture path
 - **SignalRGB Integration**: Direct integration with SignalRGB Canvas API for real-time ambilight effects
 - **MJPEG Streaming**: Built-in web server for streaming captured content over HTTP
 - **Advanced Controls**: Per-source positioning, scaling, rotation, mirroring, and cropping
 - **Ambilight Effects**: Customizable ambilight with blur, saturation, and spread controls
 - **Beat Pulse Sync**: Audio-reactive lighting effects with beat detection
 - **Picture Modes**: Multiple visual modes (Standard, Cinema, Mono, Vivid, Dominant, HD)
-- **Web Interface**: Browser-based control panel for remote management
+- **Web Output**: Clean, full-page RGB output for browser effects, plus individual source streams
+- **App Effect Controls**: Optional live picture, halo, interpolation and update-rate settings from the application
+- **Guided Setup**: Detect and update the matching SignalRGB effect, with separate API and rendered-image connection checks
+- **Scenes**: Save, replace, rename, load, import and export named source layouts
+- **Canvas Tools**: Persistent layout locks, snapping and visible alignment guides
+- **Diagnostics**: Live capture, processing, sending, dropped-frame and error counters
 - **Real-time Preview**: Live preview of all capture sources with visual feedback
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -158,11 +164,11 @@ The application bridges the gap between your screen content and RGB lighting by 
    ```
 4. Build the application
    ```sh
-   dotnet build --configuration Release
+   dotnet build --configuration Release -p:Platform=x64
    ```
 5. Run the application
    ```sh
-   dotnet run
+   dotnet run -p:Platform=x64
    ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -180,23 +186,49 @@ The application bridges the gap between your screen content and RGB lighting by 
    - **Window**: Capture specific application windows
    - **Region**: Define custom screen regions
    - **Webcam**: Add camera feeds
-   - **Website**: Embed web content
+   - **Website**: Capture an HTTP/HTTPS page or a local `file:///` address; **Choose local file…** accepts HTML, images and browser-supported videos
+   - **Wallpaper Engine**: Select the display whose live wallpaper should be captured, independently of foreground applications
+
+Recording starts automatically when the application launches unless you explicitly disable **Auto-start recording** in Settings. Wallpaper Engine must itself remain running and rendering: its own pause/stop rules still determine whether new animation frames exist.
+
+Website capture uses an independent browser so opening Settings or hiding the editor does not suspend the page. Local images fit within the configured viewport; local videos play muted in a loop. Local file addresses, including escaped spaces and Unicode names, are retained in scenes. The setup preview helps choose the URL and viewport; transient interactive page state is not copied into capture.
 
 3. **Configure Sources**:
    - Position sources on the canvas by dragging
    - Adjust size, rotation, and opacity using the controls
    - Set up cropping for precise content selection
 
+### Canvas Editing
+
+Select and move a source by its visible content; cropped-away areas do not intercept clicks. Resize handles follow the visible frame, and rotation keeps its visible center fixed. Hold Shift while resizing to retain the aspect ratio. A rotated crop uses uniform scaling when independent-axis resizing would require skewing the image.
+
+Ctrl-click changes the selection; dragging empty space selects an area. Arrow keys move the selection by one canvas pixel, or ten with Shift. Middle-button dragging pans. Right-click a source to edit its crop, then Enter to apply or Esc to cancel. Mirroring flips image content inside the existing crop. Ctrl+Z and Ctrl+Y undo and redo committed edits.
+
+Enable **Snap** in the canvas toolbar to align visible source edges and centers with the canvas or other sources. Guides appear during dragging and resizing, with a six-screen-pixel attraction distance at every zoom level. Hold **Alt** to bypass snapping for the current gesture. Cropping and rotation are included when measuring the visible bounds.
+
+Enable **HQ 800 × 600** in the canvas toolbar for a more detailed web output and live preview. Sources retain their relative placement, crops and rotations automatically. Capture supplies more pixels and the web composite uses higher JPEG quality; SignalRGB's Canvas API keeps its original low-resolution output and delivery rate. The choice is saved across restarts. Switching modes preserves recording/pause state and does not disconnect web viewers. HQ uses more capture, encoding and network resources.
+
+Use **Lock layout** in the properties panel or the source context menu to protect position, size, rotation, crop, mirroring and layer commands. Locked sources remain selectable and show a lock badge. A selection containing any locked source cannot be transformed; unlock the selection first. Names and opacity remain editable, copy and delete remain available, and pasted copies start unlocked. Locks are preserved in saved layouts, scenes and undo history.
+
+Website sources use the configured browser viewport, zoom and user agent in both the interactive setup preview and capture. Saving after navigating in the preview uses that page's final HTTP(S) address; typing a different address without loading it uses the newly typed address. Hiding live preview keeps the capture browser available. Repeated browser capture errors stop that source and appear in diagnostics.
+
+### Scenes and Diagnostics
+
+Open **Scenes** in the canvas toolbar to save the current source layout under a name, load another scene, replace a saved scene, rename it or delete it. JSON import/export carries source identities, geometry, crops, appearance and locks. Loading a scene is undoable and preserves the current recording/pause state. Global capture rates and SignalRGB effect preferences are not part of a scene. Device identities may need editing when importing on another computer.
+
+Open **Diagnostics** to inspect each source's requested and actual frame rates, JPEG dimensions, processing time, replaced or skipped frames and last error. Transport counters distinguish source-image updates from actual effect redraws. Hardware mode describes the internal H.264 recorder; JPEG processing still runs on the CPU.
+
 ### SignalRGB Integration
 
 1. **Install SignalRGB Effect**:
 
-   - Copy `Better-SignalRGB-Screen-Capture-Effect.html` to your SignalRGB effects folder
-   - Typically located at: `Documents/WhirlwindFX/effects`
+   - Open **Settings → SignalRGB effect → Connect SignalRGB** and use **Install / update effect**.
+   - The app detects the installed version's effects folder and compares the bundled effect with the installed file. You can choose another folder explicitly. Updating keeps a backup of the previous file.
+   - For manual installation, copy `Better-SignalRGB-Screen-Capture-Effect.html` to the effects folder. Current installations use `%LOCALAPPDATA%/VortxEngine/app-VERSION/Signal-x64/Effects/Dynamic`; the legacy `Documents/WhirlwindFX/Effects` folder is also detected. See the [SignalRGB lightscript documentation](https://docs.signalrgb.com/lightscripts).
 
 2. **Configure the Effect**:
 
-   - Open SignalRGB and navigate to Effects
+   - Restart SignalRGB after installing the effect and navigate to Effects
    - Select "Better SignalRGB Screen Capture" effect
    - Adjust ambilight settings (spread, blur, saturation)
    - Configure screen positioning and size
@@ -204,7 +236,14 @@ The application bridges the gap between your screen content and RGB lighting by 
 3. **Start Capture**:
    - Launch the capture application
    - Add your desired sources
-   - SignalRGB will automatically receive frames via the Canvas API
+   - Start recording and streaming. SignalRGB receives frames via the Canvas API.
+   - Use the setup connection check to distinguish an API response from the matching effect confirming that it has drawn captured images. This does not verify physical LED output.
+
+4. **Optional App Controls**:
+   - Open **Settings → SignalRGB effect → Control effect appearance from this app**.
+   - Adjust picture preset, hue, brightness, saturation, blur, halo, interpolation and the SignalRGB update rate (1–30 FPS).
+   - Changes apply while streaming. Turning app control off restores SignalRGB's own appearance controls and the application's default 15 FPS delivery rate.
+   - Install the matching HTML effect included beside the built application; older effect files do not understand these settings. Screen placement and audio beat controls remain in SignalRGB.
 
 ### MJPEG Streaming
 
@@ -212,8 +251,10 @@ The application provides HTTP endpoints for external access:
 
 - **All Sources Stream**: `http://localhost:8080/stream`
 - **Individual Source**: `http://localhost:8080/stream/{sourceId}`
-- **Canvas View**: `http://localhost:8080/canvas`
+- **Clean Web Output**: `http://localhost:8080/` (also `/canvas`)
 - **API Endpoints**: `http://localhost:8080/api/sources`
+
+The root page and `/canvas` display only the composed stream across the full viewport: no labels, controls, debug overlay or scrollbars. Use this page as a browser effect in OpenRGB or another application. The same page is available on the configured HTTPS port (for example, `https://localhost:18443/`). It reconnects automatically after interruption and adapts to live quality changes. `/stream` is the underlying MJPEG endpoint. The web output contains the source composition; SignalRGB-specific halo and picture filters belong to the separate SignalRGB effect.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -224,9 +265,10 @@ The included HTML effect (`Better-SignalRGB-Screen-Capture-Effect.html`) provide
 ### Ambilight Controls
 
 - **Ambilight Effect**: Toggle ambilight on/off
-- **Saturation**: Control color intensity (1-10)
-- **Spread**: Adjust effect coverage (1-100)
-- **Blur**: Configure blur amount (10-100)
+- **Saturation**: Control color intensity (0-10)
+- **Spread**: Adjust effect coverage (0-100)
+- **Blur**: Configure blur amount (0-100)
+- **Intensity**: Adjust halo brightness (0-200%)
 - **Full-screen**: Enable full-screen ambilight mode
 
 ### Picture Modes
@@ -250,9 +292,13 @@ The included HTML effect (`Better-SignalRGB-Screen-Capture-Effect.html`) provide
 | --------------- | ------ | ------------------------------------ |
 | `/stream`       | GET    | Combined MJPEG stream of all sources |
 | `/stream/{id}`  | GET    | Individual source MJPEG stream       |
-| `/canvas`       | GET    | Web-based canvas viewer              |
+| `/`, `/canvas`  | GET    | Clean, full-viewport RGB output       |
 | `/api/sources`  | GET    | JSON list of active sources          |
-| `/canvas/event` | POST   | SignalRGB Canvas API endpoint        |
+| `/api/canvasinfo` | GET  | Canvas dimensions and active source layouts |
+
+These routes use the application's configured HTTP/HTTPS ports. SignalRGB's separate Canvas API receives events at `http://localhost:16034/canvas/event`; it is not an endpoint hosted by this application.
+
+`/api/canvasinfo` describes the stable 320 × 200 layout coordinates. Rendered web JPEGs are 320 × 200 normally or 800 × 600 in HQ mode; changing output quality does not rewrite scene coordinates.
 
 <!-- ROADMAP -->
 
@@ -261,9 +307,9 @@ The included HTML effect (`Better-SignalRGB-Screen-Capture-Effect.html`) provide
 - [ ] **Fix All Known Issues**
 
   - [ ] Resolve crash issues
-  - [ ] Resolve crop rotation render on the effect
-  - [ ] Resolve failed recording for small sources and big regions
-  - [ ] Resolve failed recording all sources on startup
+  - [x] Correct crop/source rotation and mirror composition (compositor and browser regression checks)
+  - [x] Handle tiny/odd sources and bound large capture outputs (native resolution matrix)
+  - [x] Coordinate source loading, availability and recording startup (state-transition tests)
 
 - [ ] **Add Localization**
 
@@ -295,14 +341,47 @@ See the [open issues](https://github.com/Fefedu973/Better-SignalRGB-Screen-Captu
 ### Build Commands
 
 ```bash
-# Debug build
-dotnet build --configuration Debug
+# Debug build, from the repository root
+dotnet build Better-SignalRGB-Screen-Capture/Better-SignalRGB-Screen-Capture.csproj -c Debug -p:Platform=x64
 
 # Release build
-dotnet build --configuration Release
+dotnet build Better-SignalRGB-Screen-Capture/Better-SignalRGB-Screen-Capture.csproj -c Release -p:Platform=x64
 
 # Publish for distribution
-dotnet publish --configuration Release --self-contained true
+dotnet publish Better-SignalRGB-Screen-Capture/Better-SignalRGB-Screen-Capture.csproj -c Release -p:Platform=x64 --self-contained true
+```
+
+### Capture and canvas regression checks
+
+The capture pipeline, canvas editor, streaming services and SignalRGB effect have a shared regression suite. See [the overhaul report](docs/quality-and-performance-review.md) for the fixes, reproduced encoder failures and verification boundaries.
+
+From the repository root:
+
+```powershell
+dotnet run --project tests/BetterSignalRGB.RegressionTests -c Release
+dotnet run --project tests/BetterSignalRGB.ViewModelTests -c Release
+dotnet run --project tests/BetterSignalRGB.StreamingTests -c Release
+node tests/StreamingEffectTests.cjs
+```
+
+The streaming integration checks use generated images and exercise the production compositor and local HTTP/HTTPS servers. They create and remove a temporary HTTPS certificate in the test output directory, without installing it in the trust store or sending frames to SignalRGB.
+
+The browser pixel checks use the pinned development dependencies in `tests` (Node 20 or later):
+
+```powershell
+npm ci --prefix tests --ignore-scripts
+Push-Location tests
+npx playwright install chromium
+npm run test:browser
+Pop-Location
+```
+
+They compare the actual HTML effect against generated production compositor images and an independent transform oracle. See [effect rendering validation](docs/signalrgb-effect-validation.md) for details and host-level verification boundaries.
+
+Native resolution tests are available separately and briefly capture the connected displays in memory:
+
+```powershell
+dotnet run --project tests/BetterSignalRGB.NativeSmokeTests -c Release -- --capture-display
 ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -374,3 +453,5 @@ Project Link: [https://github.com/Fefedu973/Better-SignalRGB-Screen-Capture](htt
 [C#-url]: https://docs.microsoft.com/en-us/dotnet/csharp/
 [ASP.NET-Core]: https://img.shields.io/badge/ASP.NET_Core-512BD4?style=for-the-badge&logo=dotnet&logoColor=white
 [ASP.NET-Core-url]: https://docs.microsoft.com/en-us/aspnet/core/
+
+OpenRGB integration feasibility and image/LED transport limits are documented in [the integration assessment](docs/openrgb-integration-assessment.md). No OpenRGB output is implemented yet.

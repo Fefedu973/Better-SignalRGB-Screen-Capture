@@ -4,3 +4,6 @@
 /Better-SignalRGB-Screen-Capture/obj
 /Better-SignalRGB-Screen-Capture/.vs
 .vsconfig
+**/bin/
+**/obj/
+**/node_modules/

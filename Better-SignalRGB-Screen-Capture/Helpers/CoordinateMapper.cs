@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
 using ScreenRecorderLib;
+using Better_SignalRGB_Screen_Capture.Core.Helpers;
 
 namespace Better_SignalRGB_Screen_Capture.Helpers;
 
@@ -15,93 +16,29 @@ namespace Better_SignalRGB_Screen_Capture.Helpers;
 public static class CoordinateMapper
 {
     /// <summary>
-    /// Maps region coordinates for recording using the EXACT same logic as screenshot preview and debug visualization.
-    /// Uses simple offset calculations without coordinate shifts.
+    /// Clips each monitor contribution and positions it relative to the requested region origin.
     /// </summary>
     /// <param name="regionRect">The region in virtual screen coordinates</param>
     /// <param name="intersectingDisplays">List of displays and their monitor bounds</param>
-    /// <param name="outputDimensions">Output dimensions from ScreenRecorderLib</param>
     /// <returns>Mapped coordinates for each display source</returns>
     public static List<RegionMapping> MapRegionToDisplays(
         Rectangle regionRect,
-        List<(RecordableDisplay display, Rectangle monitorBounds)> intersectingDisplays,
-        OutputDimensions outputDimensions)
+        List<(RecordableDisplay display, Rectangle monitorBounds)> intersectingDisplays)
     {
         var mappings = new List<RegionMapping>();
 
-        if (intersectingDisplays.Count == 1)
+        foreach (var (display, monitorBounds) in intersectingDisplays)
         {
-            // Single monitor case - use simple offset calculation like debug visualization
-            var (display, monitorBounds) = intersectingDisplays[0];
-            
-            // Calculate the overlap between region and monitor (clamps region to monitor bounds)
-            var overlap = Rectangle.Intersect(regionRect, monitorBounds);
-            
-            if (overlap.Width <= 0 || overlap.Height <= 0)
-            {
-                Debug.WriteLine($"❌ No valid overlap between region and monitor {display.FriendlyName}");
-                return mappings; // Return empty list
-            }
-            
-            // Use simple coordinate calculation like debug visualization and preview
-            var sourceLeft = regionRect.X - monitorBounds.X;
-            var sourceTop = regionRect.Y - monitorBounds.Y;
-            var sourceWidth = regionRect.Width;
-            var sourceHeight = regionRect.Height;
-            
+            if (!CanvasGeometry.TryMapRegion(regionRect, monitorBounds,
+                out var source, out var destination, out var overlap)) continue;
             mappings.Add(new RegionMapping
             {
                 Display = display,
                 MonitorBounds = monitorBounds,
-                SourceRect = new ScreenRect(sourceLeft, sourceTop, sourceWidth, sourceHeight),
-                Position = null, // Single monitor doesn't need position
+                SourceRect = new ScreenRect(source.X, source.Y, source.Width, source.Height),
+                Position = new ScreenPoint(destination.X, destination.Y),
                 OverlapInVirtualScreen = overlap
             });
-            
-            Debug.WriteLine($"🔧 Single monitor mapping (using simple logic) for {display.FriendlyName}:");
-            Debug.WriteLine($"   Monitor bounds: {monitorBounds.X},{monitorBounds.Y} {monitorBounds.Width}x{monitorBounds.Height}");
-            Debug.WriteLine($"   Source rect: {sourceLeft},{sourceTop} size {sourceWidth}x{sourceHeight}");
-        }
-        else
-        {
-            // Multi-monitor case - use simple offset calculation like debug visualization
-            var minX = intersectingDisplays.Min(d => d.monitorBounds.X);
-            var minY = intersectingDisplays.Min(d => d.monitorBounds.Y);
-            
-            foreach (var (display, monitorBounds) in intersectingDisplays)
-            {
-                var overlap = Rectangle.Intersect(regionRect, monitorBounds);
-                
-                if (overlap.Width <= 0 || overlap.Height <= 0)
-                {
-                    Debug.WriteLine($"❌ No valid overlap between region and monitor {display.FriendlyName}");
-                    continue; // Skip this monitor
-                }
-                
-                // Use simple coordinate calculation like debug visualization and preview
-                var sourceLeft = overlap.X - monitorBounds.X;
-                var sourceTop = overlap.Y - monitorBounds.Y;
-                var sourceWidth = overlap.Width;
-                var sourceHeight = overlap.Height;
-                
-                // Position in combined output (relative to region origin)
-                var positionX = overlap.X - regionRect.X;
-                var positionY = overlap.Y - regionRect.Y;
-                
-                mappings.Add(new RegionMapping
-                {
-                    Display = display,
-                    MonitorBounds = monitorBounds,
-                    SourceRect = new ScreenRect(sourceLeft, sourceTop, sourceWidth, sourceHeight),
-                    Position = new ScreenPoint(positionX, positionY),
-                    OverlapInVirtualScreen = overlap
-                });
-                
-                Debug.WriteLine($"🔧 Multi-monitor mapping (using simple logic) for {display.FriendlyName}:");
-                Debug.WriteLine($"   Monitor bounds: {monitorBounds.X},{monitorBounds.Y} {monitorBounds.Width}x{monitorBounds.Height}");
-                Debug.WriteLine($"   Source rect: {sourceLeft},{sourceTop} size {sourceWidth}x{sourceHeight}");
-                Debug.WriteLine($"   Position: {positionX},{positionY}");
-            }
         }
         
         return mappings;
@@ -128,40 +65,10 @@ public static class CoordinateMapper
             var monitorBounds = GetMonitorBounds(display, monitorsByDeviceName);
             if (!monitorBounds.HasValue) continue;
             
-            Debug.WriteLine($"🔍 Checking intersection for {display.FriendlyName}:");
-            Debug.WriteLine($"   Monitor bounds: {monitorBounds.Value.X},{monitorBounds.Value.Y} {monitorBounds.Value.Width}x{monitorBounds.Value.Height}");
-            Debug.WriteLine($"   Monitor bottom-right: {monitorBounds.Value.X + monitorBounds.Value.Width},{monitorBounds.Value.Y + monitorBounds.Value.Height}");
-            Debug.WriteLine($"   Region: {regionRect.X},{regionRect.Y} {regionRect.Width}x{regionRect.Height}");
-            Debug.WriteLine($"   Region bottom-right: {regionRect.X + regionRect.Width},{regionRect.Y + regionRect.Height}");
-            
-            // Manual intersection check to debug
-            bool intersectsX = regionRect.X < monitorBounds.Value.X + monitorBounds.Value.Width && 
-                              regionRect.X + regionRect.Width > monitorBounds.Value.X;
-            bool intersectsY = regionRect.Y < monitorBounds.Value.Y + monitorBounds.Value.Height && 
-                              regionRect.Y + regionRect.Height > monitorBounds.Value.Y;
-            
-            Debug.WriteLine($"   Manual X intersection check: {intersectsX}");
-            Debug.WriteLine($"     Region X: {regionRect.X} to {regionRect.X + regionRect.Width}");
-            Debug.WriteLine($"     Monitor X: {monitorBounds.Value.X} to {monitorBounds.Value.X + monitorBounds.Value.Width}");
-            Debug.WriteLine($"   Manual Y intersection check: {intersectsY}");
-            Debug.WriteLine($"     Region Y: {regionRect.Y} to {regionRect.Y + regionRect.Height}");
-            Debug.WriteLine($"     Monitor Y: {monitorBounds.Value.Y} to {monitorBounds.Value.Y + monitorBounds.Value.Height}");
-            
-            var overlap = Rectangle.Intersect(regionRect, monitorBounds.Value);
-            Debug.WriteLine($"   Rectangle.Intersect result: {overlap.X},{overlap.Y} {overlap.Width}x{overlap.Height}");
-            Debug.WriteLine($"   Manual intersection result: {intersectsX && intersectsY}");
-            
-            if (overlap.Width > 0 && overlap.Height > 0)
-            {
+            if (CanvasGeometry.TryMapRegion(regionRect, monitorBounds.Value, out _, out _, out _))
                 intersectingDisplays.Add((display, monitorBounds.Value));
-                Debug.WriteLine($"✅ Display {display.FriendlyName} intersects region!");
-            }
-            else
-            {
-                Debug.WriteLine($"❌ Display {display.FriendlyName} does NOT intersect region");
-            }
         }
-        
+
         return intersectingDisplays;
     }
 
@@ -170,7 +77,7 @@ public static class CoordinateMapper
     /// </summary>
     private static Dictionary<string, Rectangle> GetWindowsApiMonitorBounds()
     {
-        var monitorsByDeviceName = new Dictionary<string, Rectangle>();
+        var monitorsByDeviceName = new Dictionary<string, Rectangle>(StringComparer.OrdinalIgnoreCase);
         
         EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData) =>
         {
@@ -210,29 +117,13 @@ public static class CoordinateMapper
             return monitorsByDeviceName[display.DeviceName];
         }
         
-        // Try without \\.\\ prefix
-        if (display.DeviceName != null)
+        // Device numbering is not enumeration order (DISPLAY3 may be the first active
+        // monitor). Match normalized names only, never capture a different screen by index.
+        var normalizedName = display.DeviceName?.Replace(@"\\.\", "");
+        foreach (var monitor in monitorsByDeviceName)
         {
-            string simpleName = display.DeviceName.Replace(@"\\.\", "");
-            if (monitorsByDeviceName.ContainsKey(simpleName))
-            {
-                return monitorsByDeviceName[simpleName];
-            }
-        }
-        
-        // Try to match by display number from device name
-        if (display.DeviceName != null)
-        {
-            var match = System.Text.RegularExpressions.Regex.Match(display.DeviceName, @"DISPLAY(\d+)");
-            if (match.Success && int.TryParse(match.Groups[1].Value, out int displayNum))
-            {
-                var monitorsList = monitorsByDeviceName.Values.ToList();
-                int index = displayNum - 1; // Display numbers are 1-based
-                if (index >= 0 && index < monitorsList.Count)
-                {
-                    return monitorsList[index];
-                }
-            }
+            if (string.Equals(monitor.Key.Replace(@"\\.\", ""), normalizedName,
+                StringComparison.OrdinalIgnoreCase)) return monitor.Value;
         }
         
         Debug.WriteLine($"❌ Could not find monitor bounds for display: {display.FriendlyName} ({display.DeviceName})");
@@ -249,39 +140,10 @@ public static class CoordinateMapper
         OutputDimensions outputDimensions,
         double scale)
     {
-        if (intersectingDisplays.Count == 1)
-        {
-            // Single monitor - use simple offset calculation like debug visualization
-            var monitorBounds = intersectingDisplays[0].monitorBounds;
-            
-            var borderX = (regionRect.X - monitorBounds.X) * scale;
-            var borderY = (regionRect.Y - monitorBounds.Y) * scale;
-            
-            Debug.WriteLine($"🔧 Preview border calculation (single monitor):");
-            Debug.WriteLine($"   Region: ({regionRect.X}, {regionRect.Y})");
-            Debug.WriteLine($"   Monitor: ({monitorBounds.X}, {monitorBounds.Y})");
-            Debug.WriteLine($"   Scale: {scale}");
-            Debug.WriteLine($"   Border position: ({borderX}, {borderY})");
-            
-            return (borderX, borderY);
-        }
-        else
-        {
-            // Multi-monitor - use simple offset calculation like debug visualization
-            var minX = intersectingDisplays.Min(d => d.monitorBounds.X);
-            var minY = intersectingDisplays.Min(d => d.monitorBounds.Y);
-            
-            var borderX = (regionRect.X - minX) * scale;
-            var borderY = (regionRect.Y - minY) * scale;
-            
-            Debug.WriteLine($"🔧 Preview border calculation (multi-monitor):");
-            Debug.WriteLine($"   Region: ({regionRect.X}, {regionRect.Y})");
-            Debug.WriteLine($"   Combined origin: ({minX}, {minY})");
-            Debug.WriteLine($"   Scale: {scale}");
-            Debug.WriteLine($"   Border position: ({borderX}, {borderY})");
-            
-            return (borderX, borderY);
-        }
+        if (intersectingDisplays.Count == 0) return (0, 0);
+        var originX = intersectingDisplays.Min(d => d.monitorBounds.X);
+        var originY = intersectingDisplays.Min(d => d.monitorBounds.Y);
+        return ((regionRect.X - originX) * scale, (regionRect.Y - originY) * scale);
     }
 
     // P/Invoke declarations
@@ -327,4 +189,4 @@ public class RegionMapping
     public ScreenRect SourceRect { get; set; } = new();
     public ScreenPoint? Position { get; set; }
     public Rectangle OverlapInVirtualScreen { get; set; }
-} 
+}

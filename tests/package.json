@@ -1,0 +1,11 @@
+{
+  "name": "better-signalrgb-rendering-tests",
+  "private": true,
+  "scripts": {
+    "test": "node StreamingEffectTests.cjs",
+    "test:browser": "node StreamingEffectBrowserTests.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

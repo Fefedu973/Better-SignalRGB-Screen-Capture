@@ -1,4 +1,4 @@
-﻿using Better_SignalRGB_Screen_Capture.Contracts.Services;
+using Better_SignalRGB_Screen_Capture.Contracts.Services;
 using Better_SignalRGB_Screen_Capture.Core.Contracts.Services;
 using Better_SignalRGB_Screen_Capture.Core.Helpers;
 using Better_SignalRGB_Screen_Capture.Helpers;
@@ -27,6 +27,7 @@ public class LocalSettingsService : ILocalSettingsService
     private IDictionary<string, object> _settings;
 
     private bool _isInitialized;
+    private readonly SemaphoreSlim _settingsGate = new(1, 1);
 
     public LocalSettingsService(IFileService fileService, IOptions<LocalSettingsOptions> options)
     {
@@ -67,42 +68,42 @@ public class LocalSettingsService : ILocalSettingsService
 
     public async Task<T?> ReadSettingAsync<T>(string key)
     {
-        if (RuntimeHelper.IsMSIX)
+        await _settingsGate.WaitAsync();
+        try
         {
-            Debug.WriteLine($"📖 Reading setting '{key}' from MSIX ApplicationData");
-            if (ApplicationData.Current.LocalSettings.Values.TryGetValue(key, out var obj))
+            if (RuntimeHelper.IsMSIX)
             {
-                return await Json.ToObjectAsync<T>((string)obj);
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(key, out var value))
+                    return await Json.ToObjectAsync<T>((string)value);
             }
-        }
-        else
-        {
-            await InitializeAsync();
-
-            if (_settings != null && _settings.TryGetValue(key, out var obj))
+            else
             {
-                return await Json.ToObjectAsync<T>((string)obj);
+                await InitializeAsync();
+                if (_settings.TryGetValue(key, out var value))
+                    return await Json.ToObjectAsync<T>((string)value);
             }
+            return default;
         }
-
-        return default;
+        finally { _settingsGate.Release(); }
     }
 
     public async Task SaveSettingAsync<T>(string key, T value)
     {
-        if (RuntimeHelper.IsMSIX)
+        await _settingsGate.WaitAsync();
+        try
         {
-            Debug.WriteLine($"💾 Saving setting '{key}' to MSIX ApplicationData");
-            ApplicationData.Current.LocalSettings.Values[key] = await Json.StringifyAsync(value);
+            var json = await Json.StringifyAsync(value!);
+            if (RuntimeHelper.IsMSIX) ApplicationData.Current.LocalSettings.Values[key] = json;
+            else
+            {
+                await InitializeAsync();
+                var updated = new Dictionary<string, object>(_settings) { [key] = json };
+                await Task.Run(() => _fileService.Save(_applicationDataFolder, _localsettingsFile, updated));
+                // Publish the new cache only after the entire document is durable.
+                // Otherwise a later unrelated save could commit an edit whose write failed.
+                _settings = updated;
+            }
         }
-        else
-        {
-            await InitializeAsync();
-
-            Debug.WriteLine($"💾 Saving setting '{key}' to: {Path.Combine(_applicationDataFolder, _localsettingsFile)}");
-            _settings[key] = await Json.StringifyAsync(value);
-
-            await Task.Run(() => _fileService.Save(_applicationDataFolder, _localsettingsFile, _settings));
-        }
+        finally { _settingsGate.Release(); }
     }
 }

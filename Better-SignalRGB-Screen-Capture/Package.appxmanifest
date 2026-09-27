@@ -8,7 +8,7 @@
   xmlns:genTemplate="http://schemas.microsoft.com/appx/developer/templatestudio"
   xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
   xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
-  IgnorableNamespaces="uap rescap genTemplate">
+  IgnorableNamespaces="uap rescap genTemplate desktop">
 
   <Identity
     Name="078df3c0-491e-4802-aee7-f3f7ce9de398"
@@ -46,6 +46,13 @@
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
       </uap:VisualElements>
       <Extensions>
+          <desktop:Extension Category="windows.startupTask"
+                             Executable="$targetnametoken$.exe"
+                             EntryPoint="Windows.FullTrustApplication">
+              <desktop:StartupTask TaskId="BetterSignalRGBCaptureTask"
+                                   Enabled="false"
+                                   DisplayName="ms-resource:AppDisplayName" />
+          </desktop:Extension>
           <desktop:Extension Category="windows.toastNotificationActivation">
               <desktop:ToastNotificationActivation ToastActivatorCLSID="3eb64337-806d-4eb6-ac56-f2042d7b41a9" />
           </desktop:Extension>

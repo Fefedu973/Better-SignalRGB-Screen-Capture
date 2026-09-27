@@ -5,11 +5,10 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:converters="using:Better_SignalRGB_Screen_Capture.Converters"
-    MinWidth="50"
-    MinHeight="40"
-    Opacity="{x:Bind Source.Opacity, Mode=OneWay}"
+    MinWidth="1"
+    MinHeight="1"
     mc:Ignorable="d">
-    
+
     <UserControl.Resources>
         <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converters:StringToIconConverter x:Key="StringToIconConverter" />
@@ -17,17 +16,16 @@
 
     <Grid
         x:Name="RootGrid"
-        Background="Transparent"
-        RenderTransformOrigin="0.5,0.5"
-        RightTapped="OnRightTapped">
+        RenderTransformOrigin="0.5,0.5">
         <Grid.RenderTransform>
             <RotateTransform x:Name="RotateTransform" />
         </Grid.RenderTransform>
 
 
+        <Grid x:Name="MediaContainer" IsHitTestVisible="False" Opacity="{x:Bind Source.Opacity, Mode=OneWay}">
         <!-- Border without flip transform - provides background and styling -->
         <Border
-            x:Name="ItemBorder"
+            x:Name="ItemBorder" IsHitTestVisible="False"
             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
             BorderThickness="1"
@@ -40,29 +38,16 @@
                 RenderTransformOrigin="0.5,0.5"
                 Visibility="{x:Bind Source.IsLivePreviewEnabled, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
             <Border.RenderTransform>
-                <ScaleTransform ScaleX="{x:Bind Source.IsMirroredHorizontally, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" 
+                <ScaleTransform ScaleX="{x:Bind Source.IsMirroredHorizontally, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}"
                                ScaleY="{x:Bind Source.IsMirroredVertically, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}"/>
             </Border.RenderTransform>
             <Image x:Name="PreviewImage"
-                   Stretch="UniformToFill" />
-        </Border>
-
-        <!-- WebView for website sources -->
-        <Border x:Name="WebsiteBorder"
-                CornerRadius="{StaticResource ControlCornerRadius}"
-                IsHitTestVisible="False"
-                RenderTransformOrigin="0.5,0.5"
-                Visibility="Collapsed">
-            <Border.RenderTransform>
-                <ScaleTransform ScaleX="{x:Bind Source.IsMirroredHorizontally, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}" 
-                               ScaleY="{x:Bind Source.IsMirroredVertically, Converter={StaticResource BooleanToScaleConverter}, Mode=OneWay}"/>
-            </Border.RenderTransform>
-            <WebView2 x:Name="WebsitePreview" />
+                   Stretch="Fill" />
         </Border>
 
         <!-- Content container with flip transform -->
         <Border
-            x:Name="ContentBorder"
+            x:Name="ContentBorder" IsHitTestVisible="False"
             CornerRadius="{StaticResource ControlCornerRadius}"
             RenderTransformOrigin="0.5,0.5">
             <Border.RenderTransform>
@@ -88,114 +73,43 @@
                     FontFamily="{StaticResource SymbolThemeFontFamily}"
                     FontSize="24"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Glyph="{x:Bind Source.Type, Converter={StaticResource StringToIconConverter}}" />
+                    Glyph="{x:Bind Source.Type, Mode=OneWay, Converter={StaticResource StringToIconConverter}}" />
             </Grid>
         </Border>
-        
+
+        </Grid>
         <!-- Crop shading overlay - NOT affected by flip transform -->
-        <Path x:Name="CropShadePath"
+        <Path x:Name="CropShadePath" IsHitTestVisible="False"
               Fill="Black"
               Opacity="0.35"/>
 
-        <Border
-            x:Name="HoverBorder"
-            BorderBrush="{ThemeResource SystemAccentColorLight2}"
-            BorderThickness="2"
-            CornerRadius="{StaticResource ControlCornerRadius}"
-            Opacity="0" />
-
-        <Border
-            x:Name="SelectionBorder"
-            BorderBrush="{ThemeResource SystemAccentColor}"
-            BorderThickness="2"
-            CornerRadius="{StaticResource ControlCornerRadius}"
-            Opacity="0" />
-
-        <!--  Resize Handles  -->
-        <Rectangle
-            x:Name="TopLeftHandle"
-            Width="8"
-            Height="8"
-            Margin="-4,-4,0,0"
-            HorizontalAlignment="Left"
-            VerticalAlignment="Top"
-            Fill="Transparent" />
-        <Rectangle
-            x:Name="TopRightHandle"
-            Width="8"
-            Height="8"
-            Margin="0,-4,-4,0"
-            HorizontalAlignment="Right"
-            VerticalAlignment="Top"
-            Fill="Transparent" />
-        <Rectangle
-            x:Name="BottomLeftHandle"
-            Width="8"
-            Height="8"
-            Margin="-4,0,0,-4"
-            HorizontalAlignment="Left"
-            VerticalAlignment="Bottom"
-            Fill="Transparent" />
-        <Rectangle
-            x:Name="BottomRightHandle"
-            Width="8"
-            Height="8"
-            Margin="0,0,-4,-4"
-            HorizontalAlignment="Right"
-            VerticalAlignment="Bottom"
-            Fill="Transparent" />
-        <Rectangle
-            x:Name="TopHandle"
-            Width="8"
-            Height="8"
-            Margin="0,-4,0,0"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Top"
-            Fill="Transparent" />
-        <Rectangle
-            x:Name="BottomHandle"
-            Width="8"
-            Height="8"
-            Margin="0,0,0,-4"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Bottom"
-            Fill="Transparent" />
-        <Rectangle
-            x:Name="LeftHandle"
-            Width="8"
-            Height="8"
-            Margin="-4,0,0,0"
-            HorizontalAlignment="Left"
-            VerticalAlignment="Center"
-            Fill="Transparent" />
-        <Rectangle
-            x:Name="RightHandle"
-            Width="8"
-            Height="8"
-            Margin="0,0,-4,0"
-            HorizontalAlignment="Right"
-            VerticalAlignment="Center"
-            Fill="Transparent" />
-
-        <Canvas
-            x:Name="RotationHandleCanvas"
-            Opacity="{Binding ElementName=SelectionBorder, Path=Opacity}"
-            PointerMoved="OnPointerMoved"
-            PointerPressed="OnPointerPressed"
-            PointerReleased="OnPointerReleased">
-            <Line
-                x:Name="RotationHandleLine"
-                Stroke="{ThemeResource SystemAccentColor}"
-                StrokeThickness="2" />
-            <Ellipse
-                x:Name="RotationHandle"
-                Width="16"
-                Height="16"
-                Fill="{ThemeResource SystemAccentColor}" />
+        <!-- Only the visible polygon participates in source hit testing. -->
+        <Path x:Name="VisibleHitSurface" Fill="Transparent" HorizontalAlignment="Left" VerticalAlignment="Top" />
+        <Canvas x:Name="RotationHandleCanvas" Visibility="Collapsed">
+            <Border x:Name="HoverBorder" IsHitTestVisible="False"
+                    BorderBrush="{ThemeResource SystemAccentColorLight2}" BorderThickness="2" Opacity="0" />
+            <Border x:Name="SelectionBorder" IsHitTestVisible="False"
+                    BorderBrush="{ThemeResource SystemAccentColor}" BorderThickness="2" Opacity="0" />
+            <Rectangle x:Name="TopLeftHandle" Fill="{ThemeResource SystemAccentColor}" />
+            <Rectangle x:Name="TopRightHandle" Fill="{ThemeResource SystemAccentColor}" />
+            <Rectangle x:Name="BottomLeftHandle" Fill="{ThemeResource SystemAccentColor}" />
+            <Rectangle x:Name="BottomRightHandle" Fill="{ThemeResource SystemAccentColor}" />
+            <Rectangle x:Name="TopHandle" Fill="{ThemeResource SystemAccentColor}" />
+            <Rectangle x:Name="BottomHandle" Fill="{ThemeResource SystemAccentColor}" />
+            <Rectangle x:Name="LeftHandle" Fill="{ThemeResource SystemAccentColor}" />
+            <Rectangle x:Name="RightHandle" Fill="{ThemeResource SystemAccentColor}" />
+            <Line x:Name="RotationHandleLine" IsHitTestVisible="False"
+                  Stroke="{ThemeResource SystemAccentColor}" StrokeThickness="2" />
+            <Ellipse x:Name="RotationHandle" Width="16" Height="16" Fill="{ThemeResource SystemAccentColor}" />
+            <Border x:Name="LockBadge" Visibility="Collapsed" IsHitTestVisible="False" Background="{ThemeResource SystemAccentColor}"
+                    CornerRadius="3" Padding="3">
+                <FontIcon Glyph="&#xE72E;" FontSize="12" Foreground="White" />
+            </Border>
         </Canvas>
 
         <Canvas
             x:Name="CropCanvas"
+            Background="Transparent"
             PointerMoved="CropCanvas_PointerMoved"
             PointerPressed="CropCanvas_PointerPressed"
             PointerReleased="CropCanvas_PointerReleased"
@@ -222,6 +136,7 @@
             <!--  Crop Rotation Handle  -->
             <Line
                 x:Name="CropRotationHandleLine"
+                IsHitTestVisible="False"
                 Stroke="{ThemeResource SystemAccentColor}"
                 StrokeThickness="2" />
             <Ellipse
@@ -241,8 +156,13 @@
                 Padding="4"
                 SizeChanged="CropActionsPanel_SizeChanged"
                 Spacing="4">
+                <Button x:Name="ResetCropButton" Click="ResetCropButton_Click" ToolTipService.ToolTip="Reset Crop"
+                        AutomationProperties.Name="Reset crop" Style="{StaticResource DefaultButtonStyle}">
+                    <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE777;" />
+                </Button>
                 <Button
                     x:Name="AcceptCropButton"
+                    AutomationProperties.Name="Accept crop"
                     Click="AcceptCropButton_Click"
                     Style="{StaticResource AccentButtonStyle}"
                     ToolTipService.ToolTip="Accept Crop">
@@ -250,6 +170,7 @@
                 </Button>
                 <Button
                     x:Name="CancelCropButton"
+                    AutomationProperties.Name="Cancel crop"
                     Click="CancelCropButton_Click"
                     Style="{StaticResource DefaultButtonStyle}"
                     ToolTipService.ToolTip="Cancel Crop">
@@ -281,4 +202,4 @@
             </VisualStateGroup>
         </VisualStateManager.VisualStateGroups>
     </Grid>
-</UserControl> 
+</UserControl>

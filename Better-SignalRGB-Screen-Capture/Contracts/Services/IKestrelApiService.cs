@@ -9,6 +9,7 @@ public interface IKestrelApiService
     
     Task StartAsync(int httpsPort = 8443);
     Task StopAsync();
+    void RemoveSource(Guid sourceId);
     
     bool IsRunning { get; }
     string? StreamingUrl { get; }

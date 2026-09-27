@@ -60,10 +60,10 @@ public sealed partial class MainWindow : WindowEx
     }
 
     private delegate IntPtr SubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, IntPtr uIdSubclass, IntPtr dwRefData);
-    private SubclassProc _wndProc;
+    private SubclassProc? _wndProc;
 
     private const uint WM_SIZE = 0x0005;
-    private const int SIZE_MINIMIZED = 6;
+    private const int SIZE_MINIMIZED = 1;
 
     private IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, IntPtr uIdSubclass, IntPtr dwRefData)
     {
