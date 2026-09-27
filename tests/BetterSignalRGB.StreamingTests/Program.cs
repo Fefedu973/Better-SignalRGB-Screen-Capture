@@ -24,6 +24,12 @@ internal static partial class Program
             await EffectRenderFixtures.ExportAsync(fixturePath);
             return;
         }
+        if (args is ["--web-streaming-only"])
+        {
+            await CheckWebStreamingAsync();
+            Console.WriteLine($"PASS: {_assertions} production web HTTP/HTTPS integration assertions.");
+            return;
+        }
         var capture = new CaptureProducer();
         await CheckFailedFrameCacheAsync();
         using var compositor = new CompositeFrameService(capture);

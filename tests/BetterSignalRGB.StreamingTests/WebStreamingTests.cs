@@ -213,15 +213,20 @@ internal static partial class Program
         Check(updated.Json.GetProperty("settings").GetProperty("webEnabled").GetBoolean() &&
             updated.Json.GetProperty("settings").GetProperty("brightness").GetInt32() == 22 && !settings.Current.WebEnabled,
             $"{name} private previews follow live appearance edits without enabling public processing");
-        // Wake the unchanged legacy /stream endpoint after its test reader disconnected.
-        // The web output deduplicates this byte-identical publication.
+        // Disposing an HTTP reader does not synchronously finish its server request.
+        // /web-stream deduplicates identical pixels and may discover disconnection only
+        // on its five-second state heartbeat. Wait for both auxiliary raw clients to
+        // detach before testing the main connection's subsequent mode transition.
+        // Fresh arrays also wake the legacy /stream endpoint after its reader closed.
         composite.Publish(rawComposite.ToArray());
         var cleanup = Stopwatch.StartNew();
-        while (composite.Subscribers > 1 && cleanup.Elapsed.TotalSeconds < 3)
+        while (composite.Subscribers > 1 && cleanup.Elapsed.TotalSeconds < 12)
         {
             composite.Publish(rawComposite.ToArray());
             await Task.Delay(50);
         }
+        Check(composite.Subscribers == 1,
+            $"{name} auxiliary raw clients disconnect before the main connection changes mode (remaining {composite.Subscribers})");
     }
 
     private static async Task<WebPart> CheckNoDuplicateWebFrameAsync(Stream stream, string name, Action publishClone, Func<Task> editSettings)
