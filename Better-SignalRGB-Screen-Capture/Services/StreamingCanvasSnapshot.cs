@@ -19,7 +19,7 @@ internal static class StreamingCanvasSnapshot
             .Reverse().ToArray();
     }
 
-    private static Task<T> CaptureOnUiAsync<T>(Func<MainViewModel, T> capture, CancellationToken cancellationToken)
+    internal static Task<T> CaptureOnUiAsync<T>(Func<MainViewModel, T> capture, CancellationToken cancellationToken)
     {
         var dispatcher = App.MainWindow.DispatcherQueue;
         T Capture() => capture(App.GetService<MainViewModel>());

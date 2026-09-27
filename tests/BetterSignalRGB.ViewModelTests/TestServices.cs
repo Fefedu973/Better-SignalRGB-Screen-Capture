@@ -43,6 +43,7 @@ internal sealed class TestCapture(ConcurrentQueue<string> calls) : ICaptureServi
     public ConcurrentDictionary<Guid, Exception> StartFailures { get; } = new();
     public AsyncGate? StartGate;
     public AsyncGate? StopGate;
+    public AsyncGate? StopAllGate;
     public Action<SourceItem>? Started;
     public Action<SourceItem>? Stopped;
     public int FrameRate;
@@ -67,8 +68,8 @@ internal sealed class TestCapture(ConcurrentQueue<string> calls) : ICaptureServi
         Active.TryRemove(source.Id, out _);
         Stopped?.Invoke(source);
     }
-    public Task StopAllCapturesAsync()
-    { calls.Enqueue("capture:stop-all"); Active.Clear(); return Task.CompletedTask; }
+    public async Task StopAllCapturesAsync()
+    { calls.Enqueue("capture:stop-all"); if (StopAllGate is { } gate) await gate.WaitAsync(); Active.Clear(); }
     public bool IsCapturing(SourceItem source) => Active.ContainsKey(source.Id);
     public Task SetFrameRate(int fps) { FrameRate = fps; return Task.CompletedTask; }
     public async Task SetHighQuality(bool enabled)
@@ -164,7 +165,7 @@ internal sealed class TestContext : IAsyncDisposable
     }
     public async ValueTask DisposeAsync()
     {
-        Capture.StartGate?.Release(); Capture.StopGate?.Release(); Capture.QualityGate?.Release(); Settings.SourceSaveGate?.Release();
+        Capture.StartGate?.Release(); Capture.StopGate?.Release(); Capture.StopAllGate?.Release(); Capture.QualityGate?.Release(); Settings.SourceSaveGate?.Release();
         await ViewModel.ShutdownAsync().WaitAsync(TimeSpan.FromSeconds(3));
     }
 }

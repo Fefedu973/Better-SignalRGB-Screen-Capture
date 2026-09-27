@@ -1,5 +1,7 @@
 # Adaptation à OpenRGB : faisabilité et limites
 
+> Document historique concernant les versions upstream ci-dessous. Il ne décrit pas le transport ni le moteur du fork OpenRGB Room actuel. La nouvelle implémentation côté Better est documentée dans le [contrat natif v1](native-openrgb-integration-v1.md), avec [géométrie et références de rendu](native-rendering-v1.md). Le raccordement complet du récepteur reste à valider.
+
 Analyse du 27 septembre 2026. **Une page de sortie brute en 800 × 600 est maintenant disponible pour les consommateurs d'effets web. Aucune sortie SDK OpenRGB directe ni modification d'Effects Plugin n'est implémentée dans cette passe.** L'application conserve sa propre capture et composition. Les options ci-dessous concernent une éventuelle intégration native supplémentaire ; réutiliser tous les effets OpenRGB comme effets d'image demande un travail distinct.
 
 ## Périmètre vérifié

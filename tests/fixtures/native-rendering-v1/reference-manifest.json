@@ -1,0 +1,407 @@
+{
+  "version": 1,
+  "generator": "NativeRenderingReferenceTests.cjs",
+  "browser": "151.0.7922.34",
+  "sourceImages": {
+    "black": {
+      "path": "source-black.jpg",
+      "sha256": "62e4c3e9dae2f9c099abf24d3b5ae3c26cd31b2ba2823869c8cf812d91862135"
+    },
+    "quadrants": {
+      "path": "source-quadrants.jpg",
+      "sha256": "0463524a188be41548d3e1766ec4552dddb064f05cbea5763c5d9b937504367b"
+    }
+  },
+  "references": [
+    {
+      "name": "black-is-covered",
+      "files": {
+        "scene": {
+          "path": "black-is-covered-scene.png",
+          "sha256": "8f99b22984baa72d742edf428681e56df850fc756b9c6a30bea4d4c9ecf9100d",
+          "width": 320,
+          "height": 200
+        },
+        "coverage": {
+          "path": "black-is-covered-coverage.png",
+          "sha256": "340b0a874e63b2da53b68000f68ae5fbd94d6b6dbece68b00e0685df0c42dc8a",
+          "width": 320,
+          "height": 200
+        },
+        "silhouette": {
+          "path": "black-is-covered-silhouette.png",
+          "sha256": "3758df50bc2d492b1969d8075b2e4b5756463c9e2f4154527fe4d3f9ad4140df",
+          "width": 320,
+          "height": 200
+        },
+        "appearance": {
+          "path": "black-is-covered-appearance.png",
+          "sha256": "6438fe640614b25d578972142f1d06acb7e5c9cc2cf90cfdfd00bbc63d6facde",
+          "width": 320,
+          "height": 200
+        }
+      },
+      "polygonMaskMeanError": 0
+    },
+    {
+      "name": "mirror-asymmetric-crop",
+      "files": {
+        "scene": {
+          "path": "mirror-asymmetric-crop-scene.png",
+          "sha256": "b8e58004e75db0d110b86186495fc279c9afa93d59d0b515ed4f188d5cdcbe99",
+          "width": 320,
+          "height": 200
+        },
+        "coverage": {
+          "path": "mirror-asymmetric-crop-coverage.png",
+          "sha256": "b1a350859fa83010d3102381047538b3f3b55c56048d9005bf1567521a1bb6e2",
+          "width": 320,
+          "height": 200
+        },
+        "silhouette": {
+          "path": "mirror-asymmetric-crop-silhouette.png",
+          "sha256": "6bb6ed167a3cf63c7e3e914776636f48efaa68f81c496c5933d6c69e7e08adae",
+          "width": 320,
+          "height": 200
+        },
+        "appearance": {
+          "path": "mirror-asymmetric-crop-appearance.png",
+          "sha256": "10afa1ea19dbdb1deb610ef27328079173c90287850a0456f22e04a5b1422d36",
+          "width": 320,
+          "height": 200
+        }
+      },
+      "polygonMaskMeanError": 0
+    },
+    {
+      "name": "rotated-crop-offscreen",
+      "files": {
+        "scene": {
+          "path": "rotated-crop-offscreen-scene.png",
+          "sha256": "eaa1e8108562ae4a4153d23ba50cda55a0cd5df3a375d40fed06a67713b9d964",
+          "width": 320,
+          "height": 200
+        },
+        "coverage": {
+          "path": "rotated-crop-offscreen-coverage.png",
+          "sha256": "ab24b86b1057d2c2fdead6104b4510cadb3dc21915627bf0e840df615b4c8762",
+          "width": 320,
+          "height": 200
+        },
+        "silhouette": {
+          "path": "rotated-crop-offscreen-silhouette.png",
+          "sha256": "70e8978659a04b9cc3ba46b04bc8436789ea30ca16e51095597c37e082142b00",
+          "width": 320,
+          "height": 200
+        },
+        "appearance": {
+          "path": "rotated-crop-offscreen-appearance.png",
+          "sha256": "a6babc3995615aae427c8d281bd8f331c36609ff00a22156ef942f156ae02738",
+          "width": 320,
+          "height": 200
+        }
+      },
+      "polygonMaskMeanError": 0.116875
+    },
+    {
+      "name": "opacity-overlap-cinema",
+      "files": {
+        "scene": {
+          "path": "opacity-overlap-cinema-scene.png",
+          "sha256": "b572cca4492f89729f43fa7ec3d63e821aa4d887bda41622d5704a9610907a66",
+          "width": 320,
+          "height": 200
+        },
+        "coverage": {
+          "path": "opacity-overlap-cinema-coverage.png",
+          "sha256": "d353da361b0319ed752bc4cd3ad9f734c18a67aacddc8f997d977153662386ca",
+          "width": 320,
+          "height": 200
+        },
+        "silhouette": {
+          "path": "opacity-overlap-cinema-silhouette.png",
+          "sha256": "3758df50bc2d492b1969d8075b2e4b5756463c9e2f4154527fe4d3f9ad4140df",
+          "width": 320,
+          "height": 200
+        },
+        "appearance": {
+          "path": "opacity-overlap-cinema-appearance.png",
+          "sha256": "c1fd07183f4fdb1da6766d2e36b1c7300e1233d2c92879b5274229cd68fed7f7",
+          "width": 320,
+          "height": 200
+        }
+      },
+      "polygonMaskMeanError": 0
+    },
+    {
+      "name": "mode-mono",
+      "files": {
+        "scene": {
+          "path": "mode-mono-scene.png",
+          "sha256": "43bac0efea018ef30e758d0bbd1b15ee4e47397d7a8c7cff1f78034c409b8d84",
+          "width": 320,
+          "height": 200
+        },
+        "coverage": {
+          "path": "mode-mono-coverage.png",
+          "sha256": "340b0a874e63b2da53b68000f68ae5fbd94d6b6dbece68b00e0685df0c42dc8a",
+          "width": 320,
+          "height": 200
+        },
+        "silhouette": {
+          "path": "mode-mono-silhouette.png",
+          "sha256": "3758df50bc2d492b1969d8075b2e4b5756463c9e2f4154527fe4d3f9ad4140df",
+          "width": 320,
+          "height": 200
+        },
+        "appearance": {
+          "path": "mode-mono-appearance.png",
+          "sha256": "bbe48b152d7a00ac3d847c1cce35ae33dd8444dd62166ebbedb27f7a1f3afc34",
+          "width": 320,
+          "height": 200
+        }
+      },
+      "polygonMaskMeanError": 0
+    },
+    {
+      "name": "mode-vivid",
+      "files": {
+        "scene": {
+          "path": "mode-vivid-scene.png",
+          "sha256": "43bac0efea018ef30e758d0bbd1b15ee4e47397d7a8c7cff1f78034c409b8d84",
+          "width": 320,
+          "height": 200
+        },
+        "coverage": {
+          "path": "mode-vivid-coverage.png",
+          "sha256": "340b0a874e63b2da53b68000f68ae5fbd94d6b6dbece68b00e0685df0c42dc8a",
+          "width": 320,
+          "height": 200
+        },
+        "silhouette": {
+          "path": "mode-vivid-silhouette.png",
+          "sha256": "3758df50bc2d492b1969d8075b2e4b5756463c9e2f4154527fe4d3f9ad4140df",
+          "width": 320,
+          "height": 200
+        },
+        "appearance": {
+          "path": "mode-vivid-appearance.png",
+          "sha256": "9ee606828aa385b74dbaee9095eb1dcc390452f38b34bd9b65ab242f160aa8b6",
+          "width": 320,
+          "height": 200
+        }
+      },
+      "polygonMaskMeanError": 0
+    },
+    {
+      "name": "mode-dominant",
+      "files": {
+        "scene": {
+          "path": "mode-dominant-scene.png",
+          "sha256": "43bac0efea018ef30e758d0bbd1b15ee4e47397d7a8c7cff1f78034c409b8d84",
+          "width": 320,
+          "height": 200
+        },
+        "coverage": {
+          "path": "mode-dominant-coverage.png",
+          "sha256": "340b0a874e63b2da53b68000f68ae5fbd94d6b6dbece68b00e0685df0c42dc8a",
+          "width": 320,
+          "height": 200
+        },
+        "silhouette": {
+          "path": "mode-dominant-silhouette.png",
+          "sha256": "3758df50bc2d492b1969d8075b2e4b5756463c9e2f4154527fe4d3f9ad4140df",
+          "width": 320,
+          "height": 200
+        },
+        "appearance": {
+          "path": "mode-dominant-appearance.png",
+          "sha256": "45d4fb233ef869f27c574d32ab0b6712df68fa4ae5fd5be29252bff6943aaaa2",
+          "width": 320,
+          "height": 200
+        }
+      },
+      "polygonMaskMeanError": 0
+    },
+    {
+      "name": "mode-hd",
+      "files": {
+        "scene": {
+          "path": "mode-hd-scene.png",
+          "sha256": "43bac0efea018ef30e758d0bbd1b15ee4e47397d7a8c7cff1f78034c409b8d84",
+          "width": 320,
+          "height": 200
+        },
+        "coverage": {
+          "path": "mode-hd-coverage.png",
+          "sha256": "340b0a874e63b2da53b68000f68ae5fbd94d6b6dbece68b00e0685df0c42dc8a",
+          "width": 320,
+          "height": 200
+        },
+        "silhouette": {
+          "path": "mode-hd-silhouette.png",
+          "sha256": "3758df50bc2d492b1969d8075b2e4b5756463c9e2f4154527fe4d3f9ad4140df",
+          "width": 320,
+          "height": 200
+        },
+        "appearance": {
+          "path": "mode-hd-appearance.png",
+          "sha256": "ef2ab20ca56b09e731c7e18994725221d08edeb3895b7c5055df292e4705e45d",
+          "width": 320,
+          "height": 200
+        }
+      },
+      "polygonMaskMeanError": 0
+    },
+    {
+      "name": "classic-inset",
+      "files": {
+        "scene": {
+          "path": "classic-inset-scene.png",
+          "sha256": "43bac0efea018ef30e758d0bbd1b15ee4e47397d7a8c7cff1f78034c409b8d84",
+          "width": 320,
+          "height": 200
+        },
+        "coverage": {
+          "path": "classic-inset-coverage.png",
+          "sha256": "340b0a874e63b2da53b68000f68ae5fbd94d6b6dbece68b00e0685df0c42dc8a",
+          "width": 320,
+          "height": 200
+        },
+        "silhouette": {
+          "path": "classic-inset-silhouette.png",
+          "sha256": "3758df50bc2d492b1969d8075b2e4b5756463c9e2f4154527fe4d3f9ad4140df",
+          "width": 320,
+          "height": 200
+        },
+        "appearance": {
+          "path": "classic-inset-appearance.png",
+          "sha256": "82193be45230935edcb079175768d50bd25d6da06fa0ee255a8030120d5cb16d",
+          "width": 320,
+          "height": 200
+        }
+      },
+      "polygonMaskMeanError": 0
+    },
+    {
+      "name": "soft-fullscreen",
+      "files": {
+        "scene": {
+          "path": "soft-fullscreen-scene.png",
+          "sha256": "2805c2a2508fdcad2e210b9167fd1b990e173d5e228e1e44b715c313ea3c4eb5",
+          "width": 320,
+          "height": 200
+        },
+        "coverage": {
+          "path": "soft-fullscreen-coverage.png",
+          "sha256": "f930ab5811ce02d135cb762351f1c1b70cabcefe9c29d8588724ef68e112e7e9",
+          "width": 320,
+          "height": 200
+        },
+        "silhouette": {
+          "path": "soft-fullscreen-silhouette.png",
+          "sha256": "11e640798723cb979ff261f9211916935806496208890e53cffafc3a8add2856",
+          "width": 320,
+          "height": 200
+        },
+        "appearance": {
+          "path": "soft-fullscreen-appearance.png",
+          "sha256": "26576ecddcdb7dff3ac2f5c70a131e87b5d0d49e686448161a3f292bf054eb99",
+          "width": 320,
+          "height": 200
+        }
+      },
+      "polygonMaskMeanError": 0.24646875
+    },
+    {
+      "name": "contours-crop-hq",
+      "files": {
+        "scene": {
+          "path": "contours-crop-hq-scene.png",
+          "sha256": "343416ba1952f65c35c450b48b7e3551684bd76745c3872486feabf1d81468c2",
+          "width": 800,
+          "height": 600
+        },
+        "coverage": {
+          "path": "contours-crop-hq-coverage.png",
+          "sha256": "5a2864ea76b05465541d39726d45b98f6e02ca8ef674d70e90249b5618647294",
+          "width": 800,
+          "height": 600
+        },
+        "silhouette": {
+          "path": "contours-crop-hq-silhouette.png",
+          "sha256": "4eee04f36e6cef77defb7fc98d621edcb249fbd8363de38a4c078ef089a48aa4",
+          "width": 800,
+          "height": 600
+        },
+        "appearance": {
+          "path": "contours-crop-hq-appearance.png",
+          "sha256": "91d939063ab1dec0c0007d3557621d17fad456b2ff535ed8e0236b822b101436",
+          "width": 800,
+          "height": 600
+        }
+      },
+      "polygonMaskMeanError": 0.0832
+    },
+    {
+      "name": "contours-fullscreen-hide",
+      "files": {
+        "scene": {
+          "path": "contours-fullscreen-hide-scene.png",
+          "sha256": "b4769eddc4e91b3cdeacdb544c103fabc225a6125e36f45ce0af22455d19b85d",
+          "width": 320,
+          "height": 200
+        },
+        "coverage": {
+          "path": "contours-fullscreen-hide-coverage.png",
+          "sha256": "5d02efccf7d4d47ba3012b7682d5364173d870c6eecd6c0b87775b9ab97cbef3",
+          "width": 320,
+          "height": 200
+        },
+        "silhouette": {
+          "path": "contours-fullscreen-hide-silhouette.png",
+          "sha256": "db34ce489208a71fb5aaf36627a86dc31371a0847f5f3c45a619645c7661699e",
+          "width": 320,
+          "height": 200
+        },
+        "appearance": {
+          "path": "contours-fullscreen-hide-appearance.png",
+          "sha256": "3e1105a2a83169866c98789d093f58c2700ef78a5c1c4716e275c4240a8a2587",
+          "width": 320,
+          "height": 200
+        }
+      },
+      "polygonMaskMeanError": 0.546765625
+    },
+    {
+      "name": "missing-frame",
+      "files": {
+        "scene": {
+          "path": "missing-frame-scene.png",
+          "sha256": "43bac0efea018ef30e758d0bbd1b15ee4e47397d7a8c7cff1f78034c409b8d84",
+          "width": 320,
+          "height": 200
+        },
+        "coverage": {
+          "path": "missing-frame-coverage.png",
+          "sha256": "340b0a874e63b2da53b68000f68ae5fbd94d6b6dbece68b00e0685df0c42dc8a",
+          "width": 320,
+          "height": 200
+        },
+        "silhouette": {
+          "path": "missing-frame-silhouette.png",
+          "sha256": "3758df50bc2d492b1969d8075b2e4b5756463c9e2f4154527fe4d3f9ad4140df",
+          "width": 320,
+          "height": 200
+        },
+        "appearance": {
+          "path": "missing-frame-appearance.png",
+          "sha256": "feaf6fa1311f066a256863fbe9a6f2a062aebe782fd152d2ec18b21811d9d55b",
+          "width": 320,
+          "height": 200
+        }
+      },
+      "polygonMaskMeanError": 0
+    }
+  ]
+}

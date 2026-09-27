@@ -77,6 +77,7 @@ public partial class MainViewModel
         var sources = Sources.Select(SceneSourceSnapshot.Capture).ToArray();
         var saved = await _sceneLibrary.SaveNewAsync(SceneName, sources);
         RefreshSceneList(saved.Id);
+        MarkNativeSceneEffective(saved.Id, manual: true);
         SceneStatus = $"Saved '{saved.Name}'.";
     });
 
@@ -86,6 +87,7 @@ public partial class MainViewModel
         if (SelectedScene is not { } selected) return;
         var saved = await _sceneLibrary.ReplaceAsync(selected.Id, Sources.Select(SceneSourceSnapshot.Capture).ToArray());
         RefreshSceneList(saved.Id);
+        MarkNativeSceneEffective(saved.Id, manual: true);
         SceneStatus = $"Updated '{saved.Name}' with the current sources and layout.";
     });
 
@@ -99,7 +101,7 @@ public partial class MainViewModel
         // Source IDs remain stable; runtime selection and preview state are re-established there.
         var sources = selected.Sources.Select(source => source.Restore()).ToArray();
         SaveUndoState();
-        await RestoreState(sources);
+        if (!await RestoreState(sources, activeSceneId: selected.Id)) return;
         SceneStatus = $"Loaded '{selected.Name}'. Undo restores the previous canvas.";
     });
 
@@ -109,6 +111,7 @@ public partial class MainViewModel
         if (SelectedScene is not { } selected) return;
         var renamed = await _sceneLibrary.RenameAsync(selected.Id, SceneName);
         RefreshSceneList(renamed.Id);
+        if (_activeNativeSceneId == renamed.Id) MarkNativeSceneEffective(renamed.Id, manual: false);
         SceneStatus = $"Renamed scene to '{renamed.Name}'.";
     });
 
@@ -118,6 +121,7 @@ public partial class MainViewModel
         if (SelectedScene is not { } selected) return;
         await _sceneLibrary.DeleteAsync(selected.Id);
         RefreshSceneList(null);
+        if (_activeNativeSceneId == selected.Id) MarkNativeSceneEffective(null, manual: false);
         SceneStatus = $"Deleted saved scene '{selected.Name}'. The current canvas is unchanged.";
     });
 

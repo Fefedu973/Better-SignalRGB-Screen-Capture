@@ -6,6 +6,7 @@ using Better_SignalRGB_Screen_Capture.Helpers;
 using Better_SignalRGB_Screen_Capture.Models;
 using Better_SignalRGB_Screen_Capture.Notifications;
 using Better_SignalRGB_Screen_Capture.Services;
+using Better_SignalRGB_Screen_Capture.Services.NativeOutput;
 using Better_SignalRGB_Screen_Capture.ViewModels;
 using Better_SignalRGB_Screen_Capture.Views;
 
@@ -104,6 +105,27 @@ public partial class App : Application
             services.AddSingleton<IMjpegStreamingService, MjpegStreamingService>();
             services.AddSingleton<IKestrelApiService, KestrelApiService>();
             services.AddSingleton<ICompositeFrameService, CompositeFrameService>();
+            services.AddSingleton<INativeControlDispatcher>(_ => new NativeControlDispatcher(
+                action => MainWindow.DispatcherQueue.TryEnqueue(() => action()), () => MainWindow.DispatcherQueue.HasThreadAccess));
+            services.AddSingleton<INativeSceneController>(provider => new NativeSceneController(
+                () => provider.GetRequiredService<MainViewModel>(), provider.GetRequiredService<INativeControlDispatcher>()));
+            services.AddSingleton<NativeControlService>();
+            services.AddSingleton<NativeOutputService>(provider => new NativeOutputService(
+                (CompositeFrameService)provider.GetRequiredService<ICompositeFrameService>(), provider.GetRequiredService<NativeControlService>(),
+                token => StreamingCanvasSnapshot.CaptureOnUiAsync(vm =>
+                {
+                    var control = provider.GetRequiredService<NativeControlService>().Current;
+                    return new CompositeRenderSnapshot(vm.Sources.Select((source, index) =>
+                        StreamingSourceSnapshot.FromSource(source, vm.Sources.Count - index - 1)).Reverse().ToArray(),
+                        new NativeCompositionContext(vm.NativeState, control.Revision, control.EffectiveSettings));
+                }, token)));
+            services.AddSingleton<NativeApiServer>();
+            services.AddSingleton<NativeIntegrationService>(provider => new NativeIntegrationService(
+                provider.GetRequiredService<ILocalSettingsService>(), provider.GetRequiredService<NativeOutputService>(),
+                provider.GetRequiredService<NativeApiServer>(), provider.GetRequiredService<NativeControlService>(),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<LocalSettingsOptions>>().Value.ApplicationDataFolder
+                        ?? "Better-SignalRGB-Screen-Capture/ApplicationData")));
 
             // Core Services
             services.AddSingleton<ISampleDataService, SampleDataService>();
@@ -194,6 +216,7 @@ public partial class App : Application
                 vm.StatusMessage = $"Could not start recording automatically: {exception.Message}";
             }
         }
+        await GetService<NativeIntegrationService>().InitializeAsync();
         ApplicationErrorLog.Write("Launch complete");
     }
 }

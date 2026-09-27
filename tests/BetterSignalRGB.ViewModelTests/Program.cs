@@ -20,6 +20,7 @@ internal static partial class Program
             ("settings initialization", SettingsInitializationAsync),
             ("high quality output and capture transitions", () => OutputQualityTests.RunAsync(Check)),
             ("scene library and capture transitions", () => SceneViewModelTests.RunAsync(Check)),
+            ("native scene leases and manual precedence", () => NativeControlTests.RunAsync(Check)),
             ("source editing and exact device identity", () => SourceEditingTests.RunAsync(Check)),
             ("partial settings failure", OptionalSettingFailureAsync),
             ("record pause refresh stop", CaptureLifecycleAsync),
@@ -44,7 +45,7 @@ internal static partial class Program
         foreach (var (name, run) in tests)
         {
             try { await run(); Console.WriteLine($"PASS: {name}"); }
-            catch (Exception ex) { failed++; Console.Error.WriteLine($"FAIL: {name}: {ex.Message}"); }
+            catch (Exception ex) { failed++; Console.Error.WriteLine($"FAIL: {name}: {ex}"); }
         }
         Console.WriteLine($"{(failed == 0 ? "PASS" : "FAIL")}: {_assertions} production MainViewModel assertions; {failed} failed scenarios.");
         return failed == 0 ? 0 : 1;

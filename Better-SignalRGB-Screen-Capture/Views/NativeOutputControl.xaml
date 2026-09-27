@@ -1,0 +1,10 @@
+<UserControl x:Class="Better_SignalRGB_Screen_Capture.Views.NativeOutputControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel Spacing="8">
+        <ToggleSwitch x:Name="NativeToggle" Header="Native OpenRGB output" Toggled="NativeToggle_Toggled" />
+        <TextBlock Text="Share the raw canvas directly with compatible OpenRGB effects. OpenRGB controls its own colors and halo. Website sources continue to work normally."
+                   TextWrapping="Wrap" />
+        <TextBlock x:Name="NativeStatus" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+    </StackPanel>
+</UserControl>

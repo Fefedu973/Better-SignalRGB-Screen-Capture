@@ -8,7 +8,7 @@ public partial class MainViewModel
     [RelayCommand]
     public Task SaveSourcesAsync()
     {
-        if (_isInitializing) return Task.CompletedTask;
+        if (_isInitializing || _nativeTemporaryScene) return Task.CompletedTask;
         _saveSourcesCts?.Cancel();
         var cancellation = new System.Threading.CancellationTokenSource();
         _saveSourcesCts = cancellation;

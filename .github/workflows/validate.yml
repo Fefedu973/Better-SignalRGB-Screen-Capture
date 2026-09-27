@@ -19,6 +19,26 @@ jobs:
         run: dotnet run --project tests/BetterSignalRGB.ViewModelTests -c Release
       - name: Validate compositor pixels and local HTTP and HTTPS streaming
         run: dotnet run --project tests/BetterSignalRGB.StreamingTests -c Release
+      - name: Validate native rendering metadata and geometry
+        run: dotnet run --project tests/BetterSignalRGB.NativeRenderingTests -c Release
+      - name: Validate native activation and shutdown failure cleanup
+        run: dotnet run --project tests/BetterSignalRGB.NativeLifecycleTests -c Release
+      - uses: actions/checkout@v4
+        with:
+          repository: Fefedu973/OpenRGB
+          ref: c870793e15e48a3e62a868a3a0ff0f6992b59f84
+          path: tests/obj/openrgb-contract
+          sparse-checkout: FrameSurface
+          persist-credentials: false
+      - name: Verify the actual OpenRGB C++ Reader and native control integration
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          Import-Module (Join-Path $vs 'Common7/Tools/Microsoft.VisualStudio.DevShell.dll')
+          Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
+          & tests/BetterSignalRGB.NativeOutputTests/Run-Tests.ps1 -OpenRgbRoot tests/obj/openrgb-contract -Cxx cl.exe -SkipBenchmark
+          dotnet run --project tests/BetterSignalRGB.NativeIntegrationTests -c Release -- --reader tests/BetterSignalRGB.NativeOutputTests/obj/native/FrameSurfaceReader.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Native integration tests failed.' }
       - name: Validate capture encoding, device selection and website lifecycle without capturing the desktop
         run: dotnet run --project tests/BetterSignalRGB.NativeSmokeTests -c Release
       - uses: actions/setup-node@v4
@@ -35,3 +55,5 @@ jobs:
       - name: Compare SignalRGB pixels with the production compositor
         working-directory: tests
         run: npm run test:browser
+      - name: Compare native renderer reference fixtures with the web renderer
+        run: node tests/NativeRenderingReferenceTests.cjs

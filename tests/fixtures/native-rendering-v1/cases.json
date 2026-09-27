@@ -1,0 +1,2349 @@
+{
+  "version": 1,
+  "schema": "better.native-rendering-fixtures",
+  "provenance": "Synthetic colors only; generated from production metadata and settings classes.",
+  "cases": [
+    {
+      "name": "black-is-covered",
+      "pattern": "black",
+      "sources": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "Region",
+          "websiteUrl": "",
+          "canvasX": 30,
+          "canvasY": 25,
+          "canvasWidth": 230,
+          "canvasHeight": 140,
+          "rotation": 0,
+          "opacity": 1,
+          "isMirroredHorizontally": false,
+          "isMirroredVertically": false,
+          "cropLeftPct": 0,
+          "cropTopPct": 0,
+          "cropRightPct": 0,
+          "cropBottomPct": 0,
+          "cropRotation": 0,
+          "zIndex": 0,
+          "outerStyle": "position:absolute;left:30px;top:25px;width:230px;height:140px;opacity:1;z-index:0;transform-origin:center center;transform:rotate(0deg) scale(1,1)",
+          "cropStyle": "position:relative;width:100%;height:100%;overflow:hidden;clip-path:polygon(0% 0%,100% 0%,100% 100%,0% 100%)"
+        }
+      ],
+      "metadata": {
+        "version": 1,
+        "schema": "better.native-rendering",
+        "stateRevision": 7,
+        "canvasWidth": 320,
+        "canvasHeight": 200,
+        "outputWidth": 320,
+        "outputHeight": 200,
+        "effectiveSettings": {
+          "version": 1,
+          "enabled": false,
+          "webEnabled": true,
+          "screenX": 0,
+          "screenY": 0,
+          "screenWidth": 320,
+          "screenHeight": 200,
+          "pictureMode": "Standard",
+          "hue": 0,
+          "brightness": 0,
+          "saturation": 0,
+          "blur": false,
+          "ambilight": false,
+          "ambilightStyle": "Classic",
+          "ambilightCutoff": 0,
+          "ambilightEdgeDepth": 3,
+          "ambilightEdgeMix": 2,
+          "ambilightEdgeReach": 60,
+          "ambilightEdgeFade": 50,
+          "ambilightFullscreen": false,
+          "hideSources": false,
+          "ambilightBlur": 30,
+          "ambilightSpread": 10,
+          "ambilightSaturation": 3,
+          "ambilightIntensity": 100,
+          "interpolation": "smooth",
+          "frameRate": 15
+        },
+        "sources": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "type": "Region",
+            "order": 0,
+            "zIndex": 0,
+            "hasFrame": true,
+            "contributes": true,
+            "canvasX": 30,
+            "canvasY": 25,
+            "canvasWidth": 230,
+            "canvasHeight": 140,
+            "rotation": 0,
+            "opacity": 1,
+            "isMirroredHorizontally": false,
+            "isMirroredVertically": false,
+            "cropLeftPct": 0,
+            "cropTopPct": 0,
+            "cropRightPct": 0,
+            "cropBottomPct": 0,
+            "cropRotation": 0,
+            "canvasFromImage": {
+              "m11": 1,
+              "m12": 0,
+              "m21": -0,
+              "m22": 1,
+              "dx": 30,
+              "dy": 25
+            },
+            "cropPolygonLocal": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 140
+              },
+              {
+                "x": 0,
+                "y": 140
+              }
+            ],
+            "coveragePolygon": [
+              {
+                "x": 30,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 165
+              },
+              {
+                "x": 30,
+                "y": 165
+              }
+            ],
+            "placedCoveragePolygon": [
+              {
+                "x": 30,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 165
+              },
+              {
+                "x": 30,
+                "y": 165
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "mirror-asymmetric-crop",
+      "pattern": "quadrants",
+      "sources": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "Region",
+          "websiteUrl": "",
+          "canvasX": 30,
+          "canvasY": 25,
+          "canvasWidth": 230,
+          "canvasHeight": 140,
+          "rotation": 0,
+          "opacity": 1,
+          "isMirroredHorizontally": true,
+          "isMirroredVertically": false,
+          "cropLeftPct": 0.4,
+          "cropTopPct": 0.15,
+          "cropRightPct": 0,
+          "cropBottomPct": 0,
+          "cropRotation": 0,
+          "zIndex": 0,
+          "outerStyle": "position:absolute;left:30px;top:25px;width:230px;height:140px;opacity:1;z-index:0;transform-origin:center center;transform:rotate(0deg) scale(-1,1)",
+          "cropStyle": "position:relative;width:100%;height:100%;overflow:hidden;clip-path:polygon(60.000004% 15.000001%,0% 15.000001%,0% 100%,60.000004% 100%)"
+        }
+      ],
+      "metadata": {
+        "version": 1,
+        "schema": "better.native-rendering",
+        "stateRevision": 7,
+        "canvasWidth": 320,
+        "canvasHeight": 200,
+        "outputWidth": 320,
+        "outputHeight": 200,
+        "effectiveSettings": {
+          "version": 1,
+          "enabled": false,
+          "webEnabled": true,
+          "screenX": 0,
+          "screenY": 0,
+          "screenWidth": 320,
+          "screenHeight": 200,
+          "pictureMode": "Standard",
+          "hue": 0,
+          "brightness": 0,
+          "saturation": 0,
+          "blur": false,
+          "ambilight": false,
+          "ambilightStyle": "Classic",
+          "ambilightCutoff": 0,
+          "ambilightEdgeDepth": 3,
+          "ambilightEdgeMix": 2,
+          "ambilightEdgeReach": 60,
+          "ambilightEdgeFade": 50,
+          "ambilightFullscreen": false,
+          "hideSources": false,
+          "ambilightBlur": 30,
+          "ambilightSpread": 10,
+          "ambilightSaturation": 3,
+          "ambilightIntensity": 100,
+          "interpolation": "smooth",
+          "frameRate": 15
+        },
+        "sources": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "type": "Region",
+            "order": 0,
+            "zIndex": 0,
+            "hasFrame": true,
+            "contributes": true,
+            "canvasX": 30,
+            "canvasY": 25,
+            "canvasWidth": 230,
+            "canvasHeight": 140,
+            "rotation": 0,
+            "opacity": 1,
+            "isMirroredHorizontally": true,
+            "isMirroredVertically": false,
+            "cropLeftPct": 0.4,
+            "cropTopPct": 0.15,
+            "cropRightPct": 0,
+            "cropBottomPct": 0,
+            "cropRotation": 0,
+            "canvasFromImage": {
+              "m11": -1,
+              "m12": -0,
+              "m21": -0,
+              "m22": 1,
+              "dx": 260,
+              "dy": 25
+            },
+            "cropPolygonLocal": [
+              {
+                "x": 92,
+                "y": 21
+              },
+              {
+                "x": 230,
+                "y": 21
+              },
+              {
+                "x": 230,
+                "y": 140
+              },
+              {
+                "x": 92,
+                "y": 140
+              }
+            ],
+            "coveragePolygon": [
+              {
+                "x": 122,
+                "y": 46
+              },
+              {
+                "x": 260,
+                "y": 46
+              },
+              {
+                "x": 260,
+                "y": 165
+              },
+              {
+                "x": 122,
+                "y": 165
+              }
+            ],
+            "placedCoveragePolygon": [
+              {
+                "x": 122,
+                "y": 46
+              },
+              {
+                "x": 260,
+                "y": 46
+              },
+              {
+                "x": 260,
+                "y": 165
+              },
+              {
+                "x": 122,
+                "y": 165
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "rotated-crop-offscreen",
+      "pattern": "quadrants",
+      "sources": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "Region",
+          "websiteUrl": "",
+          "canvasX": -20,
+          "canvasY": 25,
+          "canvasWidth": 230,
+          "canvasHeight": 140,
+          "rotation": 29,
+          "opacity": 1,
+          "isMirroredHorizontally": false,
+          "isMirroredVertically": false,
+          "cropLeftPct": 0.18,
+          "cropTopPct": 0,
+          "cropRightPct": 0.12,
+          "cropBottomPct": 0,
+          "cropRotation": -37,
+          "zIndex": 0,
+          "outerStyle": "position:absolute;left:-20px;top:25px;width:230px;height:140px;opacity:1;z-index:0;transform-origin:center center;transform:rotate(29deg) scale(1,1)",
+          "cropStyle": "position:relative;width:100%;height:100%;overflow:hidden;clip-path:polygon(6.731648% 44.67259%,62.63614% -24.536139%,99.26836% 55.327408%,43.363865% 124.53615%)"
+        }
+      ],
+      "metadata": {
+        "version": 1,
+        "schema": "better.native-rendering",
+        "stateRevision": 7,
+        "canvasWidth": 320,
+        "canvasHeight": 200,
+        "outputWidth": 320,
+        "outputHeight": 200,
+        "effectiveSettings": {
+          "version": 1,
+          "enabled": false,
+          "webEnabled": true,
+          "screenX": 0,
+          "screenY": 0,
+          "screenWidth": 320,
+          "screenHeight": 200,
+          "pictureMode": "Standard",
+          "hue": 0,
+          "brightness": 0,
+          "saturation": 0,
+          "blur": false,
+          "ambilight": false,
+          "ambilightStyle": "Classic",
+          "ambilightCutoff": 0,
+          "ambilightEdgeDepth": 3,
+          "ambilightEdgeMix": 2,
+          "ambilightEdgeReach": 60,
+          "ambilightEdgeFade": 50,
+          "ambilightFullscreen": false,
+          "hideSources": false,
+          "ambilightBlur": 30,
+          "ambilightSpread": 10,
+          "ambilightSaturation": 3,
+          "ambilightIntensity": 100,
+          "interpolation": "smooth",
+          "frameRate": 15
+        },
+        "sources": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "type": "Region",
+            "order": 0,
+            "zIndex": 0,
+            "hasFrame": true,
+            "contributes": true,
+            "canvasX": -20,
+            "canvasY": 25,
+            "canvasWidth": 230,
+            "canvasHeight": 140,
+            "rotation": 29,
+            "opacity": 1,
+            "isMirroredHorizontally": false,
+            "isMirroredVertically": false,
+            "cropLeftPct": 0.18,
+            "cropTopPct": 0,
+            "cropRightPct": 0.12,
+            "cropBottomPct": 0,
+            "cropRotation": -37,
+            "canvasFromImage": {
+              "m11": 0.8746197071393957,
+              "m12": 0.48480962024633706,
+              "m21": -0.48480962024633706,
+              "m22": 0.8746197071393957,
+              "dx": 28.355407096213085,
+              "dy": -21.976485828086467
+            },
+            "cropPolygonLocal": [
+              {
+                "x": 15.482789820549549,
+                "y": 62.54162366042938
+              },
+              {
+                "x": 144.0631069381637,
+                "y": -34.3505950670504
+              },
+              {
+                "x": 228.31721017945048,
+                "y": 77.4583763395706
+              },
+              {
+                "x": 99.7368930618363,
+                "y": 174.3505950670504
+              }
+            ],
+            "coveragePolygon": [
+              {
+                "x": 25.07435507289192,
+                "y": 136.274366839364
+              },
+              {
+                "x": 11.576179378360855,
+                "y": 40.229856195075065
+              },
+              {
+                "x": 114.48649317178729,
+                "y": 25.76675479506187
+              },
+              {
+                "x": 176.99539688563175,
+                "y": 60.41600592003547
+              },
+              {
+                "x": 190.49357258016283,
+                "y": 156.4605165643244
+              },
+              {
+                "x": 87.58325878673635,
+                "y": 170.92361796433758
+              }
+            ],
+            "placedCoveragePolygon": [
+              {
+                "x": 25.07435507289192,
+                "y": 136.274366839364
+              },
+              {
+                "x": 11.576179378360855,
+                "y": 40.229856195075065
+              },
+              {
+                "x": 114.48649317178729,
+                "y": 25.76675479506187
+              },
+              {
+                "x": 176.99539688563175,
+                "y": 60.41600592003547
+              },
+              {
+                "x": 190.49357258016283,
+                "y": 156.4605165643244
+              },
+              {
+                "x": 87.58325878673635,
+                "y": 170.92361796433758
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "opacity-overlap-cinema",
+      "pattern": "quadrants",
+      "sources": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "Region",
+          "websiteUrl": "",
+          "canvasX": 30,
+          "canvasY": 25,
+          "canvasWidth": 230,
+          "canvasHeight": 140,
+          "rotation": 0,
+          "opacity": 0.35,
+          "isMirroredHorizontally": false,
+          "isMirroredVertically": false,
+          "cropLeftPct": 0,
+          "cropTopPct": 0,
+          "cropRightPct": 0,
+          "cropBottomPct": 0,
+          "cropRotation": 0,
+          "zIndex": 0,
+          "outerStyle": "position:absolute;left:30px;top:25px;width:230px;height:140px;opacity:0.35;z-index:0;transform-origin:center center;transform:rotate(0deg) scale(1,1)",
+          "cropStyle": "position:relative;width:100%;height:100%;overflow:hidden;clip-path:polygon(0% 0%,100% 0%,100% 100%,0% 100%)"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000002",
+          "type": "Region",
+          "websiteUrl": "",
+          "canvasX": 140,
+          "canvasY": 85,
+          "canvasWidth": 100,
+          "canvasHeight": 60,
+          "rotation": 22,
+          "opacity": 0.6,
+          "isMirroredHorizontally": false,
+          "isMirroredVertically": false,
+          "cropLeftPct": 0,
+          "cropTopPct": 0,
+          "cropRightPct": 0,
+          "cropBottomPct": 0,
+          "cropRotation": 0,
+          "zIndex": 1,
+          "outerStyle": "position:absolute;left:140px;top:85px;width:100px;height:60px;opacity:0.6;z-index:1;transform-origin:center center;transform:rotate(22deg) scale(1,1)",
+          "cropStyle": "position:relative;width:100%;height:100%;overflow:hidden;clip-path:polygon(0% 0%,100% 0%,100% 100%,0% 100%)"
+        }
+      ],
+      "metadata": {
+        "version": 1,
+        "schema": "better.native-rendering",
+        "stateRevision": 7,
+        "canvasWidth": 320,
+        "canvasHeight": 200,
+        "outputWidth": 320,
+        "outputHeight": 200,
+        "effectiveSettings": {
+          "version": 1,
+          "enabled": false,
+          "webEnabled": true,
+          "screenX": 0,
+          "screenY": 0,
+          "screenWidth": 320,
+          "screenHeight": 200,
+          "pictureMode": "Cinema",
+          "hue": 25,
+          "brightness": 8,
+          "saturation": -12,
+          "blur": true,
+          "ambilight": false,
+          "ambilightStyle": "Classic",
+          "ambilightCutoff": 0,
+          "ambilightEdgeDepth": 3,
+          "ambilightEdgeMix": 2,
+          "ambilightEdgeReach": 60,
+          "ambilightEdgeFade": 50,
+          "ambilightFullscreen": false,
+          "hideSources": false,
+          "ambilightBlur": 30,
+          "ambilightSpread": 10,
+          "ambilightSaturation": 3,
+          "ambilightIntensity": 100,
+          "interpolation": "smooth",
+          "frameRate": 15
+        },
+        "sources": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "type": "Region",
+            "order": 0,
+            "zIndex": 0,
+            "hasFrame": true,
+            "contributes": true,
+            "canvasX": 30,
+            "canvasY": 25,
+            "canvasWidth": 230,
+            "canvasHeight": 140,
+            "rotation": 0,
+            "opacity": 0.35,
+            "isMirroredHorizontally": false,
+            "isMirroredVertically": false,
+            "cropLeftPct": 0,
+            "cropTopPct": 0,
+            "cropRightPct": 0,
+            "cropBottomPct": 0,
+            "cropRotation": 0,
+            "canvasFromImage": {
+              "m11": 1,
+              "m12": 0,
+              "m21": -0,
+              "m22": 1,
+              "dx": 30,
+              "dy": 25
+            },
+            "cropPolygonLocal": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 140
+              },
+              {
+                "x": 0,
+                "y": 140
+              }
+            ],
+            "coveragePolygon": [
+              {
+                "x": 30,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 165
+              },
+              {
+                "x": 30,
+                "y": 165
+              }
+            ],
+            "placedCoveragePolygon": [
+              {
+                "x": 30,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 165
+              },
+              {
+                "x": 30,
+                "y": 165
+              }
+            ]
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "type": "Region",
+            "order": 1,
+            "zIndex": 1,
+            "hasFrame": true,
+            "contributes": true,
+            "canvasX": 140,
+            "canvasY": 85,
+            "canvasWidth": 100,
+            "canvasHeight": 60,
+            "rotation": 22,
+            "opacity": 0.6,
+            "isMirroredHorizontally": false,
+            "isMirroredVertically": false,
+            "cropLeftPct": 0,
+            "cropTopPct": 0,
+            "cropRightPct": 0,
+            "cropBottomPct": 0,
+            "cropRotation": 0,
+            "canvasFromImage": {
+              "m11": 0.9271838545667874,
+              "m12": 0.374606593415912,
+              "m21": -0.374606593415912,
+              "m22": 0.9271838545667874,
+              "dx": 154.879005074138,
+              "dy": 68.45415469220077
+            },
+            "cropPolygonLocal": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 60
+              },
+              {
+                "x": 0,
+                "y": 60
+              }
+            ],
+            "coveragePolygon": [
+              {
+                "x": 154.87900507413798,
+                "y": 68.45415469220077
+              },
+              {
+                "x": 247.5973905308167,
+                "y": 105.91481403379197
+              },
+              {
+                "x": 225.12099492586202,
+                "y": 161.54584530779923
+              },
+              {
+                "x": 132.40260946918326,
+                "y": 124.08518596620802
+              }
+            ],
+            "placedCoveragePolygon": [
+              {
+                "x": 154.87900507413798,
+                "y": 68.45415469220077
+              },
+              {
+                "x": 247.5973905308167,
+                "y": 105.91481403379197
+              },
+              {
+                "x": 225.12099492586202,
+                "y": 161.54584530779923
+              },
+              {
+                "x": 132.40260946918326,
+                "y": 124.08518596620802
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "mode-mono",
+      "pattern": "quadrants",
+      "sources": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "Region",
+          "websiteUrl": "",
+          "canvasX": 30,
+          "canvasY": 25,
+          "canvasWidth": 230,
+          "canvasHeight": 140,
+          "rotation": 0,
+          "opacity": 1,
+          "isMirroredHorizontally": false,
+          "isMirroredVertically": false,
+          "cropLeftPct": 0,
+          "cropTopPct": 0,
+          "cropRightPct": 0,
+          "cropBottomPct": 0,
+          "cropRotation": 0,
+          "zIndex": 0,
+          "outerStyle": "position:absolute;left:30px;top:25px;width:230px;height:140px;opacity:1;z-index:0;transform-origin:center center;transform:rotate(0deg) scale(1,1)",
+          "cropStyle": "position:relative;width:100%;height:100%;overflow:hidden;clip-path:polygon(0% 0%,100% 0%,100% 100%,0% 100%)"
+        }
+      ],
+      "metadata": {
+        "version": 1,
+        "schema": "better.native-rendering",
+        "stateRevision": 7,
+        "canvasWidth": 320,
+        "canvasHeight": 200,
+        "outputWidth": 320,
+        "outputHeight": 200,
+        "effectiveSettings": {
+          "version": 1,
+          "enabled": false,
+          "webEnabled": true,
+          "screenX": 0,
+          "screenY": 0,
+          "screenWidth": 320,
+          "screenHeight": 200,
+          "pictureMode": "Mono",
+          "hue": -30,
+          "brightness": 0,
+          "saturation": 0,
+          "blur": false,
+          "ambilight": false,
+          "ambilightStyle": "Classic",
+          "ambilightCutoff": 0,
+          "ambilightEdgeDepth": 3,
+          "ambilightEdgeMix": 2,
+          "ambilightEdgeReach": 60,
+          "ambilightEdgeFade": 50,
+          "ambilightFullscreen": false,
+          "hideSources": false,
+          "ambilightBlur": 30,
+          "ambilightSpread": 10,
+          "ambilightSaturation": 3,
+          "ambilightIntensity": 100,
+          "interpolation": "smooth",
+          "frameRate": 15
+        },
+        "sources": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "type": "Region",
+            "order": 0,
+            "zIndex": 0,
+            "hasFrame": true,
+            "contributes": true,
+            "canvasX": 30,
+            "canvasY": 25,
+            "canvasWidth": 230,
+            "canvasHeight": 140,
+            "rotation": 0,
+            "opacity": 1,
+            "isMirroredHorizontally": false,
+            "isMirroredVertically": false,
+            "cropLeftPct": 0,
+            "cropTopPct": 0,
+            "cropRightPct": 0,
+            "cropBottomPct": 0,
+            "cropRotation": 0,
+            "canvasFromImage": {
+              "m11": 1,
+              "m12": 0,
+              "m21": -0,
+              "m22": 1,
+              "dx": 30,
+              "dy": 25
+            },
+            "cropPolygonLocal": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 140
+              },
+              {
+                "x": 0,
+                "y": 140
+              }
+            ],
+            "coveragePolygon": [
+              {
+                "x": 30,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 165
+              },
+              {
+                "x": 30,
+                "y": 165
+              }
+            ],
+            "placedCoveragePolygon": [
+              {
+                "x": 30,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 165
+              },
+              {
+                "x": 30,
+                "y": 165
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "mode-vivid",
+      "pattern": "quadrants",
+      "sources": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "Region",
+          "websiteUrl": "",
+          "canvasX": 30,
+          "canvasY": 25,
+          "canvasWidth": 230,
+          "canvasHeight": 140,
+          "rotation": 0,
+          "opacity": 1,
+          "isMirroredHorizontally": false,
+          "isMirroredVertically": false,
+          "cropLeftPct": 0,
+          "cropTopPct": 0,
+          "cropRightPct": 0,
+          "cropBottomPct": 0,
+          "cropRotation": 0,
+          "zIndex": 0,
+          "outerStyle": "position:absolute;left:30px;top:25px;width:230px;height:140px;opacity:1;z-index:0;transform-origin:center center;transform:rotate(0deg) scale(1,1)",
+          "cropStyle": "position:relative;width:100%;height:100%;overflow:hidden;clip-path:polygon(0% 0%,100% 0%,100% 100%,0% 100%)"
+        }
+      ],
+      "metadata": {
+        "version": 1,
+        "schema": "better.native-rendering",
+        "stateRevision": 7,
+        "canvasWidth": 320,
+        "canvasHeight": 200,
+        "outputWidth": 320,
+        "outputHeight": 200,
+        "effectiveSettings": {
+          "version": 1,
+          "enabled": false,
+          "webEnabled": true,
+          "screenX": 0,
+          "screenY": 0,
+          "screenWidth": 320,
+          "screenHeight": 200,
+          "pictureMode": "Vivid",
+          "hue": 0,
+          "brightness": 0,
+          "saturation": -10,
+          "blur": false,
+          "ambilight": false,
+          "ambilightStyle": "Classic",
+          "ambilightCutoff": 0,
+          "ambilightEdgeDepth": 3,
+          "ambilightEdgeMix": 2,
+          "ambilightEdgeReach": 60,
+          "ambilightEdgeFade": 50,
+          "ambilightFullscreen": false,
+          "hideSources": false,
+          "ambilightBlur": 30,
+          "ambilightSpread": 10,
+          "ambilightSaturation": 3,
+          "ambilightIntensity": 100,
+          "interpolation": "smooth",
+          "frameRate": 15
+        },
+        "sources": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "type": "Region",
+            "order": 0,
+            "zIndex": 0,
+            "hasFrame": true,
+            "contributes": true,
+            "canvasX": 30,
+            "canvasY": 25,
+            "canvasWidth": 230,
+            "canvasHeight": 140,
+            "rotation": 0,
+            "opacity": 1,
+            "isMirroredHorizontally": false,
+            "isMirroredVertically": false,
+            "cropLeftPct": 0,
+            "cropTopPct": 0,
+            "cropRightPct": 0,
+            "cropBottomPct": 0,
+            "cropRotation": 0,
+            "canvasFromImage": {
+              "m11": 1,
+              "m12": 0,
+              "m21": -0,
+              "m22": 1,
+              "dx": 30,
+              "dy": 25
+            },
+            "cropPolygonLocal": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 140
+              },
+              {
+                "x": 0,
+                "y": 140
+              }
+            ],
+            "coveragePolygon": [
+              {
+                "x": 30,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 165
+              },
+              {
+                "x": 30,
+                "y": 165
+              }
+            ],
+            "placedCoveragePolygon": [
+              {
+                "x": 30,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 165
+              },
+              {
+                "x": 30,
+                "y": 165
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "mode-dominant",
+      "pattern": "quadrants",
+      "sources": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "Region",
+          "websiteUrl": "",
+          "canvasX": 30,
+          "canvasY": 25,
+          "canvasWidth": 230,
+          "canvasHeight": 140,
+          "rotation": 0,
+          "opacity": 1,
+          "isMirroredHorizontally": false,
+          "isMirroredVertically": false,
+          "cropLeftPct": 0,
+          "cropTopPct": 0,
+          "cropRightPct": 0,
+          "cropBottomPct": 0,
+          "cropRotation": 0,
+          "zIndex": 0,
+          "outerStyle": "position:absolute;left:30px;top:25px;width:230px;height:140px;opacity:1;z-index:0;transform-origin:center center;transform:rotate(0deg) scale(1,1)",
+          "cropStyle": "position:relative;width:100%;height:100%;overflow:hidden;clip-path:polygon(0% 0%,100% 0%,100% 100%,0% 100%)"
+        }
+      ],
+      "metadata": {
+        "version": 1,
+        "schema": "better.native-rendering",
+        "stateRevision": 7,
+        "canvasWidth": 320,
+        "canvasHeight": 200,
+        "outputWidth": 320,
+        "outputHeight": 200,
+        "effectiveSettings": {
+          "version": 1,
+          "enabled": false,
+          "webEnabled": true,
+          "screenX": 0,
+          "screenY": 0,
+          "screenWidth": 320,
+          "screenHeight": 200,
+          "pictureMode": "Dominant",
+          "hue": 0,
+          "brightness": 10,
+          "saturation": 0,
+          "blur": false,
+          "ambilight": false,
+          "ambilightStyle": "Classic",
+          "ambilightCutoff": 0,
+          "ambilightEdgeDepth": 3,
+          "ambilightEdgeMix": 2,
+          "ambilightEdgeReach": 60,
+          "ambilightEdgeFade": 50,
+          "ambilightFullscreen": false,
+          "hideSources": false,
+          "ambilightBlur": 30,
+          "ambilightSpread": 10,
+          "ambilightSaturation": 3,
+          "ambilightIntensity": 100,
+          "interpolation": "smooth",
+          "frameRate": 15
+        },
+        "sources": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "type": "Region",
+            "order": 0,
+            "zIndex": 0,
+            "hasFrame": true,
+            "contributes": true,
+            "canvasX": 30,
+            "canvasY": 25,
+            "canvasWidth": 230,
+            "canvasHeight": 140,
+            "rotation": 0,
+            "opacity": 1,
+            "isMirroredHorizontally": false,
+            "isMirroredVertically": false,
+            "cropLeftPct": 0,
+            "cropTopPct": 0,
+            "cropRightPct": 0,
+            "cropBottomPct": 0,
+            "cropRotation": 0,
+            "canvasFromImage": {
+              "m11": 1,
+              "m12": 0,
+              "m21": -0,
+              "m22": 1,
+              "dx": 30,
+              "dy": 25
+            },
+            "cropPolygonLocal": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 140
+              },
+              {
+                "x": 0,
+                "y": 140
+              }
+            ],
+            "coveragePolygon": [
+              {
+                "x": 30,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 165
+              },
+              {
+                "x": 30,
+                "y": 165
+              }
+            ],
+            "placedCoveragePolygon": [
+              {
+                "x": 30,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 165
+              },
+              {
+                "x": 30,
+                "y": 165
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "mode-hd",
+      "pattern": "quadrants",
+      "sources": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "Region",
+          "websiteUrl": "",
+          "canvasX": 30,
+          "canvasY": 25,
+          "canvasWidth": 230,
+          "canvasHeight": 140,
+          "rotation": 0,
+          "opacity": 1,
+          "isMirroredHorizontally": false,
+          "isMirroredVertically": false,
+          "cropLeftPct": 0,
+          "cropTopPct": 0,
+          "cropRightPct": 0,
+          "cropBottomPct": 0,
+          "cropRotation": 0,
+          "zIndex": 0,
+          "outerStyle": "position:absolute;left:30px;top:25px;width:230px;height:140px;opacity:1;z-index:0;transform-origin:center center;transform:rotate(0deg) scale(1,1)",
+          "cropStyle": "position:relative;width:100%;height:100%;overflow:hidden;clip-path:polygon(0% 0%,100% 0%,100% 100%,0% 100%)"
+        }
+      ],
+      "metadata": {
+        "version": 1,
+        "schema": "better.native-rendering",
+        "stateRevision": 7,
+        "canvasWidth": 320,
+        "canvasHeight": 200,
+        "outputWidth": 320,
+        "outputHeight": 200,
+        "effectiveSettings": {
+          "version": 1,
+          "enabled": false,
+          "webEnabled": true,
+          "screenX": 0,
+          "screenY": 0,
+          "screenWidth": 320,
+          "screenHeight": 200,
+          "pictureMode": "HD",
+          "hue": 15,
+          "brightness": 0,
+          "saturation": 0,
+          "blur": false,
+          "ambilight": false,
+          "ambilightStyle": "Classic",
+          "ambilightCutoff": 0,
+          "ambilightEdgeDepth": 3,
+          "ambilightEdgeMix": 2,
+          "ambilightEdgeReach": 60,
+          "ambilightEdgeFade": 50,
+          "ambilightFullscreen": false,
+          "hideSources": false,
+          "ambilightBlur": 30,
+          "ambilightSpread": 10,
+          "ambilightSaturation": 3,
+          "ambilightIntensity": 100,
+          "interpolation": "smooth",
+          "frameRate": 15
+        },
+        "sources": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "type": "Region",
+            "order": 0,
+            "zIndex": 0,
+            "hasFrame": true,
+            "contributes": true,
+            "canvasX": 30,
+            "canvasY": 25,
+            "canvasWidth": 230,
+            "canvasHeight": 140,
+            "rotation": 0,
+            "opacity": 1,
+            "isMirroredHorizontally": false,
+            "isMirroredVertically": false,
+            "cropLeftPct": 0,
+            "cropTopPct": 0,
+            "cropRightPct": 0,
+            "cropBottomPct": 0,
+            "cropRotation": 0,
+            "canvasFromImage": {
+              "m11": 1,
+              "m12": 0,
+              "m21": -0,
+              "m22": 1,
+              "dx": 30,
+              "dy": 25
+            },
+            "cropPolygonLocal": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 140
+              },
+              {
+                "x": 0,
+                "y": 140
+              }
+            ],
+            "coveragePolygon": [
+              {
+                "x": 30,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 165
+              },
+              {
+                "x": 30,
+                "y": 165
+              }
+            ],
+            "placedCoveragePolygon": [
+              {
+                "x": 30,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 165
+              },
+              {
+                "x": 30,
+                "y": 165
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "classic-inset",
+      "pattern": "quadrants",
+      "sources": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "Region",
+          "websiteUrl": "",
+          "canvasX": 30,
+          "canvasY": 25,
+          "canvasWidth": 230,
+          "canvasHeight": 140,
+          "rotation": 0,
+          "opacity": 1,
+          "isMirroredHorizontally": false,
+          "isMirroredVertically": false,
+          "cropLeftPct": 0,
+          "cropTopPct": 0,
+          "cropRightPct": 0,
+          "cropBottomPct": 0,
+          "cropRotation": 0,
+          "zIndex": 0,
+          "outerStyle": "position:absolute;left:30px;top:25px;width:230px;height:140px;opacity:1;z-index:0;transform-origin:center center;transform:rotate(0deg) scale(1,1)",
+          "cropStyle": "position:relative;width:100%;height:100%;overflow:hidden;clip-path:polygon(0% 0%,100% 0%,100% 100%,0% 100%)"
+        }
+      ],
+      "metadata": {
+        "version": 1,
+        "schema": "better.native-rendering",
+        "stateRevision": 7,
+        "canvasWidth": 320,
+        "canvasHeight": 200,
+        "outputWidth": 320,
+        "outputHeight": 200,
+        "effectiveSettings": {
+          "version": 1,
+          "enabled": false,
+          "webEnabled": true,
+          "screenX": 32,
+          "screenY": 20,
+          "screenWidth": 256,
+          "screenHeight": 160,
+          "pictureMode": "Standard",
+          "hue": 0,
+          "brightness": 0,
+          "saturation": 0,
+          "blur": false,
+          "ambilight": true,
+          "ambilightStyle": "Classic",
+          "ambilightCutoff": 15,
+          "ambilightEdgeDepth": 3,
+          "ambilightEdgeMix": 2,
+          "ambilightEdgeReach": 60,
+          "ambilightEdgeFade": 50,
+          "ambilightFullscreen": false,
+          "hideSources": false,
+          "ambilightBlur": 12,
+          "ambilightSpread": 7,
+          "ambilightSaturation": 3,
+          "ambilightIntensity": 100,
+          "interpolation": "smooth",
+          "frameRate": 15
+        },
+        "sources": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "type": "Region",
+            "order": 0,
+            "zIndex": 0,
+            "hasFrame": true,
+            "contributes": true,
+            "canvasX": 30,
+            "canvasY": 25,
+            "canvasWidth": 230,
+            "canvasHeight": 140,
+            "rotation": 0,
+            "opacity": 1,
+            "isMirroredHorizontally": false,
+            "isMirroredVertically": false,
+            "cropLeftPct": 0,
+            "cropTopPct": 0,
+            "cropRightPct": 0,
+            "cropBottomPct": 0,
+            "cropRotation": 0,
+            "canvasFromImage": {
+              "m11": 1,
+              "m12": 0,
+              "m21": -0,
+              "m22": 1,
+              "dx": 30,
+              "dy": 25
+            },
+            "cropPolygonLocal": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 140
+              },
+              {
+                "x": 0,
+                "y": 140
+              }
+            ],
+            "coveragePolygon": [
+              {
+                "x": 30,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 165
+              },
+              {
+                "x": 30,
+                "y": 165
+              }
+            ],
+            "placedCoveragePolygon": [
+              {
+                "x": 56,
+                "y": 40
+              },
+              {
+                "x": 240,
+                "y": 40
+              },
+              {
+                "x": 240,
+                "y": 152
+              },
+              {
+                "x": 56,
+                "y": 152
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "soft-fullscreen",
+      "pattern": "quadrants",
+      "sources": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "Region",
+          "websiteUrl": "",
+          "canvasX": 30,
+          "canvasY": 25,
+          "canvasWidth": 230,
+          "canvasHeight": 140,
+          "rotation": -19,
+          "opacity": 1,
+          "isMirroredHorizontally": false,
+          "isMirroredVertically": false,
+          "cropLeftPct": 0,
+          "cropTopPct": 0,
+          "cropRightPct": 0,
+          "cropBottomPct": 0,
+          "cropRotation": 13,
+          "zIndex": 0,
+          "outerStyle": "position:absolute;left:30px;top:25px;width:230px;height:140px;opacity:1;z-index:0;transform-origin:center center;transform:rotate(-19deg) scale(1,1)",
+          "cropStyle": "position:relative;width:100%;height:100%;overflow:hidden;clip-path:polygon(8.127833% -17.196625%,105.56484% 19.759619%,91.87217% 117.19662%,-5.56484% 80.24038%)"
+        }
+      ],
+      "metadata": {
+        "version": 1,
+        "schema": "better.native-rendering",
+        "stateRevision": 7,
+        "canvasWidth": 320,
+        "canvasHeight": 200,
+        "outputWidth": 320,
+        "outputHeight": 200,
+        "effectiveSettings": {
+          "version": 1,
+          "enabled": false,
+          "webEnabled": true,
+          "screenX": 64,
+          "screenY": 40,
+          "screenWidth": 192,
+          "screenHeight": 120,
+          "pictureMode": "Standard",
+          "hue": 0,
+          "brightness": 0,
+          "saturation": 0,
+          "blur": false,
+          "ambilight": true,
+          "ambilightStyle": "Soft",
+          "ambilightCutoff": 0,
+          "ambilightEdgeDepth": 3,
+          "ambilightEdgeMix": 2,
+          "ambilightEdgeReach": 60,
+          "ambilightEdgeFade": 50,
+          "ambilightFullscreen": true,
+          "hideSources": false,
+          "ambilightBlur": 14,
+          "ambilightSpread": 10,
+          "ambilightSaturation": 3,
+          "ambilightIntensity": 100,
+          "interpolation": "smooth",
+          "frameRate": 15
+        },
+        "sources": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "type": "Region",
+            "order": 0,
+            "zIndex": 0,
+            "hasFrame": true,
+            "contributes": true,
+            "canvasX": 30,
+            "canvasY": 25,
+            "canvasWidth": 230,
+            "canvasHeight": 140,
+            "rotation": -19,
+            "opacity": 1,
+            "isMirroredHorizontally": false,
+            "isMirroredVertically": false,
+            "cropLeftPct": 0,
+            "cropTopPct": 0,
+            "cropRightPct": 0,
+            "cropBottomPct": 0,
+            "cropRotation": 13,
+            "canvasFromImage": {
+              "m11": 0.9455185755993168,
+              "m12": -0.32556815445715664,
+              "m21": 0.32556815445715664,
+              "m22": 0.9455185755993168,
+              "dx": 13.475592994077601,
+              "dy": 66.25403747062084
+            },
+            "cropPolygonLocal": [
+              {
+                "x": 18.694016353768504,
+                "y": -24.075275784510936
+              },
+              {
+                "x": 242.7991312543726,
+                "y": 27.663466714578007
+              },
+              {
+                "x": 211.3059836462315,
+                "y": 164.07527578451095
+              },
+              {
+                "x": -12.799131254372597,
+                "y": 112.336533285422
+              }
+            ],
+            "coveragePolygon": [
+              {
+                "x": 31.99957614808075,
+                "y": 120.05159084436049
+              },
+              {
+                "x": 25.895736828453806,
+                "y": 61.977438987415724
+              },
+              {
+                "x": 129.751205572998,
+                "y": 26.217133307527405
+              },
+              {
+                "x": 238.98918384827024,
+                "y": 14.735759138936324
+              },
+              {
+                "x": 258.00042385191927,
+                "y": 69.94840915563958
+              },
+              {
+                "x": 264.1042631715462,
+                "y": 128.02256101258428
+              },
+              {
+                "x": 160.248794427002,
+                "y": 163.7828666924726
+              },
+              {
+                "x": 51.01081615172975,
+                "y": 175.26424086106368
+              }
+            ],
+            "placedCoveragePolygon": [
+              {
+                "x": 83.19974568884845,
+                "y": 112.0309545066163
+              },
+              {
+                "x": 79.53744209707229,
+                "y": 77.18646339244944
+              },
+              {
+                "x": 141.8507233437988,
+                "y": 55.73027998451644
+              },
+              {
+                "x": 207.39351030896214,
+                "y": 48.8414554833618
+              },
+              {
+                "x": 218.80025431115155,
+                "y": 81.96904549338375
+              },
+              {
+                "x": 222.46255790292773,
+                "y": 116.81353660755057
+              },
+              {
+                "x": 160.1492766562012,
+                "y": 138.26972001548356
+              },
+              {
+                "x": 94.60648969103785,
+                "y": 145.15854451663822
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "contours-crop-hq",
+      "pattern": "quadrants",
+      "sources": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "Region",
+          "websiteUrl": "",
+          "canvasX": 30,
+          "canvasY": 25,
+          "canvasWidth": 230,
+          "canvasHeight": 140,
+          "rotation": 17,
+          "opacity": 0.7,
+          "isMirroredHorizontally": false,
+          "isMirroredVertically": false,
+          "cropLeftPct": 0.3,
+          "cropTopPct": 0,
+          "cropRightPct": 0,
+          "cropBottomPct": 0,
+          "cropRotation": 34,
+          "zIndex": 0,
+          "outerStyle": "position:absolute;left:30px;top:25px;width:230px;height:140px;opacity:0.7;z-index:0;transform-origin:center center;transform:rotate(17deg) scale(1,1)",
+          "cropStyle": "position:relative;width:100%;height:100%;overflow:hidden;clip-path:polygon(53.002594% -23.605469%,111.035225% 40.701714%,76.9974% 123.60547%,18.964771% 59.29829%)"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000002",
+          "type": "Region",
+          "websiteUrl": "",
+          "canvasX": 225,
+          "canvasY": 140,
+          "canvasWidth": 80,
+          "canvasHeight": 50,
+          "rotation": 0,
+          "opacity": 1,
+          "isMirroredHorizontally": false,
+          "isMirroredVertically": true,
+          "cropLeftPct": 0,
+          "cropTopPct": 0,
+          "cropRightPct": 0,
+          "cropBottomPct": 0,
+          "cropRotation": 0,
+          "zIndex": 1,
+          "outerStyle": "position:absolute;left:225px;top:140px;width:80px;height:50px;opacity:1;z-index:1;transform-origin:center center;transform:rotate(0deg) scale(1,-1)",
+          "cropStyle": "position:relative;width:100%;height:100%;overflow:hidden;clip-path:polygon(0% 100%,100% 100%,100% 0%,0% 0%)"
+        }
+      ],
+      "metadata": {
+        "version": 1,
+        "schema": "better.native-rendering",
+        "stateRevision": 7,
+        "canvasWidth": 320,
+        "canvasHeight": 200,
+        "outputWidth": 800,
+        "outputHeight": 600,
+        "effectiveSettings": {
+          "version": 1,
+          "enabled": false,
+          "webEnabled": true,
+          "screenX": 0,
+          "screenY": 0,
+          "screenWidth": 320,
+          "screenHeight": 200,
+          "pictureMode": "Standard",
+          "hue": 0,
+          "brightness": 0,
+          "saturation": 0,
+          "blur": false,
+          "ambilight": true,
+          "ambilightStyle": "Contours",
+          "ambilightCutoff": 5,
+          "ambilightEdgeDepth": 7,
+          "ambilightEdgeMix": 0,
+          "ambilightEdgeReach": 45,
+          "ambilightEdgeFade": 50,
+          "ambilightFullscreen": false,
+          "hideSources": false,
+          "ambilightBlur": 30,
+          "ambilightSpread": 10,
+          "ambilightSaturation": 3,
+          "ambilightIntensity": 100,
+          "interpolation": "smooth",
+          "frameRate": 15
+        },
+        "sources": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "type": "Region",
+            "order": 0,
+            "zIndex": 0,
+            "hasFrame": true,
+            "contributes": true,
+            "canvasX": 30,
+            "canvasY": 25,
+            "canvasWidth": 230,
+            "canvasHeight": 140,
+            "rotation": 17,
+            "opacity": 0.7,
+            "isMirroredHorizontally": false,
+            "isMirroredVertically": false,
+            "cropLeftPct": 0.3,
+            "cropTopPct": 0,
+            "cropRightPct": 0,
+            "cropBottomPct": 0,
+            "cropRotation": 34,
+            "canvasFromImage": {
+              "m11": 0.9563047559630354,
+              "m12": 0.29237170472273677,
+              "m21": -0.29237170472273677,
+              "m22": 0.9563047559630354,
+              "dx": 55.4909723948425,
+              "dy": -5.564078960527212
+            },
+            "cropPolygonLocal": [
+              {
+                "x": 121.90597865227141,
+                "y": -33.047658808248045
+              },
+              {
+                "x": 255.38102783363314,
+                "y": 56.98239865054221
+              },
+              {
+                "x": 177.09402134772859,
+                "y": 173.04765880824806
+              },
+              {
+                "x": 43.61897216636685,
+                "y": 83.01760134945779
+              }
+            ],
+            "coveragePolygon": [
+              {
+                "x": 150.75331974187333,
+                "y": 23.560543411232132
+              },
+              {
+                "x": 218.92455274190786,
+                "y": 44.402580932209816
+              },
+              {
+                "x": 263.7863467907389,
+                "y": 99.80228284017235
+              },
+              {
+                "x": 247.779393393558,
+                "y": 152.15866827329506
+              },
+              {
+                "x": 205.23170841957614,
+                "y": 186.6131042146367
+              },
+              {
+                "x": 137.06047541954155,
+                "y": 165.771066693659
+              },
+              {
+                "x": 72.93200529922484,
+                "y": 86.57900128913687
+              }
+            ],
+            "placedCoveragePolygon": [
+              {
+                "x": 150.75331974187333,
+                "y": 23.560543411232132
+              },
+              {
+                "x": 218.9245527419079,
+                "y": 44.402580932209816
+              },
+              {
+                "x": 263.7863467907389,
+                "y": 99.80228284017235
+              },
+              {
+                "x": 247.779393393558,
+                "y": 152.15866827329506
+              },
+              {
+                "x": 205.23170841957614,
+                "y": 186.6131042146367
+              },
+              {
+                "x": 137.06047541954155,
+                "y": 165.771066693659
+              },
+              {
+                "x": 72.93200529922484,
+                "y": 86.57900128913687
+              }
+            ]
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "type": "Region",
+            "order": 1,
+            "zIndex": 1,
+            "hasFrame": true,
+            "contributes": true,
+            "canvasX": 225,
+            "canvasY": 140,
+            "canvasWidth": 80,
+            "canvasHeight": 50,
+            "rotation": 0,
+            "opacity": 1,
+            "isMirroredHorizontally": false,
+            "isMirroredVertically": true,
+            "cropLeftPct": 0,
+            "cropTopPct": 0,
+            "cropRightPct": 0,
+            "cropBottomPct": 0,
+            "cropRotation": 0,
+            "canvasFromImage": {
+              "m11": 1,
+              "m12": 0,
+              "m21": 0,
+              "m22": -1,
+              "dx": 225,
+              "dy": 190
+            },
+            "cropPolygonLocal": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 80,
+                "y": 0
+              },
+              {
+                "x": 80,
+                "y": 50
+              },
+              {
+                "x": 0,
+                "y": 50
+              }
+            ],
+            "coveragePolygon": [
+              {
+                "x": 225,
+                "y": 140
+              },
+              {
+                "x": 305,
+                "y": 140
+              },
+              {
+                "x": 305,
+                "y": 190
+              },
+              {
+                "x": 225,
+                "y": 190
+              }
+            ],
+            "placedCoveragePolygon": [
+              {
+                "x": 225,
+                "y": 140
+              },
+              {
+                "x": 305,
+                "y": 140
+              },
+              {
+                "x": 305,
+                "y": 190
+              },
+              {
+                "x": 225,
+                "y": 190
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "contours-fullscreen-hide",
+      "pattern": "quadrants",
+      "sources": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "Region",
+          "websiteUrl": "",
+          "canvasX": 30,
+          "canvasY": 25,
+          "canvasWidth": 230,
+          "canvasHeight": 140,
+          "rotation": -15,
+          "opacity": 1,
+          "isMirroredHorizontally": false,
+          "isMirroredVertically": false,
+          "cropLeftPct": 0.12,
+          "cropTopPct": 0,
+          "cropRightPct": 0,
+          "cropBottomPct": 0,
+          "cropRotation": 0,
+          "zIndex": 0,
+          "outerStyle": "position:absolute;left:30px;top:25px;width:230px;height:140px;opacity:1;z-index:0;transform-origin:center center;transform:rotate(-15deg) scale(1,1)",
+          "cropStyle": "position:relative;width:100%;height:100%;overflow:hidden;clip-path:polygon(12% 0%,100% 0%,100% 100%,12% 100%)"
+        }
+      ],
+      "metadata": {
+        "version": 1,
+        "schema": "better.native-rendering",
+        "stateRevision": 7,
+        "canvasWidth": 320,
+        "canvasHeight": 200,
+        "outputWidth": 320,
+        "outputHeight": 200,
+        "effectiveSettings": {
+          "version": 1,
+          "enabled": false,
+          "webEnabled": true,
+          "screenX": 32,
+          "screenY": 20,
+          "screenWidth": 256,
+          "screenHeight": 160,
+          "pictureMode": "Standard",
+          "hue": 40,
+          "brightness": 0,
+          "saturation": 0,
+          "blur": true,
+          "ambilight": true,
+          "ambilightStyle": "Contours",
+          "ambilightCutoff": 0,
+          "ambilightEdgeDepth": 3,
+          "ambilightEdgeMix": 2,
+          "ambilightEdgeReach": 60,
+          "ambilightEdgeFade": 50,
+          "ambilightFullscreen": true,
+          "hideSources": true,
+          "ambilightBlur": 30,
+          "ambilightSpread": 10,
+          "ambilightSaturation": 3,
+          "ambilightIntensity": 100,
+          "interpolation": "smooth",
+          "frameRate": 15
+        },
+        "sources": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "type": "Region",
+            "order": 0,
+            "zIndex": 0,
+            "hasFrame": true,
+            "contributes": true,
+            "canvasX": 30,
+            "canvasY": 25,
+            "canvasWidth": 230,
+            "canvasHeight": 140,
+            "rotation": -15,
+            "opacity": 1,
+            "isMirroredHorizontally": false,
+            "isMirroredVertically": false,
+            "cropLeftPct": 0.12,
+            "cropTopPct": 0,
+            "cropRightPct": 0,
+            "cropBottomPct": 0,
+            "cropRotation": 0,
+            "canvasFromImage": {
+              "m11": 0.9659258262890683,
+              "m12": -0.25881904510252074,
+              "m21": 0.25881904510252074,
+              "m22": 0.9659258262890683,
+              "dx": 15.801196819580689,
+              "dy": 57.149382346555115
+            },
+            "cropPolygonLocal": [
+              {
+                "x": 27.599999999999994,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 140
+              },
+              {
+                "x": 27.599999999999994,
+                "y": 140
+              }
+            ],
+            "coveragePolygon": [
+              {
+                "x": 42.460749625158975,
+                "y": 50.005976701725544
+              },
+              {
+                "x": 229.0855953581042,
+                "y": 0
+              },
+              {
+                "x": 238.6015874662029,
+                "y": 0
+              },
+              {
+                "x": 274.1988031804193,
+                "y": 132.85061765344489
+              },
+              {
+                "x": 78.69541593951189,
+                "y": 185.23559238219508
+              }
+            ],
+            "placedCoveragePolygon": [
+              {
+                "x": 65.96859970012719,
+                "y": 60.00478136138044
+              },
+              {
+                "x": 215.26847628648335,
+                "y": 20
+              },
+              {
+                "x": 222.88126997296231,
+                "y": 20
+              },
+              {
+                "x": 251.35904254433544,
+                "y": 126.28049412275591
+              },
+              {
+                "x": 94.95633275160951,
+                "y": 168.18847390575607
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing-frame",
+      "pattern": "quadrants",
+      "sources": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "Region",
+          "websiteUrl": "",
+          "canvasX": 30,
+          "canvasY": 25,
+          "canvasWidth": 230,
+          "canvasHeight": 140,
+          "rotation": 0,
+          "opacity": 1,
+          "isMirroredHorizontally": false,
+          "isMirroredVertically": false,
+          "cropLeftPct": 0,
+          "cropTopPct": 0,
+          "cropRightPct": 0,
+          "cropBottomPct": 0,
+          "cropRotation": 0,
+          "zIndex": 0,
+          "outerStyle": "position:absolute;left:30px;top:25px;width:230px;height:140px;opacity:1;z-index:0;transform-origin:center center;transform:rotate(0deg) scale(1,1)",
+          "cropStyle": "position:relative;width:100%;height:100%;overflow:hidden;clip-path:polygon(0% 0%,100% 0%,100% 100%,0% 100%)"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000002",
+          "type": "Region",
+          "websiteUrl": "",
+          "canvasX": 200,
+          "canvasY": 20,
+          "canvasWidth": 100,
+          "canvasHeight": 60,
+          "rotation": 0,
+          "opacity": 1,
+          "isMirroredHorizontally": false,
+          "isMirroredVertically": false,
+          "cropLeftPct": 0,
+          "cropTopPct": 0,
+          "cropRightPct": 0,
+          "cropBottomPct": 0,
+          "cropRotation": 0,
+          "zIndex": 1,
+          "outerStyle": "position:absolute;left:200px;top:20px;width:100px;height:60px;opacity:1;z-index:1;transform-origin:center center;transform:rotate(0deg) scale(1,1)",
+          "cropStyle": "position:relative;width:100%;height:100%;overflow:hidden;clip-path:polygon(0% 0%,100% 0%,100% 100%,0% 100%)"
+        }
+      ],
+      "metadata": {
+        "version": 1,
+        "schema": "better.native-rendering",
+        "stateRevision": 7,
+        "canvasWidth": 320,
+        "canvasHeight": 200,
+        "outputWidth": 320,
+        "outputHeight": 200,
+        "effectiveSettings": {
+          "version": 1,
+          "enabled": false,
+          "webEnabled": true,
+          "screenX": 0,
+          "screenY": 0,
+          "screenWidth": 320,
+          "screenHeight": 200,
+          "pictureMode": "Standard",
+          "hue": 0,
+          "brightness": 0,
+          "saturation": 0,
+          "blur": false,
+          "ambilight": true,
+          "ambilightStyle": "Contours",
+          "ambilightCutoff": 0,
+          "ambilightEdgeDepth": 3,
+          "ambilightEdgeMix": 2,
+          "ambilightEdgeReach": 60,
+          "ambilightEdgeFade": 50,
+          "ambilightFullscreen": false,
+          "hideSources": false,
+          "ambilightBlur": 30,
+          "ambilightSpread": 10,
+          "ambilightSaturation": 3,
+          "ambilightIntensity": 100,
+          "interpolation": "smooth",
+          "frameRate": 15
+        },
+        "sources": [
+          {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "type": "Region",
+            "order": 0,
+            "zIndex": 0,
+            "hasFrame": true,
+            "contributes": true,
+            "canvasX": 30,
+            "canvasY": 25,
+            "canvasWidth": 230,
+            "canvasHeight": 140,
+            "rotation": 0,
+            "opacity": 1,
+            "isMirroredHorizontally": false,
+            "isMirroredVertically": false,
+            "cropLeftPct": 0,
+            "cropTopPct": 0,
+            "cropRightPct": 0,
+            "cropBottomPct": 0,
+            "cropRotation": 0,
+            "canvasFromImage": {
+              "m11": 1,
+              "m12": 0,
+              "m21": -0,
+              "m22": 1,
+              "dx": 30,
+              "dy": 25
+            },
+            "cropPolygonLocal": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 0
+              },
+              {
+                "x": 230,
+                "y": 140
+              },
+              {
+                "x": 0,
+                "y": 140
+              }
+            ],
+            "coveragePolygon": [
+              {
+                "x": 30,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 165
+              },
+              {
+                "x": 30,
+                "y": 165
+              }
+            ],
+            "placedCoveragePolygon": [
+              {
+                "x": 30,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 25
+              },
+              {
+                "x": 260,
+                "y": 165
+              },
+              {
+                "x": 30,
+                "y": 165
+              }
+            ]
+          },
+          {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "type": "Region",
+            "order": 1,
+            "zIndex": 1,
+            "hasFrame": false,
+            "contributes": false,
+            "canvasX": 200,
+            "canvasY": 20,
+            "canvasWidth": 100,
+            "canvasHeight": 60,
+            "rotation": 0,
+            "opacity": 1,
+            "isMirroredHorizontally": false,
+            "isMirroredVertically": false,
+            "cropLeftPct": 0,
+            "cropTopPct": 0,
+            "cropRightPct": 0,
+            "cropBottomPct": 0,
+            "cropRotation": 0,
+            "canvasFromImage": {
+              "m11": 1,
+              "m12": 0,
+              "m21": -0,
+              "m22": 1,
+              "dx": 200,
+              "dy": 20
+            },
+            "cropPolygonLocal": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 60
+              },
+              {
+                "x": 0,
+                "y": 60
+              }
+            ],
+            "coveragePolygon": [
+              {
+                "x": 200,
+                "y": 20
+              },
+              {
+                "x": 300,
+                "y": 20
+              },
+              {
+                "x": 300,
+                "y": 80
+              },
+              {
+                "x": 200,
+                "y": 80
+              }
+            ],
+            "placedCoveragePolygon": [
+              {
+                "x": 200,
+                "y": 20
+              },
+              {
+                "x": 300,
+                "y": 20
+              },
+              {
+                "x": 300,
+                "y": 80
+              },
+              {
+                "x": 200,
+                "y": 80
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

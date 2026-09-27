@@ -31,16 +31,20 @@ public partial class MainViewModel
         }
     }
 
-    private async Task RestoreState(SourceItem[] state)
+    private async Task<bool> RestoreState(SourceItem[] state, bool temporary = false, Guid? activeSceneId = null)
     {
         using var edit = BeginSourceEdit();
-        if (edit == null) return;
+        if (edit == null) return false;
+        if (!temporary) MarkNativeManualChange();
+        _nativeSceneLoading = true;
+        PublishNativeState();
         IsRecordingLoading = true;
         _isUndoRedoOperation = true;
         try
         {
-            var restart = IsRecording && !IsPaused;
-            await StopAllCapturesAsync();
+            var restart = _captureRequested && IsRecording && !IsPaused;
+            var stopRevision = _nativeStopRevision;
+            await StopAllCapturesAsync(sceneTransition: true);
             Sources.Clear();
             SelectedSources.Clear();
             foreach (var source in state)
@@ -49,10 +53,12 @@ public partial class MainViewModel
                 source.IsLivePreviewEnabled = IsPreviewing;
                 Sources.Add(source);
             }
+            _activeNativeSceneId = activeSceneId.HasValue && _sceneLibrary.Profiles.Any(scene => scene.Id == activeSceneId) ? activeSceneId : null;
+            _nativeStateRevision++;
             // A restored layout remains valid even if a stream port becomes unavailable.
             // Persist it independently from capture so the next launch restores this state.
             await SaveSourcesAsync();
-            if (restart)
+            if (restart && stopRevision == _nativeStopRevision && !_shuttingDown)
             {
                 try { await StartAllCapturesAsync(); }
                 catch
@@ -62,11 +68,14 @@ public partial class MainViewModel
                     throw;
                 }
             }
+            return true;
         }
         finally
         {
             _isUndoRedoOperation = false;
             IsRecordingLoading = false;
+            _nativeSceneLoading = false;
+            PublishNativeState();
         }
     }
 

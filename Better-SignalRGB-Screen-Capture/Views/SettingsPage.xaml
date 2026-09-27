@@ -65,6 +65,10 @@
                     </controls:SettingsCard>
                 </controls:SettingsExpander.Items>
             </controls:SettingsExpander>
+            <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" Text="OpenRGB" />
+            <controls:SettingsCard HorizontalContentAlignment="Stretch" ContentAlignment="Vertical">
+                <views:NativeOutputControl />
+            </controls:SettingsCard>
             <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" Text="Output appearance" />
             <controls:SettingsCard Header="Live output editor" Description="Preview colors and halo, then move or resize the whole picture for SignalRGB and the webpage.">
                 <Button Content="Open output editor" Click="OpenOutputEditor_Click" />

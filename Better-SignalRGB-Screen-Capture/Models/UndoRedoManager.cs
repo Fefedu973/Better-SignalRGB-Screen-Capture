@@ -12,6 +12,17 @@ public sealed class UndoRedoManager
     public bool CanRedo => _redoStack.Count > 0;
     public event EventHandler? CanUndoRedoChanged;
 
+    internal sealed record Checkpoint(SourceItem[][] Undo, SourceItem[][] Redo);
+    internal Checkpoint CaptureCheckpoint() => new(CloneHistory(_undoStack), CloneHistory(_redoStack));
+    internal void RestoreCheckpoint(Checkpoint checkpoint)
+    {
+        _undoStack.Clear(); _undoStack.AddRange(CloneHistory(checkpoint.Undo));
+        _redoStack.Clear(); _redoStack.AddRange(CloneHistory(checkpoint.Redo));
+        CanUndoRedoChanged?.Invoke(this, EventArgs.Empty);
+    }
+    private static SourceItem[][] CloneHistory(IEnumerable<SourceItem[]> history) =>
+        history.Select(state => state.Select(source => source.Clone(preserveId: true)).ToArray()).ToArray();
+
     public void SaveState(ObservableCollection<SourceItem> sources)
     {
         Push(_undoStack, sources);

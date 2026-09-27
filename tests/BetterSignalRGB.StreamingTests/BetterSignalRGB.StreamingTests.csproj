@@ -23,6 +23,7 @@
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/IMjpegStreamingService.cs" Link="IMjpegStreamingService.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/IKestrelApiService.cs" Link="IKestrelApiService.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/CompositeFrameService.cs" Link="CompositeFrameService.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/NativeOutput/RawCompositeFrame.cs" Link="RawCompositeFrame.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/MjpegStreamingService.cs" Link="MjpegStreamingService.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/KestrelApiService.cs" Link="KestrelApiService.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/StreamingFrameState.cs" Link="StreamingFrameState.cs" />

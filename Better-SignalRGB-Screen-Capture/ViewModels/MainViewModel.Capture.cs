@@ -135,8 +135,9 @@ public partial class MainViewModel
         finally { _captureLifecycle.Release(); }
     }
 
-    public async Task StopAllCapturesAsync()
+    public async Task StopAllCapturesAsync(bool sceneTransition = false)
     {
+        if (!sceneTransition) _nativeStopRevision++;
         _captureRequested = false;
         await _captureLifecycle.WaitAsync();
         try

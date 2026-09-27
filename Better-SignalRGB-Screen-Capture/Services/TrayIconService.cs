@@ -162,6 +162,7 @@ public class TrayIconService : IDisposable
         _isExiting = true;
         try
         {
+            await App.GetService<NativeOutput.NativeIntegrationService>().StopAsync();
             await _mainVm.ShutdownAsync();
             await App.GetService<ISignalRgbEffectSettingsService>().FlushAsync();
             if (Application.Current is App app)

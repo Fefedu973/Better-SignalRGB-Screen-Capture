@@ -158,6 +158,7 @@ public partial class MainViewModel : ObservableRecipient
         };
 
         // ensure additional setting load
+        InitializeNativeControl();
         Initialization = InitializeAsync();
         InitializeScenes();
     }
@@ -191,6 +192,7 @@ public partial class MainViewModel : ObservableRecipient
 
     private void Sources_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
     {
+        NativeSourceCollectionChanged();
         _compositeFrameService.InvalidateLayout();
         // Reset has no OldItems; reconcile subscriptions explicitly (including Clear/undo).
         foreach (var removed in _observedSources.Where(source => !Sources.Contains(source)).ToArray())
@@ -206,6 +208,7 @@ public partial class MainViewModel : ObservableRecipient
 
     private void Source_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (sender is SourceItem nativeSource) NativeSourceChanged(nativeSource, e.PropertyName);
         if (_isUndoRedoOperation) return;
         if (e.PropertyName is nameof(SourceItem.CanvasX) or nameof(SourceItem.CanvasY)
             or nameof(SourceItem.CanvasWidth) or nameof(SourceItem.CanvasHeight) or nameof(SourceItem.Rotation)

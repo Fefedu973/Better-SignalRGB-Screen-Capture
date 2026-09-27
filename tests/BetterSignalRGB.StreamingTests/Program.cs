@@ -19,6 +19,8 @@ internal static partial class Program
 
     private static async Task Main(string[] args)
     {
+        if (args is ["--benchmark-native-composite", var benchmarkPath])
+        { await BenchmarkNativeCompositeAsync(benchmarkPath); return; }
         if (args is ["--export-effect-fixtures", var fixturePath])
         {
             await EffectRenderFixtures.ExportAsync(fixturePath);
@@ -30,6 +32,7 @@ internal static partial class Program
             Console.WriteLine($"PASS: {_assertions} production web HTTP/HTTPS integration assertions.");
             return;
         }
+        await CheckNativeCompositeAsync();
         var capture = new CaptureProducer();
         await CheckFailedFrameCacheAsync();
         using var compositor = new CompositeFrameService(capture);

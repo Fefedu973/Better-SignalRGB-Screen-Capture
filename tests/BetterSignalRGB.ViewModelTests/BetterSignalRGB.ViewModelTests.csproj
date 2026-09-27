@@ -6,6 +6,12 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/INativeSceneController.cs" Link="INativeSceneController.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/ISignalRgbEffectSettingsService.cs" Link="ISignalRgbEffectSettingsService.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Models/SignalRgbEffectSettings.cs" Link="SignalRgbEffectSettings.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Models/NativeControlState.cs" Link="NativeControlState.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/NativeOutput/NativeControlService.cs" Link="NativeControlService.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/NativeOutput/NativeSceneController.cs" Link="NativeSceneController.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Models/SceneProfile.cs" Link="SceneProfile.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/ISceneLibraryService.cs" Link="ISceneLibraryService.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/SceneLibraryService.cs" Link="SceneLibraryService.cs" />

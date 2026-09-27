@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Buffers;
+using System.Runtime.InteropServices;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -6,6 +8,7 @@ using System.Drawing.Imaging;
 using System.Threading.Channels;
 using Better_SignalRGB_Screen_Capture.Contracts.Services;
 using Better_SignalRGB_Screen_Capture.Models;
+using Better_SignalRGB_Screen_Capture.Services.NativeOutput;
 
 namespace Better_SignalRGB_Screen_Capture.Services;
 
@@ -22,6 +25,19 @@ public sealed class CompositeFrameService : ICompositeFrameService, IDisposable
     private readonly Task _worker;
     private byte[]? _latestCompositeFrame;
     private Bitmap? _surface;
+    private Bitmap? _coverageSurface;
+    private long _layoutVersion;
+    private bool _jpegRequested;
+    private EventHandler<RawCompositeFrame>? _rawAvailable;
+    internal Func<CancellationToken, Task<CompositeRenderSnapshot>>? NativeSnapshotFactory { get; set; }
+    internal long JpegEncodes { get; private set; }
+    internal double LastCompositionMilliseconds { get; private set; }
+    internal double LastEncodingMilliseconds { get; private set; }
+    internal event EventHandler<RawCompositeFrame> RawFrameAvailable
+    {
+        add { lock (_renderLock) _rawAvailable += value; _changes.Writer.TryWrite(true); }
+        remove { lock (_renderLock) _rawAvailable -= value; }
+    }
     private int _canvasWidth = StreamingCanvasSnapshot.Width;
     private int _canvasHeight = StreamingCanvasSnapshot.Height;
     private bool _disposed;
@@ -54,13 +70,14 @@ public sealed class CompositeFrameService : ICompositeFrameService, IDisposable
         if (_disposed || frameData.Length == 0) return;
         _sourceFrames[source.Id] = frameData;
         // The application streams individual JPEGs. Do not decode/composite them without a composite consumer.
-        if (_frameAvailable != null) _changes.Writer.TryWrite(true);
+        if (_frameAvailable != null || _rawAvailable != null) _changes.Writer.TryWrite(true);
     }
 
     public void RemoveSource(SourceItem source)
     {
         lock (_renderLock)
         {
+            _layoutVersion++;
             _sourceFrames.TryRemove(source.Id, out _);
             if (_decoded.Remove(source.Id, out var decoded)) decoded.Image.Dispose();
             Volatile.Write(ref _latestCompositeFrame, null);
@@ -75,20 +92,23 @@ public sealed class CompositeFrameService : ICompositeFrameService, IDisposable
         {
             if (_canvasWidth == width && _canvasHeight == height) return;
             _canvasWidth = width; _canvasHeight = height;
+            _layoutVersion++;
             Volatile.Write(ref _latestCompositeFrame, null);
         }
-        if (_frameAvailable != null) _changes.Writer.TryWrite(true);
+        if (_frameAvailable != null || _rawAvailable != null) _changes.Writer.TryWrite(true);
     }
 
     public byte[]? GetLatestCompositeFrame()
     {
+        lock (_renderLock) _jpegRequested = true;
         _changes.Writer.TryWrite(true);
         return Volatile.Read(ref _latestCompositeFrame);
     }
 
     public void InvalidateLayout()
     {
-        if (_frameAvailable != null) _changes.Writer.TryWrite(true);
+        lock (_renderLock) _layoutVersion++;
+        if (_frameAvailable != null || _rawAvailable != null) _changes.Writer.TryWrite(true);
     }
 
     private async Task RenderLoopAsync()
@@ -102,12 +122,35 @@ public sealed class CompositeFrameService : ICompositeFrameService, IDisposable
                 while (_changes.Reader.TryRead(out _)) { }
                 try
                 {
-                    var layout = await StreamingCanvasSnapshot.CaptureAsync(token);
-                    byte[] frame;
+                    long version;
+                    Func<CancellationToken, Task<CompositeRenderSnapshot>>? factory;
                     lock (_renderLock)
                     {
                         if (_disposed) return;
-                        frame = Render(layout);
+                        if (_rawAvailable == null && _frameAvailable == null && !_jpegRequested) continue;
+                        version = _layoutVersion;
+                        factory = _rawAvailable != null ? NativeSnapshotFactory : null;
+                    }
+                    var snapshot = factory != null ? await factory(token).ConfigureAwait(false)
+                        : new CompositeRenderSnapshot(await StreamingCanvasSnapshot.CaptureAsync(token));
+                    lock (_renderLock)
+                    {
+                        if (_disposed) return;
+                        // UI changes during snapshot dispatch must not attach old geometry to a new scene.
+                        if (version != _layoutVersion) { _changes.Writer.TryWrite(true); continue; }
+                        var started = Stopwatch.GetTimestamp();
+                        var active = Render(snapshot.Sources);
+                        LastCompositionMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                        if (_rawAvailable != null)
+                        {
+                            using var raw = CopyRawFrame(snapshot, active);
+                            _rawAvailable.Invoke(this, raw);
+                        }
+                        if (_frameAvailable == null && !_jpegRequested) continue;
+                        _jpegRequested = false;
+                        started = Stopwatch.GetTimestamp();
+                        var frame = EncodeJpeg();
+                        LastEncodingMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
                         // Publish under the same lock as invalidation: a frame rendered just
                         // before a failure must never be republished after its cache is cleared.
                         Volatile.Write(ref _latestCompositeFrame, frame);
@@ -121,12 +164,12 @@ public sealed class CompositeFrameService : ICompositeFrameService, IDisposable
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
     }
 
-    private byte[] Render(StreamingSourceSnapshot[] sources)
+    private HashSet<Guid> Render(StreamingSourceSnapshot[] sources)
     {
         if (_surface == null || _surface.Width != _canvasWidth || _surface.Height != _canvasHeight)
         {
             _surface?.Dispose();
-            _surface = new Bitmap(_canvasWidth, _canvasHeight, PixelFormat.Format24bppRgb);
+            _surface = new Bitmap(_canvasWidth, _canvasHeight, PixelFormat.Format32bppArgb);
         }
         var ids = sources.Select(source => source.Id).ToHashSet();
         foreach (var id in _decoded.Keys.Where(id => !ids.Contains(id)).ToArray())
@@ -144,6 +187,7 @@ public sealed class CompositeFrameService : ICompositeFrameService, IDisposable
         // scene, including rotated masks, rather than rounding each source twice.
         graphics.ScaleTransform((float)_canvasWidth / StreamingCanvasSnapshot.Width,
             (float)_canvasHeight / StreamingCanvasSnapshot.Height);
+        var active = new HashSet<Guid>();
         foreach (var source in sources)
         {
             if (source.CanvasWidth <= 0 || source.CanvasHeight <= 0 || source.Opacity <= 0 ||
@@ -178,16 +222,79 @@ public sealed class CompositeFrameService : ICompositeFrameService, IDisposable
                     attributes.SetColorMatrix(new ColorMatrix { Matrix33 = (float)Math.Clamp(source.Opacity, 0, 1) });
                     graphics.DrawImage(decoded.Image, new Rectangle(0, 0, source.CanvasWidth, source.CanvasHeight),
                         0, 0, decoded.Image.Width, decoded.Image.Height, GraphicsUnit.Pixel, attributes);
+                    active.Add(source.Id);
                 }
                 finally { graphics.Restore(saved); }
             }
             catch (ArgumentException exception) { Debug.WriteLine($"Invalid source JPEG: {exception.Message}"); }
         }
+        return active;
+    }
+
+    private byte[] EncodeJpeg()
+    {
+        var highQuality = _canvasWidth > StreamingCanvasSnapshot.Width || _canvasHeight > StreamingCanvasSnapshot.Height;
         using var output = new MemoryStream();
         using var parameters = new EncoderParameters(1);
         parameters.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, highQuality ? 92L : 70L);
-        _surface.Save(output, JpegEncoder.Value, parameters);
+        _surface!.Save(output, JpegEncoder.Value, parameters);
+        JpegEncodes++;
         return output.ToArray();
+    }
+
+    private RawCompositeFrame CopyRawFrame(CompositeRenderSnapshot snapshot, HashSet<Guid> active)
+    {
+        // A separate opaque grayscale plane carries opacity coverage; alpha in ORGBFRM1 stays 255.
+        // Source JPEGs are opaque. Coverage therefore depends only on geometry and opacity, not RGB.
+        if (_coverageSurface == null || _coverageSurface.Width != _canvasWidth || _coverageSurface.Height != _canvasHeight)
+        {
+            _coverageSurface?.Dispose();
+            _coverageSurface = new Bitmap(_canvasWidth, _canvasHeight, PixelFormat.Format32bppArgb);
+        }
+        using (var graphics = Graphics.FromImage(_coverageSurface))
+        {
+            graphics.Clear(Color.Black);
+            graphics.ScaleTransform((float)_canvasWidth / StreamingCanvasSnapshot.Width, (float)_canvasHeight / StreamingCanvasSnapshot.Height);
+            foreach (var source in snapshot.Sources)
+            {
+                if (!active.Contains(source.Id)) continue;
+                var saved = graphics.Save();
+                try
+                {
+                    graphics.TranslateTransform(source.CanvasX + source.CanvasWidth / 2f, source.CanvasY + source.CanvasHeight / 2f);
+                    graphics.RotateTransform(source.Rotation);
+                    graphics.ScaleTransform(source.IsMirroredHorizontally ? -1 : 1, source.IsMirroredVertically ? -1 : 1);
+                    graphics.TranslateTransform(-source.CanvasWidth / 2f, -source.CanvasHeight / 2f);
+                    graphics.SetClip(new Rectangle(0, 0, source.CanvasWidth, source.CanvasHeight), CombineMode.Intersect);
+                    using var crop = new GraphicsPath(); crop.AddPolygon(source.GetCropPolygon());
+                    graphics.SetClip(crop, CombineMode.Intersect);
+                    using var brush = new SolidBrush(Color.FromArgb((int)Math.Round(Math.Clamp(source.Opacity, 0, 1) * 255), Color.White));
+                    graphics.FillRectangle(brush, 0, 0, source.CanvasWidth, source.CanvasHeight);
+                }
+                finally { graphics.Restore(saved); }
+            }
+        }
+        var length = checked(_canvasWidth * _canvasHeight * 4);
+        var pixels = ArrayPool<byte>.Shared.Rent(length);
+        var coverage = ArrayPool<byte>.Shared.Rent(length);
+        try
+        {
+            CopyBitmap(_surface!, pixels); CopyBitmap(_coverageSurface, coverage);
+            return new(pixels, coverage, _canvasWidth, _canvasHeight, snapshot, active,
+                Stopwatch.GetTimestamp(), LastCompositionMilliseconds);
+        }
+        catch { ArrayPool<byte>.Shared.Return(pixels, true); ArrayPool<byte>.Shared.Return(coverage, true); throw; }
+    }
+
+    private static void CopyBitmap(Bitmap bitmap, byte[] destination)
+    {
+        var data = bitmap.LockBits(new Rectangle(0, 0, bitmap.Width, bitmap.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            for (var y = 0; y < bitmap.Height; y++)
+                Marshal.Copy(data.Scan0 + y * data.Stride, destination, y * bitmap.Width * 4, bitmap.Width * 4);
+        }
+        finally { bitmap.UnlockBits(data); }
     }
 
     public void Dispose()
@@ -202,6 +309,8 @@ public sealed class CompositeFrameService : ICompositeFrameService, IDisposable
         {
             _surface?.Dispose();
             _surface = null;
+            _coverageSurface?.Dispose(); _coverageSurface = null;
+            _rawAvailable = null; _frameAvailable = null;
             foreach (var decoded in _decoded.Values) decoded.Image.Dispose();
             _decoded.Clear();
             _sourceFrames.Clear();
