@@ -134,9 +134,10 @@ The application bridges the gap between your screen content and RGB lighting by 
 
 ### Prerequisites
 
-- **Windows 10/11** (Version 1809 or later)
-- **Windows App SDK** 1.8 or later
-- **.NET 10.0** Runtime
+- **Windows 11** is the tested platform; Windows 10 has not been covered by the current hardware validation
+- The portable release bundles **.NET** and the **Windows App SDK**; extract the entire archive before launching
+- **Microsoft Edge WebView2 Runtime** for website and local media sources
+- **Microsoft Visual C++ v14 Redistributable** matching the application architecture ([official downloads](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)); native screen capture uses this runtime
 - **SignalRGB** (for lighting effects integration)
 
 ### Installation
@@ -144,9 +145,11 @@ The application bridges the gap between your screen content and RGB lighting by 
 #### Option 1: Download Release (Recommended)
 
 1. Go to the [Releases](https://github.com/Fefedu973/Better-SignalRGB-Screen-Capture/releases) page
-2. Download the latest release package for your platform (x64, x86, or ARM64)
+2. Download the release archive matching your platform (x64, x86, or ARM64); consult its release notes for validation coverage
 3. Extract the package to your desired location
 4. Run `Better-SignalRGB-Screen-Capture.exe`
+
+When upgrading, quit the previous instance from its tray menu, then extract the new version into its own folder. Settings remain in your local application-data folder. Update the bundled effect through **Settings → SignalRGB setup** to use the matching app/effect protocol. The release includes `SHA256SUMS.txt` to verify downloads.
 
 #### Option 2: Build from Source
 
@@ -454,4 +457,4 @@ Project Link: [https://github.com/Fefedu973/Better-SignalRGB-Screen-Capture](htt
 [ASP.NET-Core]: https://img.shields.io/badge/ASP.NET_Core-512BD4?style=for-the-badge&logo=dotnet&logoColor=white
 [ASP.NET-Core-url]: https://docs.microsoft.com/en-us/aspnet/core/
 
-OpenRGB integration feasibility and image/LED transport limits are documented in [the integration assessment](docs/openrgb-integration-assessment.md). No OpenRGB output is implemented yet.
+OpenRGB integration feasibility and image/LED transport limits are documented in [the integration assessment](docs/openrgb-integration-assessment.md). The clean web output is available for browser effects; no direct OpenRGB SDK output is implemented.

@@ -1,0 +1,55 @@
+name: Package portable release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [x64, x86, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish self-contained application
+        shell: pwsh
+        run: |
+          $architecture = '${{ matrix.architecture }}'
+          $publish = Join-Path $env:RUNNER_TEMP "portable-$architecture"
+          dotnet publish Better-SignalRGB-Screen-Capture/Better-SignalRGB-Screen-Capture.csproj `
+            -c Release -p:Platform=$architecture -r "win-$architecture" --self-contained true `
+            -p:WindowsPackageType=None -p:WindowsAppSDKSelfContained=true `
+            -p:PublishSingleFile=false -p:PublishTrimmed=false -p:PublishDir="$publish/"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          [xml]$project = Get-Content Better-SignalRGB-Screen-Capture/Better-SignalRGB-Screen-Capture.csproj
+          $version = @($project.Project.PropertyGroup.Version | Where-Object { $_ })[0]
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid application release version' }
+          $required = @('Better-SignalRGB-Screen-Capture.exe', 'Better-SignalRGB-Screen-Capture.dll',
+            'Better-SignalRGB-Screen-Capture-Effect.html', 'appsettings.json', 'localhost.pfx',
+            'coreclr.dll', 'hostfxr.dll', 'Microsoft.UI.Xaml.dll', 'ScreenRecorderLib.dll')
+          foreach ($name in $required) {
+            if (!(Test-Path -LiteralPath (Join-Path $publish $name))) { throw "Missing portable dependency: $name" }
+          }
+          $expected = (Get-FileHash Better-SignalRGB-Screen-Capture-Effect.html).Hash
+          if ((Get-FileHash (Join-Path $publish 'Better-SignalRGB-Screen-Capture-Effect.html')).Hash -ne $expected) {
+            throw 'Bundled SignalRGB effect does not match this revision'
+          }
+          Copy-Item docs/releases/$version.md -Destination (Join-Path $publish 'RELEASE-NOTES.md')
+          @{ version = $version; revision = $env:GITHUB_SHA; architecture = $architecture } |
+            ConvertTo-Json | Set-Content (Join-Path $publish 'release.json')
+          $archive = Join-Path $env:RUNNER_TEMP "Better-SignalRGB-Screen-Capture-$version-win-$architecture.zip"
+          Compress-Archive -Path "$publish/*" -DestinationPath $archive -CompressionLevel Optimal
+          "RELEASE_ARCHIVE=$archive" >> $env:GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-win-${{ matrix.architecture }}
+          path: ${{ env.RELEASE_ARCHIVE }}
+          if-no-files-found: error
+          retention-days: 7
