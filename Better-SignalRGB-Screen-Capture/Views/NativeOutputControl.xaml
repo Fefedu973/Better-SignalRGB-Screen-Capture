@@ -2,7 +2,37 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <StackPanel Spacing="8">
-        <ToggleSwitch x:Name="NativeToggle" Header="Native OpenRGB output" Toggled="NativeToggle_Toggled" />
+        <Grid ColumnSpacing="16" RowSpacing="8">
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroup>
+                    <VisualState x:Name="WideHeader">
+                        <VisualState.StateTriggers><AdaptiveTrigger MinWindowWidth="800" /></VisualState.StateTriggers>
+                    </VisualState>
+                    <VisualState x:Name="NarrowHeader">
+                        <VisualState.StateTriggers><AdaptiveTrigger MinWindowWidth="0" /></VisualState.StateTriggers>
+                        <VisualState.Setters>
+                            <Setter Target="NativeLabel.(Grid.ColumnSpan)" Value="2" />
+                            <Setter Target="NativeToggle.(Grid.Row)" Value="1" />
+                            <Setter Target="NativeToggle.(Grid.Column)" Value="0" />
+                            <Setter Target="NativeToggle.HorizontalAlignment" Value="Left" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="NativeLabel" Text="Native OpenRGB output"
+                       VerticalAlignment="Center" TextWrapping="Wrap" />
+            <ToggleSwitch x:Name="NativeToggle" Grid.Column="1" HorizontalAlignment="Right"
+                          AutomationProperties.LabeledBy="{x:Bind NativeLabel}"
+                          Toggled="NativeToggle_Toggled" />
+        </Grid>
         <TextBlock Text="Share the raw canvas directly with compatible OpenRGB effects. OpenRGB controls its own colors and halo. Website sources continue to work normally."
                    TextWrapping="Wrap" />
         <TextBlock x:Name="NativeStatus" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />

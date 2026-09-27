@@ -69,24 +69,29 @@ public sealed partial class DiagnosticsPanel : UserControl
         public StackPanel Panel { get; } = new() { Spacing = 3 };
         private readonly TextBlock _name = new() { TextWrapping = TextWrapping.Wrap };
         private readonly TextBlock _mode = new() { FontSize = 12, TextWrapping = TextWrapping.Wrap };
+        private readonly TextBlock _color = new() { FontSize = 12, TextWrapping = TextWrapping.Wrap };
         private readonly TextBlock _rates = new() { TextWrapping = TextWrapping.Wrap };
         private readonly TextBlock _counters = new() { FontSize = 12, TextWrapping = TextWrapping.Wrap };
         private readonly TextBlock _error = new() { FontSize = 12, TextWrapping = TextWrapping.Wrap };
         public SourceRow()
         {
-            foreach (var text in new[] { _name, _mode, _rates, _counters, _error }) Panel.Children.Add(text);
+            foreach (var text in new[] { _name, _mode, _color, _rates, _counters, _error }) Panel.Children.Add(text);
         }
         public void Update(SourceDiagnosticsSnapshot source)
         {
             var mode = source.Encoder switch
             {
-                CaptureEncoderKind.Website => "WebView JPEG",
+                CaptureEncoderKind.Website => "WebView screenshot",
                 CaptureEncoderKind.Wallpaper => "Wallpaper Engine desktop surface",
+                CaptureEncoderKind.WindowsGraphicsCapture => "Windows Graphics Capture",
                 CaptureEncoderKind.Software => "Software H.264 carrier",
                 _ => "Hardware H.264 requested"
             };
             Set(_name, source.Name);
             Set(_mode, $"{source.State} · {mode} · JPEG {source.Width} × {source.Height}");
+            var color = source.ColorInfo;
+            Set(_color, $"{color.Backend} · {color.Description}" +
+                (color.SdrWhiteNits is { } white ? $" · SDR white {white:F0} nits" : string.Empty));
             Set(_rates, $"Capture {source.CaptureFramesPerSecond:F1}/{source.RequestedFrameRate} fps · sent {source.SentFramesPerSecond:F1}/s · mean processing {source.MeanProcessingMilliseconds:F1} ms");
             Set(_counters, $"Received {source.ReceivedFrames:N0} · produced {source.ProducedFrames:N0} · dropped {source.DroppedFrames:N0} · skipped {source.SkippedCaptures:N0} · errors {source.Errors:N0}");
             Set(_error, source.LastError is null ? string.Empty : $"Last capture error: {source.LastError}");

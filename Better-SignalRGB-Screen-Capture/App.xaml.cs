@@ -95,6 +95,7 @@ public partial class App : Application
 
             // Capture and streaming services
             services.AddSingleton<IWebsiteCaptureHostFactory, WebsiteCaptureHostFactory>();
+            services.AddSingleton<IGraphicsCaptureFactory, GraphicsCaptureFactory>();
             services.AddSingleton<ISignalRgbEffectSettingsService, SignalRgbEffectSettingsService>();
             services.AddSingleton<ISceneLibraryStorage, SceneLibraryStorage>();
             services.AddSingleton<ISceneLibraryService, SceneLibraryService>();

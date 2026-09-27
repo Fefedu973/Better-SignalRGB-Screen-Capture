@@ -16,6 +16,7 @@
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/WallpaperCaptureProcess.cs" Link="WallpaperCaptureProcess.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Services/PipelineDiagnosticsService.cs" Link="PipelineDiagnosticsService.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/ICaptureService.cs" Link="ICaptureService.cs" />
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/IGraphicsCaptureFactory.cs" Link="IGraphicsCaptureFactory.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/IWebsiteFrameSource.cs" Link="IWebsiteFrameSource.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/IWebsiteCaptureHostFactory.cs" Link="IWebsiteCaptureHostFactory.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Contracts/Services/IPipelineDiagnosticsService.cs" Link="IPipelineDiagnosticsService.cs" />

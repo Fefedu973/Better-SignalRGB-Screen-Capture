@@ -1,3 +1,4 @@
+using Better_SignalRGB_Screen_Capture.Contracts.Services;
 using Better_SignalRGB_Screen_Capture.Helpers;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media.Imaging;
@@ -19,7 +20,8 @@ public sealed partial class AddSourceDialog
         RegionMonitorsText.Text = "Loading selected region preview…";
         try
         {
-            var bytes = await RegionPreviewCapture.CaptureAsync(new(region.X, region.Y, region.Width, region.Height), cancellation.Token);
+            var bytes = await RegionPreviewCapture.CaptureAsync(new(region.X, region.Y, region.Width, region.Height),
+                cancellation.Token, App.GetService<IGraphicsCaptureFactory>());
             if (_isClosed || cancellation.IsCancellationRequested) return;
             var image = new BitmapImage();
             using var stream = new MemoryStream(bytes).AsRandomAccessStream();

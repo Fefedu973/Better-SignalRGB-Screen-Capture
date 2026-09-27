@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/DisplayColorInfo.cs" Link="DisplayColorInfo.cs" />
     <None Include="../../Better-SignalRGB-Screen-Capture/Views/*.xaml" Link="Xaml/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/WebsitePreviewState.cs" Link="WebsitePreviewState.cs" />
     <Compile Include="../../Better-SignalRGB-Screen-Capture/Helpers/CanvasSnapGeometry.cs" Link="CanvasSnapGeometry.cs" />

@@ -50,6 +50,7 @@ public sealed class PipelineDiagnosticsService(TimeProvider? timeProvider = null
         public string Name = string.Empty;
         public long Generation;
         public CaptureEncoderKind Encoder;
+        public CaptureColorInfo ColorInfo = CaptureColorInfo.Unknown;
         public CaptureDiagnosticState State;
         public int RequestedRate, Width, Height;
         public long Received, Produced, Dropped, Skipped, Errors, Bytes, Sent;
@@ -78,6 +79,13 @@ public sealed class PipelineDiagnosticsService(TimeProvider? timeProvider = null
         public void Dropped() { lock (counters.Sync) if (Current && counters.State == CaptureDiagnosticState.Capturing) counters.Dropped++; }
         public void Skipped() { lock (counters.Sync) if (Current && counters.State == CaptureDiagnosticState.Capturing) counters.Skipped++; }
         public void SetFrameRate(int frameRate) { lock (counters.Sync) if (Current) counters.RequestedRate = frameRate; }
+        public void SetColorInfo(CaptureColorInfo info)
+        {
+            ArgumentNullException.ThrowIfNull(info);
+            var normalized = info.Normalize();
+            lock (counters.Sync)
+                if (Current && counters.State == CaptureDiagnosticState.Capturing) counters.ColorInfo = normalized;
+        }
         public void Error(string error, bool terminal)
         {
             lock (counters.Sync)
@@ -109,6 +117,13 @@ public sealed class PipelineDiagnosticsService(TimeProvider? timeProvider = null
         lock (counters.Sync)
         {
             counters.Name = name; counters.Encoder = encoder; counters.RequestedRate = requestedFrameRate;
+            counters.ColorInfo = encoder switch
+            {
+                CaptureEncoderKind.Website => new(CaptureColorMode.Sdr, "WebView2 screenshot"),
+                CaptureEncoderKind.Wallpaper => new(CaptureColorMode.HdrUnsupported, "GDI PrintWindow BGRA8"),
+                CaptureEncoderKind.WindowsGraphicsCapture => new(CaptureColorMode.Unknown, "WGC FP16"),
+                _ => new(CaptureColorMode.Unknown, "ScreenRecorderLib BGRA8")
+            };
             counters.Width = width; counters.Height = height; counters.State = CaptureDiagnosticState.Capturing;
             counters.CaptureRate.Clear();
             return new Session(this, counters, ++counters.Generation);
@@ -155,7 +170,8 @@ public sealed class PipelineDiagnosticsService(TimeProvider? timeProvider = null
                 counters.State == CaptureDiagnosticState.Capturing ? counters.CaptureRate.Rate(now) : 0,
                 transport.Running ? counters.SendRate.Rate(now) : 0,
                 counters.Produced == 0 ? 0 : counters.ProcessingMilliseconds / counters.Produced,
-                counters.Sent == 0 ? 0 : counters.SendMilliseconds / counters.Sent, counters.LastFrame, counters.LastError));
+                counters.Sent == 0 ? 0 : counters.SendMilliseconds / counters.Sent, counters.LastFrame, counters.LastError)
+                { ColorInfo = counters.ColorInfo });
         return new(snapshots.OrderBy(source => source.Name, StringComparer.CurrentCultureIgnoreCase).ToArray(), transport);
     }
 }

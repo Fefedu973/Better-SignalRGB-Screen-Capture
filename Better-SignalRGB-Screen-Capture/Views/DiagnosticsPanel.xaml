@@ -15,5 +15,7 @@
         </ScrollViewer>
         <TextBlock Text="Dropped = waiting frames replaced by newer frames. Skipped = busy or empty website captures. Hardware is the requested native recorder mode; JPEG conversion runs on the CPU."
                    FontSize="11" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        <TextBlock Text="HDR → SDR means the capture backend converted HDR before JPEG encoding. GDI Wallpaper Engine capture cannot preserve HDR highlights; changing halo brightness cannot recover clipped detail."
+                   FontSize="11" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
     </StackPanel>
 </UserControl>

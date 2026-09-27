@@ -60,6 +60,52 @@ internal static class PipelineDiagnosticsTests
             "Restarting the sender does not show stale throughput from the previous session");
         service.RemoveSource(id); active.Produced(100, 1); active.Error("Removed source");
         check(service.GetSnapshot().Sources.Count == 0, "Removed source diagnostics cannot be resurrected by stale session callbacks");
+        CheckColorDiagnostics(check);
+    }
+
+    private static void CheckColorDiagnostics(Action<bool, string> check)
+    {
+        var service = new PipelineDiagnosticsService();
+        var id = Guid.NewGuid();
+        var first = service.BeginCapture(id, "Display", CaptureEncoderKind.WindowsGraphicsCapture, 15, 320, 200);
+        check(service.GetSnapshot().Sources.Single().ColorInfo.Mode == CaptureColorMode.Unknown,
+            "A float-capable backend does not claim successful HDR conversion before the producer reports it");
+        first.SetColorInfo(new(CaptureColorMode.HdrToneMapped, "WGC FP16", 240));
+        var hdr = service.GetSnapshot().Sources.Single();
+        check(hdr.ColorInfo is { Mode: CaptureColorMode.HdrToneMapped, Backend: "WGC FP16", SdrWhiteNits: 240 } &&
+              hdr.ColorInfo.Description.Contains("HDR → SDR", StringComparison.Ordinal),
+            "HDR diagnostics identify the actual conversion and source display SDR reference white");
+        first.SetColorInfo(new(CaptureColorMode.Sdr, "WGC FP16"));
+        check(service.GetSnapshot().Sources.Single().ColorInfo.Mode == CaptureColorMode.Sdr &&
+              hdr.ColorInfo.Mode == CaptureColorMode.HdrToneMapped,
+            "An HDR-to-SDR display transition updates diagnostics without mutating an earlier snapshot");
+        first.Stop();
+        first.SetColorInfo(new(CaptureColorMode.HdrToneMapped, "Late callback", 400));
+        check(service.GetSnapshot().Sources.Single().ColorInfo is { Mode: CaptureColorMode.Sdr, Backend: "WGC FP16" },
+            "Stopped sources keep their last verified color state and reject late backend reports");
+        var second = service.BeginCapture(id, "Wallpaper", CaptureEncoderKind.Wallpaper, 15, 320, 200);
+        first.SetColorInfo(new(CaptureColorMode.HdrToneMapped, "Old session"));
+        var wallpaper = service.GetSnapshot().Sources.Single().ColorInfo;
+        check(wallpaper is { Mode: CaptureColorMode.HdrUnsupported, Backend: "GDI PrintWindow BGRA8", SdrWhiteNits: null } &&
+              wallpaper.Description == "HDR tone mapping unavailable",
+            "Wallpaper GDI reports its HDR limitation without inheriting a previous WGC session's tone-mapping claim");
+        second.SetColorInfo(new((CaptureColorMode)999, new string('x', 256), double.NaN));
+        var invalid = service.GetSnapshot().Sources.Single().ColorInfo;
+        check(invalid.Mode == CaptureColorMode.Unknown && invalid.Backend.Length == 128 && invalid.SdrWhiteNits is null,
+            "Invalid color metadata cannot create a false mode, unbounded label or NaN luminance");
+        second.SetColorInfo(new(CaptureColorMode.Sdr, "\r\n ", -1));
+        check(service.GetSnapshot().Sources.Single().ColorInfo is { Backend: "Unreported backend", SdrWhiteNits: null },
+            "Empty backend labels and nonpositive reference white are normalized before display");
+        second.Error("Capture failed", terminal: true);
+        second.SetColorInfo(new(CaptureColorMode.HdrToneMapped, "Failed session"));
+        check(service.GetSnapshot().Sources.Single().ColorInfo.Mode == CaptureColorMode.Sdr,
+            "A terminal error cannot be masked by late color-conversion metadata");
+        service.RemoveSource(id);
+        second.SetColorInfo(new(CaptureColorMode.HdrToneMapped, "Removed session"));
+        check(service.GetSnapshot().Sources.Count == 0, "Removed source color diagnostics cannot be resurrected");
+        service.BeginCapture(id, "Website", CaptureEncoderKind.Website, 15, 320, 200);
+        check(service.GetSnapshot().Sources.Single().ColorInfo is { Mode: CaptureColorMode.Sdr, Backend: "WebView2 screenshot" },
+            "Browser screenshots are reported as SDR output rather than app-owned HDR tone mapping");
     }
 
     private sealed class TestClock : TimeProvider

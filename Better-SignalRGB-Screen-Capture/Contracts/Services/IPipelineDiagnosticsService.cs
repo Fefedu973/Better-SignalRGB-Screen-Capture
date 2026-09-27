@@ -21,6 +21,8 @@ public interface ICaptureDiagnosticsSession
     void Dropped();
     void Skipped();
     void SetFrameRate(int frameRate);
+    /// <summary>Update when the capture backend or its verified color conversion changes.</summary>
+    void SetColorInfo(CaptureColorInfo info);
     void Error(string error, bool terminal = false);
     void Stop();
 }

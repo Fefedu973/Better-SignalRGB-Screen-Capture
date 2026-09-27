@@ -23,7 +23,7 @@
         </Style>
     </Page.Resources>
     <ScrollViewer>
-        <StackPanel x:Name="ContentArea" Spacing="{StaticResource SettingsCardSpacing}">
+        <StackPanel x:Name="ContentArea" Padding="0,0,0,32" Spacing="{StaticResource SettingsCardSpacing}">
             <StackPanel.ChildrenTransitions>
                 <EntranceThemeTransition FromVerticalOffset="50" />
                 <RepositionThemeTransition IsStaggeringEnabled="False" />
@@ -125,11 +125,7 @@
                         </HyperlinkButton>
                     </controls:SettingsCard>
                     <controls:SettingsCard ContentAlignment="Left">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <HyperlinkButton Content="Report an issue" NavigateUri="https://github.com/Fefedu973/Better-SignalRGB-Screen-Capture/issues/new/choose" />
-                            <HyperlinkButton Content="Microsoft Store Page" NavigateUri="ms-windows-store://pdp/?productid=9P2VZ42BF2M2" />
-                            <HyperlinkButton Content="Rate and Review on Microsoft Store" NavigateUri="ms-windows-store://review/?productid=9P2VZ42BF2M2" />
-                        </StackPanel>
+                        <HyperlinkButton Content="Report an issue" NavigateUri="https://github.com/Fefedu973/Better-SignalRGB-Screen-Capture/issues/new/choose" />
                     </controls:SettingsCard>
                     <controls:SettingsCard Header="Author">
                         <HyperlinkButton NavigateUri="https://github.com/Fefedu973">

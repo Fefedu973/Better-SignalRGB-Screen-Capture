@@ -7,6 +7,7 @@ internal static class Program
         try
         {
             XamlContractTests.Run();
+            DisplayColorInfoTests.Run();
             SourceStateTests.Run();
             LayerOrderingTests.Run();
             CanvasGeometryTests.Run();

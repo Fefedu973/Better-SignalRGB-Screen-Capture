@@ -19,6 +19,7 @@ public sealed class CaptureService : ICaptureService
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly IWebsiteCaptureHostFactory _websiteHosts;
     private readonly IPipelineDiagnosticsService _diagnostics;
+    private readonly IGraphicsCaptureFactory? _graphicsCaptures;
     private static readonly Lazy<byte[]> BlackFrame = new(CaptureFrameEncoder.CreateBlackFrame);
     private int _frameRate = 15;
     private bool _highQuality;
@@ -27,8 +28,9 @@ public sealed class CaptureService : ICaptureService
     public event EventHandler<SourceFrameEventArgs>? FrameAvailable;
     public event EventHandler<CaptureFailedEventArgs>? CaptureFailed;
 
-    public CaptureService(IWebsiteCaptureHostFactory websiteHosts, IPipelineDiagnosticsService diagnostics)
-    { _websiteHosts = websiteHosts; _diagnostics = diagnostics; }
+    public CaptureService(IWebsiteCaptureHostFactory websiteHosts, IPipelineDiagnosticsService diagnostics,
+        IGraphicsCaptureFactory? graphicsCaptures = null)
+    { _websiteHosts = websiteHosts; _diagnostics = diagnostics; _graphicsCaptures = graphicsCaptures; }
 
     private sealed class CaptureSession(SourceItem source, int frameRate, ICaptureDiagnosticsSession diagnostics)
     {
@@ -54,6 +56,8 @@ public sealed class CaptureService : ICaptureService
         public IWebsiteFrameSource? WebsiteHost;
         public CancellationTokenSource? WallpaperCancellation;
         public Task WallpaperWork = Task.CompletedTask;
+        public CancellationTokenSource? GraphicsCancellation;
+        public Task GraphicsWork = Task.CompletedTask;
     }
 
     private sealed class CapturedFrame(byte[] pixels, int width, int height) : IDisposable
@@ -83,10 +87,11 @@ public sealed class CaptureService : ICaptureService
         var signalFrameSize = CaptureGeometry.GetOutputSize(source.CanvasWidth, source.CanvasHeight);
         var encoderSize = CaptureGeometry.GetCarrierSize(frameSize.Width, frameSize.Height);
         var hardware = !_softwareEncoderSizes.ContainsKey(encoderSize);
+        var graphics = source.Type is SourceType.Monitor or SourceType.Process or SourceType.Region;
         var rate = Volatile.Read(ref _frameRate);
         var session = new CaptureSession(source, rate, _diagnostics.BeginCapture(source.Id, source.DisplayName,
             source.Type == SourceType.Website ? CaptureEncoderKind.Website : source.Type == SourceType.WallpaperEngine ? CaptureEncoderKind.Wallpaper :
-                hardware ? CaptureEncoderKind.Hardware : CaptureEncoderKind.Software,
+                graphics ? CaptureEncoderKind.WindowsGraphicsCapture : hardware ? CaptureEncoderKind.Hardware : CaptureEncoderKind.Software,
             rate, frameSize.Width, frameSize.Height));
         session.FrameSize = frameSize;
         session.SignalFrameSize = signalFrameSize;
@@ -94,6 +99,15 @@ public sealed class CaptureService : ICaptureService
         _sessions[source.Id] = session;
         try
         {
+            if (graphics)
+            {
+                var capture = (_graphicsCaptures ?? throw new InvalidOperationException("The graphics capture backend is unavailable."))
+                    .Create(source, frameSize.Width, frameSize.Height, rate);
+                session.GraphicsCancellation = new CancellationTokenSource();
+                session.Worker = Task.Run(() => ProcessFramesAsync(session));
+                session.GraphicsWork = Task.Run(() => CaptureGraphicsAsync(session, capture));
+                return;
+            }
             if (source.Type == SourceType.WallpaperEngine)
             {
                 session.WallpaperCancellation = new CancellationTokenSource();
@@ -138,6 +152,26 @@ public sealed class CaptureService : ICaptureService
             session.Diagnostics.Error(ex.Message, terminal: true);
             await StopSessionAsync(session);
             throw;
+        }
+    }
+
+    private async Task CaptureGraphicsAsync(CaptureSession session, IGraphicsFrameCapture capture)
+    {
+        try
+        {
+            await capture.RunAsync((pixels, width, height) =>
+            {
+                var frame = new CapturedFrame(pixels, width, height);
+                if (session.Stopped) { frame.Dispose(); return; }
+                session.Diagnostics.Received();
+                if (session.Frames.Publish(frame)) session.Diagnostics.Dropped();
+            }, session.Diagnostics.SetColorInfo, session.GraphicsCancellation!.Token).ConfigureAwait(false);
+            if (!session.Stopped) OnRecordingEnded(session, "Graphics capture ended unexpectedly.");
+        }
+        catch (OperationCanceledException) when (session.Stopped) { }
+        catch (Exception error)
+        {
+            if (!session.Stopped) OnRecordingEnded(session, $"Screen/window capture failed: {error.Message}");
         }
     }
 
@@ -217,6 +251,13 @@ public sealed class CaptureService : ICaptureService
         }
         session.Frames.Dispose();
         session.Diagnostics.Stop();
+        if (session.GraphicsCancellation is not null)
+        {
+            session.GraphicsCancellation.Cancel();
+            await session.GraphicsWork;
+            session.GraphicsCancellation.Dispose();
+            session.GraphicsCancellation = null;
+        }
         if (session.WallpaperCancellation is not null)
         {
             session.WallpaperCancellation.Cancel();

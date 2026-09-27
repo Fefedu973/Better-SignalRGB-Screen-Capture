@@ -93,6 +93,7 @@ The application bridges the gap between your screen content and RGB lighting by 
 ### Key Features
 
 - **Multi-Source Capture**: Simultaneously capture from displays, windows, custom regions, webcams, websites, and Wallpaper Engine
+- **HDR Screen Capture**: Floating-point display, window and region capture with HDR-to-SDR conversion before JPEG encoding
 - **Wallpaper Engine**: Capture the actual rendered wallpaper on a selected monitor, including behind other applications; web, scene and video use the same capture path
 - **SignalRGB Integration**: Direct integration with SignalRGB Canvas API for real-time ambilight effects
 - **MJPEG Streaming**: Built-in web server for streaming captured content over HTTP
@@ -120,8 +121,8 @@ The application bridges the gap between your screen content and RGB lighting by 
 **Major Dependencies:**
 
 - **WinUI 3** - Modern Windows UI framework
-- **ScreenRecorderLib** - High-performance screen recording
-- **Win2D** - 2D graphics API for Windows
+- **ScreenRecorderLib** - Webcam capture and capture-device discovery
+- **Win2D** - Floating-point screen capture, scaling and GPU readback
 - **CommunityToolkit.Mvvm** - MVVM helpers and patterns
 - **H.NotifyIcon.WinUI** - System tray integration
 - **WinUIEx** - Extended WinUI controls and utilities
@@ -201,6 +202,20 @@ Website capture uses an independent browser so opening Settings or hiding the ed
    - Adjust size, rotation, and opacity using the controls
    - Set up cropping for precise content selection
 
+### HDR and Capture Color
+
+Display, window and region sources use Windows Graphics Capture in **linear scRGB FP16**, retaining highlight values above SDR white before conversion to 8-bit sRGB. HDR input is normalized using the display's Windows SDR white level, then compressed with a fixed highlight shoulder and gamut mapping before JPEG encoding. Regions crossing multiple monitors are converted per monitor before assembly; window capture follows its display's color state. Capture never changes Windows HDR settings.
+
+The region selection dialog uses this same capture and color-conversion backend for its bounded preview. Cancelling or changing the selection releases the previous capture instead of keeping a separate recorder alive.
+
+Sources on a known SDR display bypass HDR exposure and highlight compression; the linear capture is encoded to sRGB once. SDR content inside an HDR desktop still passes through that desktop's HDR conversion: the curve reserves highlight headroom, so normalized reference white becomes approximately 240/255. This is a deliberate SDR representation, not a promise to match an HDR panel's peak brightness or proprietary tone mapping. The detailed conversion contract and synthetic checks are in [HDR conversion tests](tests/BetterSignalRGB.HdrTests/README.md).
+
+**Wallpaper Engine currently uses an isolated GDI `PrintWindow` backend.** That path returns 8-bit pixels and cannot preserve HDR highlights for later recovery. The HDR screen-capture improvement therefore does not establish HDR support for Wallpaper Engine. Website screenshots and webcams also retain their existing capture/color paths; they are not passed through a second HDR conversion. Lowering halo brightness cannot restore detail already clipped during capture.
+
+Diagnostics show the active backend and distinguish **SDR output**, **HDR → SDR tone-mapped**, unknown color conversion and unavailable HDR tone mapping. Picture modes, saturation and halo intensity remain artistic controls applied after capture, and can independently push colors to their output limits.
+
+If Windows cannot identify the active HDR mode, capture does not assume HDR or darken SDR; diagnostics report unknown conversion. If HDR is confirmed but its SDR white level is unavailable, highlight compression uses neutral exposure (80-nit reference) and still reports unknown calibration. An earlier monitor's white level is never reused after a display change. These fallback states do not promise calibrated color.
+
 ### Canvas Editing
 
 Select and move a source by its visible content; cropped-away areas do not intercept clicks. Resize handles follow the visible frame, and rotation keeps its visible center fixed. Hold Shift while resizing to retain the aspect ratio. A rotated crop uses uniform scaling when independent-axis resizing would require skewing the image.
@@ -219,7 +234,7 @@ Website sources use the configured browser viewport, zoom and user agent in both
 
 Open **Scenes** in the canvas toolbar to save the current source layout under a name, load another scene, replace a saved scene, rename it or delete it. JSON import/export carries source identities, geometry, crops, appearance and locks. Loading a scene is undoable and preserves the current recording/pause state. Global capture rates and SignalRGB effect preferences are not part of a scene. Device identities may need editing when importing on another computer.
 
-Open **Diagnostics** to inspect each source's requested and actual frame rates, JPEG dimensions, processing time, replaced or skipped frames and last error. Transport counters distinguish source-image updates from actual effect redraws. Hardware mode describes the internal H.264 recorder; JPEG processing still runs on the CPU.
+Open **Diagnostics** to inspect each source's requested and actual frame rates, JPEG dimensions, processing time, replaced or skipped frames, color conversion and last error. Transport counters distinguish source-image updates from actual effect redraws. Where shown, hardware mode describes the internal H.264 recorder; the FP16 screen-capture backend does not use that carrier. JPEG processing still runs on the CPU.
 
 ### SignalRGB Integration
 
@@ -373,10 +388,13 @@ From the repository root:
 dotnet run --project tests/BetterSignalRGB.RegressionTests -c Release
 dotnet run --project tests/BetterSignalRGB.ViewModelTests -c Release
 dotnet run --project tests/BetterSignalRGB.StreamingTests -c Release
+dotnet run --project tests/BetterSignalRGB.HdrTests -c Release
 node tests/StreamingEffectTests.cjs
 ```
 
 The streaming integration checks use generated images and exercise the production compositor and local HTTP/HTTPS servers. They create and remove a temporary HTTPS certificate in the test output directory, without installing it in the trust store or sending frames to SignalRGB.
+
+The HDR conversion checks generate floating-point pixels in memory and exercise the production mapper, SDR roundtrips, white-level normalization, highlight ordering and buffer bounds. They do not capture a display or change HDR settings, and do not replace hardware capture validation.
 
 The browser pixel checks use the pinned development dependencies in `tests` (Node 20 or later):
 
@@ -390,11 +408,19 @@ Pop-Location
 
 They compare the actual HTML effect against generated production compositor images and an independent transform oracle. See [effect rendering validation](docs/signalrgb-effect-validation.md) for details and host-level verification boundaries.
 
-Native resolution tests are available separately and briefly capture the connected displays in memory:
+The current FP16 backend has a separate Windows x64 GPU harness. It requires the .NET 10 SDK and an interactive Windows graphics session; its Win2D and Windows App SDK versions match the application and its runtimes are self-contained. The default run uses synthetic GPU textures and does not capture a display:
 
 ```powershell
-dotnet run --project tests/BetterSignalRGB.NativeSmokeTests -c Release -- --capture-display
+dotnet run --project tests/BetterSignalRGB.GraphicsTests -c Release -p:Platform=x64
 ```
+
+The explicit local capture checks below use the **production FP16 backend**. `--monitor` requires an active HDR display; `--region` requires a horizontally adjacent HDR/SDR pair. They briefly capture pixels in memory, print aggregate results and save no images. Windows may display its capture indicator. See [GPU capture checks](tests/BetterSignalRGB.GraphicsTests/README.md) for the exact scope and hardware requirements.
+
+```powershell
+dotnet run --project tests/BetterSignalRGB.GraphicsTests -c Release -p:Platform=x64 -- --monitor --region
+```
+
+The older `NativeSmokeTests --capture-display`, `--capture-window` and `--capture-region` modes exercise ScreenRecorderLib's previous screen path. They remain useful as legacy diagnostics, but do **not** validate current FP16 screen capture or HDR correctness. `NativeSmokeTests --capture-webcam` still exercises the current webcam backend. Without capture flags, NativeSmokeTests runs synthetic capture-service and lifecycle checks without accessing the desktop.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -436,7 +462,7 @@ Project Link: [https://github.com/Fefedu973/Better-SignalRGB-Screen-Capture](htt
 ## Acknowledgments
 
 - [SignalRGB](https://signalrgb.com/) - For the amazing RGB lighting platform
-- [ScreenRecorderLib](https://github.com/sskodje/ScreenRecorderLib) - High-performance screen recording
+- [ScreenRecorderLib](https://github.com/sskodje/ScreenRecorderLib) - Webcam capture and capture-device discovery
 - [WinUI 3](https://docs.microsoft.com/en-us/windows/apps/winui/winui3/) - Modern Windows UI framework
 - [Win2D](https://github.com/Microsoft/Win2D) - 2D graphics for Windows
 - [CommunityToolkit](https://github.com/CommunityToolkit) - Essential MVVM and UI utilities

@@ -14,6 +14,7 @@ ValidatePixelEncoding();
 DeviceIdentityTests.Run();
 await WebsiteCaptureServiceTests.RunAsync();
 await HighQualityCaptureTests.RunAsync();
+await GraphicsCaptureServiceTests.RunAsync();
 await WallpaperCaptureTests.RunAsync();
 if (args.Length == 2 && args[0] == "--capture-wallpaper-exe")
 {
@@ -59,20 +60,9 @@ try
     var smallRegion = new Rectangle(first.X + 10, first.Y + 10, 3, 5);
     List<RecordingSourceBase> RegionSources(Rectangle region) => CaptureSourceFactory.Create(new SourceItem
     { Type = SourceType.Region, RegionBounds = new Windows.Graphics.RectInt32(region.X, region.Y, region.Width, region.Height) });
-    var preview = await RegionPreviewCapture.CaptureAsync(new Rectangle(first.X + 10, first.Y + 10, 319, 199), CancellationToken.None);
-    using (var stream = new MemoryStream(preview))
-    using (var image = Image.FromStream(stream))
-        // Screenshot previews are indicative; SRL rounds their native dimensions down
-        // to even values. Production streamed JPEGs retain exact logical dimensions.
-        if (image.Width is < 318 or > 319 || image.Height is < 198 or > 199)
-            throw new InvalidOperationException($"Region preview PNG dimensions exceed native rounding tolerance: {image.Width}x{image.Height}.");
-    Console.WriteLine("PASS: bounded region preview, native screenshot completion and in-memory PNG decoding.");
-    using (var cancellation = new CancellationTokenSource())
-    {
-        cancellation.Cancel();
-        try { await RegionPreviewCapture.CaptureAsync(smallRegion, cancellation.Token); throw new InvalidOperationException("Cancelled preview should not capture."); }
-        catch (OperationCanceledException) { }
-    }
+    // The production region preview now uses IGraphicsCaptureFactory (WGC FP16),
+    // covered by the synthetic service tests and the separate Win2D graphics harness.
+    // This opt-in legacy SRL matrix only diagnoses the recorder compatibility path.
     await CaptureWithFallbackAsync(() => RegionSources(smallRegion), 3, 5, true);
     var clippedRegion = new Rectangle(first.X - 10, first.Y + 10, 40, 30);
     await CaptureWithFallbackAsync(() => RegionSources(clippedRegion), 40, 30, true);
